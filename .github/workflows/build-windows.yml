@@ -1,0 +1,30 @@
+# Builds the Windows installer on GitHub's own Windows machines.
+# Every push to the redesign branch (or a manual run from the Actions tab)
+# produces a downloadable "Fedo-windows" file under that run's Artifacts.
+name: Build Windows installer
+
+on:
+  push:
+    branches: [redesign]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Fedo-windows
+          path: |
+            release/*.exe
+            release/*.zip
+          retention-days: 14
