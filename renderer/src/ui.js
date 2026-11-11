@@ -1,25 +1,46 @@
 // small UI helpers: icons, menus, modals, toasts
-const s = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+// Icons: Iconly "Light" outlines (24px grid, 1.5 stroke); a few simple glyphs are drawn by hand.
+const s = (d, cls) => `<svg${cls ? ` class="${cls}"` : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const p = (d, cls) => s(`<path d="${d}"/>`, cls);
+const SIDEBAR = 'M5.51 3C4.12 3 3 4.12 3 5.5V18.5C3 19.88 4.12 21 5.51 21H6.49C7.88 21 9 19.88 9 18.5V5.5C9 4.12 7.88 3 6.49 3H5.51ZM21 12L17.51 15.5M21 12L17.51 8.5M21 12H13';
+const LOCK_BODY = 'M15.68 21.25H8.04C5.95 21.25 4.25 19.55 4.25 17.46V13.17C4.25 11.07 5.95 9.38 8.04 9.38H15.68C17.78 9.38 19.48 11.07 19.48 13.17V17.46C19.48 19.55 17.78 21.25 15.68 21.25ZM11.86 14.2V16.42';
 export const ICON = {
-  menu: s('<path d="M4 6h16M4 12h16M4 18h16"/>'),
-  plus: s('<path d="M12 5v14M5 12h14"/>'),
-  x: s('<path d="M6 6l12 12M18 6L6 18"/>'),
-  sidebar: s('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/>'),
-  history: s('<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/>'),
-  code: s('<path d="M9 8l-4 4 4 4M15 8l4 4-4 4"/>'),
+  menu: p('M3 6.5C3 3.87 3.03 3 6.5 3C9.97 3 10 3.87 10 6.5C10 9.13 10.01 10 6.5 10C2.99 10 3 9.13 3 6.5ZM14 6.5C14 3.87 14.03 3 17.5 3C20.97 3 21 3.87 21 6.5C21 9.13 21.01 10 17.5 10C13.99 10 14 9.13 14 6.5ZM3 17.5C3 14.87 3.03 14 6.5 14C9.97 14 10 14.87 10 17.5C10 20.13 10.01 21 6.5 21C2.99 21 3 20.13 3 17.5ZM14 17.5C14 14.87 14.03 14 17.5 14C20.97 14 21 14.87 21 17.5C21 20.13 21.01 21 17.5 21C13.99 21 14 20.13 14 17.5Z'),
+  plus: p('M12 6v12M6 12h12'),
+  minus: p('M6 12h12'),
+  plusSquare: p('M12 8.33v7.32M15.67 11.99H8.33M16.69 2H7.31C4.05 2 2 4.31 2 7.59V16.41C2 19.69 4.04 22 7.31 22H16.69C19.96 22 22 19.69 22 16.41V7.59C22 4.31 19.96 2 16.69 2Z'),
+  x: p('M6.5 6.5l11 11M17.5 6.5l-11 11'),
+  check: p('M5.5 12.5l4.5 4.5l8.5-9.5'),
+  sidebar: p(SIDEBAR, 'flip'),
+  history: p('M21.25 12a9.25 9.25 0 1 1-18.5 0a9.25 9.25 0 0 1 18.5 0zM15.43 14.94l-3.77-2.25V7.85'),
+  clock: p('M21.25 12a9.25 9.25 0 1 1-18.5 0a9.25 9.25 0 0 1 18.5 0zM15.43 14.94l-3.77-2.25V7.85'),
+  code: p('M7.78 3H16.22C19.17 3 21 5.08 21 8.03V15.97C21 18.92 19.17 21 16.22 21H7.78C4.84 21 3 18.92 3 15.97V8.03C3 5.08 4.84 3 7.78 3ZM9.94 9.35L7.29 12L9.94 14.65M14.06 9.35L16.71 12L14.06 14.65'),
   palette: s('<path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.6 0-.5-.2-.8-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-4-4-7.4-9-7.4z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/>'),
-  file: s('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>'),
-  folder: s('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
-  chevron: s('<path d="M9 6l6 6-6 6"/>'),
+  file: p('M15.72 16.22H8.5M15.72 12.04H8.5M11.25 7.86H8.5M15.91 2.75H8.22C5.46 2.77 3.75 4.59 3.75 7.36V16.55C3.75 19.34 5.47 21.16 8.26 21.16H15.95C18.71 21.14 20.42 19.32 20.42 16.55V7.36C20.42 4.57 18.69 2.75 15.91 2.75Z'),
+  folder: p('M21.42 15.73C21.42 19.31 19.31 21.42 15.73 21.42H7.95C4.36 21.42 2.25 19.31 2.25 15.73V7.93C2.25 4.36 3.56 2.25 7.14 2.25H9.14C9.86 2.25 10.54 2.59 10.97 3.16L11.88 4.38C12.31 4.95 12.99 5.29 13.71 5.29H16.54C20.12 5.29 21.45 7.12 21.45 10.77L21.42 15.73ZM7.48 14.46H16.22'),
+  chevron: p('M15.5 5L8.5 12L15.5 19'),
+  chevDown: p('M19 8.5L12 15.5L5 8.5'),
   refresh: s('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'),
-  search: s('<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>'),
-  lock: s('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
-  copy: s('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>'),
+  search: p('M20.76 11.77a8.99 8.99 0 1 1-17.98 0a8.99 8.99 0 0 1 17.98 0zM18.02 18.49L21.54 22'),
+  zoom: p('M20.76 11.77a8.99 8.99 0 1 1-17.98 0a8.99 8.99 0 0 1 17.98 0zM18.02 18.49L21.54 22M8.5 11.77h6.5M11.77 8.5v6.5'),
+  lock: p('M16.42 9.45V7.3C16.42 4.79 14.39 2.75 11.87 2.75C9.36 2.74 7.31 4.77 7.3 7.28V9.45M' + LOCK_BODY.slice(1)),
+  unlock: p('M16.1 5.6C15.4 3.93 13.77 2.75 11.87 2.75C9.36 2.74 7.31 4.77 7.3 7.28V9.45M' + LOCK_BODY.slice(1)),
+  copy: p('M14.96 5.47C14.73 4 13.67 3 12.06 3H6.87C5.06 3 3.92 4.29 3.92 6.1V12.8C3.92 14.45 4.87 15.67 6.41 15.86M17.14 8.11H11.94C10.13 8.11 8.99 9.39 8.99 11.21V17.9C8.99 19.72 10.12 21 11.94 21H17.13C18.95 21 20.08 19.72 20.08 17.9V11.21C20.08 9.39 18.95 8.11 17.14 8.11Z'),
+  save: p('M15.85 3.74C15.39 3.27 14.76 3 14.11 3H7.78C4.84 3 3 5.08 3 8.03V15.97C3 18.92 4.83 21 7.78 21H16.22C19.17 21 21 18.92 21 15.97V10.08C21 9.46 20.76 8.86 20.33 8.4L15.85 3.74ZM13.9 8.1H8.37M17.02 20.94V16.27C17.02 14.63 15.99 13.96 14.35 13.96H9.65C8 13.96 6.98 14.63 6.98 16.27V20.94'),
+  download: p('M16.76 8.13H17.69C19.72 8.13 21.37 9.78 21.37 11.81V16.7C21.37 18.73 19.73 20.37 17.7 20.37H6.56C4.52 20.37 2.87 18.72 2.87 16.69V11.8C2.87 9.77 4.52 8.13 6.55 8.13H7.49M12.12 3.4V15.44M15.03 12.51L12.12 15.44L9.2 12.51'),
+  keyboard: p('M16.23 20.25H7.76C4.82 20.25 2.99 18.61 3 15.59V8.42C3 5.4 4.82 3.75 7.77 3.75H16.23C19.17 3.75 21 5.43 21 8.5V15.59C21 18.61 19.17 20.25 16.23 20.25ZM14.45 16.14H9.55M12 11.98h.01M12 8.59h.01M7.55 11.98h.01M7.55 8.59h.01M16.45 11.98h.01M16.45 8.59h.01'),
+  tickSquare: p('M16.33 2.75H7.67C4.64 2.75 2.75 4.89 2.75 7.92V16.08C2.75 19.11 4.64 21.25 7.67 21.25H16.33C19.36 21.25 21.25 19.11 21.25 16.08V7.92C21.25 4.89 19.36 2.75 16.33 2.75ZM8.44 12L10.81 14.37L15.56 9.63'),
+  textSize: p('M9.54 3.86V17.15M6.66 17.15H12.55M18.97 11L21 13.03M18.97 11L16.94 13.03M18.97 11V20.14M18.97 20.14L16.94 18.11M18.97 20.14L21 18.11M3 6.2V3.86H16.21V6.2'),
+  settings: s('<g transform="translate(2.5 1.5)"><path d="M18.31 6.12L17.68 5.04C17.16 4.13 15.99 3.81 15.08 4.34C14.64 4.6 14.12 4.67 13.63 4.54C13.14 4.41 12.72 4.1 12.47 3.66C12.3 3.38 12.21 3.07 12.21 2.75C12.23 2.23 12.03 1.73 11.67 1.36C11.31 .99 10.81 .78 10.3 .78H9.04C8.54 .78 8.05 .98 7.69 1.34C7.34 1.7 7.14 2.18 7.14 2.69C7.12 3.74 6.27 4.58 5.23 4.58C4.9 4.57 4.59 4.48 4.31 4.32C3.4 3.8 2.23 4.11 1.7 5.03L1.03 6.12C.51 7.04 .82 8.2 1.73 8.73C2.32 9.07 2.69 9.71 2.69 10.39C2.69 11.07 2.32 11.7 1.73 12.05C.82 12.57 .51 13.74 1.03 14.65L1.67 15.73C1.91 16.18 2.33 16.51 2.82 16.65C3.31 16.79 3.83 16.72 4.27 16.48C4.71 16.22 5.23 16.15 5.72 16.28C6.21 16.41 6.62 16.73 6.87 17.17C7.04 17.45 7.13 17.76 7.13 18.09C7.13 19.14 7.99 20 9.04 20H10.3C11.35 20 12.21 19.15 12.21 18.1C12.21 17.59 12.41 17.1 12.77 16.74C13.13 16.38 13.62 16.18 14.12 16.18C14.45 16.19 14.76 16.28 15.04 16.44C15.95 16.97 17.12 16.65 17.65 15.74L18.31 14.65C18.56 14.21 18.63 13.69 18.5 13.2C18.37 12.71 18.05 12.29 17.61 12.04C17.17 11.78 16.85 11.37 16.72 10.88C16.59 10.39 16.66 9.87 16.92 9.43C17.08 9.14 17.32 8.9 17.61 8.73C18.52 8.2 18.83 7.04 18.31 6.13V6.12Z"/><circle cx="9.68" cy="10.39" r="2.64"/></g>'),
+  trash: p('M19.32 9.47C19.32 9.47 18.78 16.2 18.47 19.04C18.32 20.4 17.48 21.19 16.11 21.21C13.5 21.26 10.89 21.26 8.28 21.21C6.96 21.18 6.14 20.38 5.99 19.05C5.67 16.19 5.13 9.47 5.13 9.47M20.71 6.24H3.75M17.44 6.24C16.66 6.24 15.98 5.68 15.83 4.92L15.58 3.7C15.43 3.14 14.92 2.75 14.35 2.75H10.11C9.53 2.75 9.03 3.14 8.88 3.7L8.63 4.92C8.48 5.68 7.8 6.24 7.02 6.24'),
   pin: s('<path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 15v5"/>'),
-  vtabs: s('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="M5 8h2M5 11h2M5 14h2"/>'),
-  clock: s('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),
+  vtabs: s('<rect x="3" y="3" width="18" height="18" rx="4.5"/><path d="M9 3v18M5.5 8h1M5.5 11.5h1M5.5 15h1"/>'),
+  window: s('<rect x="3" y="4" width="18" height="16" rx="4.5"/><path d="M3 9h18"/>'),
+  fullscreen: p('M9 3.5H7.5C5.3 3.5 3.5 5.3 3.5 7.5V9M15 3.5h1.5c2.2 0 4 1.8 4 4V9M9 20.5H7.5c-2.2 0-4-1.8-4-4V15M15 20.5h1.5c2.2 0 4-1.8 4-4V15'),
+  image: s('<rect x="2.75" y="2.75" width="18.5" height="18.5" rx="5"/><circle cx="8.6" cy="8.8" r="1.8"/><path d="M3.2 16.6l3.4-3.3c.8-.8 2-.8 2.8 0l1.5 1.5 3.5-3.6c.8-.8 2.1-.8 2.9 0l3.5 3.6"/>'),
   edit: s('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
-  unlock: s('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/>'),
+  info: s('<circle cx="12" cy="12" r="9.25"/><path d="M12 11v5.5M12 7.6h.01"/>'),
+  warn: s('<path d="M12 3.6L2.9 19.4h18.2z"/><path d="M12 10v4.4M12 17h.01"/>'),
 };
 
 export function el(tag, attrs = {}, ...children) {
@@ -73,22 +94,47 @@ function aim(level, fn, item) {
   } else fn();
 }
 let outsideHandler = null;
+let onMenuClose = null;
 export function closeMenu() {
   while (openMenus.length) openMenus.pop().remove();
+  if (onMenuClose) { const f = onMenuClose; onMenuClose = null; f(); }
   if (outsideHandler) { document.removeEventListener('mousedown', outsideHandler, true); outsideHandler = null; }
 }
 function closeFrom(level) { while (openMenus.length > level) openMenus.pop().remove(); }
 
+/** 'Ctrl+Shift+O' → quiet key chips */
+export function kbd(key) {
+  const parts = String(key).split(/\s*\+\s*(?=\S)/).filter(Boolean);
+  return el('span', { class: 'kb', dir: 'ltr' }, parts.map((k) => el('kbd', {}, k)));
+}
 /**
- * items: {label, key, run, checked, disabled, sub:[...]} | 'sep' | {header} | {grid:[{html,title,run,active}]}
+ * items: 'sep' | {header} | {label, icon, key, run, checked, disabled, danger, badge, sub:[...], style}
+ *   | {label, icon, key, switch: () => bool, run}        a switch row: toggles in place, the menu stays open
+ *   | {label, icon, stepper: {value: () => text, up, down}}  inline + value − (plus on the right)
+ *   | {tiles: [{icon, label, run, title}]}                quick-action tiles
+ *   | {grid: [{html, title, run, active, mirror, disabled}]}
  * x,y is the anchor's right/top edge (menus open toward the left, as in an RTL app)
  */
 function buildMenu(items, level) {
   const m = el('div', { class: 'menu', dir: 'rtl' });
+  if (items.some((it) => it && it.icon)) m.classList.add('has-icons');
+  const closeSubs = (node) => aim(level, () => { closeFrom(level + 1); m.querySelectorAll('.mi.open').forEach((n) => n.classList.remove('open')); }, node);
   for (const it of items) {
     if (!it) continue;
     if (it === 'sep') { m.append(el('div', { class: 'sep' })); continue; }
     if (it.header) { m.append(el('div', { class: 'mh' }, it.header)); continue; }
+    if (it.tiles) {
+      const g = el('div', { class: 'mtiles', style: `--n:${it.tiles.length}` });
+      for (const b of it.tiles) {
+        const btn = el('button', { class: 'mt', title: b.title || null }, el('span', { class: 'ic', html: b.icon }), el('span', {}, b.label));
+        btn.addEventListener('mousedown', (e) => e.preventDefault());
+        btn.addEventListener('click', () => { closeMenu(); b.run(); });
+        g.append(btn);
+      }
+      g.addEventListener('mouseenter', () => closeSubs(g));
+      m.append(g);
+      continue;
+    }
     if (it.grid) {
       const g = el('div', { class: 'mgrid' });
       for (const b of it.grid) {
@@ -98,15 +144,38 @@ function buildMenu(items, level) {
         if (b.disabled) btn.disabled = true;
         g.append(btn);
       }
-      g.addEventListener('mouseenter', () => aim(level, () => closeFrom(level + 1), g));
+      g.addEventListener('mouseenter', () => closeSubs(g));
       m.append(g);
       continue;
     }
-    const mi = el('div', { class: 'mi' + (it.checked ? ' checked' : '') + (it.sub ? ' has-sub' : '') },
-      el('span', { style: it.style || null }, it.label), it.key ? el('span', { class: 'k' }, it.key) : null, it.sub ? el('span', { class: 'arrow', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>' }) : null);
+    const mi = el('div', { class: 'mi' + (it.checked ? ' checked' : '') + (it.sub ? ' has-sub' : '') + (it.danger ? ' danger' : '') },
+      m.classList.contains('has-icons') ? el('span', { class: 'ic', html: it.icon || '' }) : null,
+      el('span', { class: 'lb', style: it.style || null }, it.label),
+      it.badge ? el('span', { class: 'badge' }, it.badge) : null,
+      it.key ? kbd(it.key) : null,
+      it.checked ? el('span', { class: 'tick', html: ICON.check }) : null,
+      it.sub ? el('span', { class: 'arrow', html: ICON.chevron }) : null);
     mi.addEventListener('mousedown', (e) => e.preventDefault()); // keep the editor selection
     if (it.disabled) mi.classList.add('disabled');
-    else if (it.sub) {
+    else if (it.stepper) {
+      const val = el('span', { class: 'sv' }, it.stepper.value());
+      const step = (fn) => (e) => { e.stopPropagation(); fn(); val.textContent = it.stepper.value(); };
+      mi.classList.add('static');
+      mi.append(el('span', { class: 'mstep' },
+        el('button', { title: 'بیشتر', html: ICON.plus, onclick: step(it.stepper.up) }), val,
+        el('button', { title: 'کمتر', html: ICON.minus, onclick: step(it.stepper.down) })));
+      mi.addEventListener('mouseenter', () => closeSubs(mi));
+    } else if (it.switch) {
+      const sw = el('span', { class: 'tg' + (it.switch() ? ' on' : ''), role: 'switch', 'aria-checked': String(!!it.switch()) });
+      mi.append(sw);
+      mi.addEventListener('mouseenter', () => closeSubs(mi));
+      mi.addEventListener('click', async () => {
+        await it.run();
+        const on = !!it.switch();
+        sw.classList.toggle('on', on);
+        sw.setAttribute('aria-checked', String(on));
+      });
+    } else if (it.sub) {
       const open = () => {
         clearTimeout(aimTimer);
         if (mi.classList.contains('open')) return;
@@ -115,12 +184,12 @@ function buildMenu(items, level) {
         mi.classList.add('open');
         const sub = buildMenu(it.sub, level + 1);
         const r = mi.getBoundingClientRect();
-        place(sub, r.left + 4, r.top - 6, r.right - 4);
+        place(sub, r.left - 6, r.top - 9, r.right + 6);
       };
       mi.addEventListener('mouseenter', () => aim(level, open, mi));
       mi.addEventListener('click', open);
     } else {
-      mi.addEventListener('mouseenter', () => aim(level, () => { closeFrom(level + 1); m.querySelectorAll('.mi.open').forEach((n) => n.classList.remove('open')); }, mi));
+      mi.addEventListener('mouseenter', () => closeSubs(mi));
       mi.addEventListener('mouseleave', () => clearTimeout(aimTimer));
       mi.addEventListener('click', () => { closeMenu(); it.run(); });
     }
@@ -141,8 +210,9 @@ function place(m, x, y, altX) {
   m.style.left = left + 'px';
   m.style.top = Math.max(10, Math.min(y, window.innerHeight - r.height - 10)) + 'px';
 }
-export function showMenu(items, x, y) {
+export function showMenu(items, x, y, onClose = null) {
   closeMenu();
+  onMenuClose = onClose;
   const m = buildMenu(items, 0);
   place(m, x, y);
   setTimeout(() => {
@@ -159,7 +229,8 @@ export function modal({ title, text, buttons, input, body, bodyAfter }) {
     const done = (v) => { ov.remove(); document.removeEventListener('keydown', onKey, true); resolve(v); };
     const row = el('div', { class: 'row' }, buttons.map((b) =>
       el('button', { class: 'btn' + (b.primary ? ' primary' : '') + (b.danger ? ' danger' : ''), onclick: () => done(inp && b.primary ? inp.value : b.value) }, b.label)));
-    const box = el('div', { class: 'modal', dir: 'rtl' }, el('h3', {}, title), text ? el('p', {}, text) : null, bodyAfter ? inp : (body || null), bodyAfter ? (body || null) : inp, row);
+    const box = el('div', { class: 'modal', dir: 'rtl' },
+      el('div', { class: 'm-body' }, el('h3', {}, title), text ? el('p', {}, text) : null, bodyAfter ? inp : (body || null), bodyAfter ? (body || null) : inp), row);
     const ov = el('div', { class: 'overlay' }, box);
     const onKey = (e) => {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(null); }
@@ -174,10 +245,16 @@ export function modal({ title, text, buttons, input, body, bodyAfter }) {
 }
 
 let toastT = null;
-/** action: { label, run } shows a button inside the toast */
-export function toast(msg, ms = 2200, action = null) {
+const TOAST_ICON = { ok: ICON.check, info: ICON.info, warn: ICON.warn, err: ICON.warn };
+/**
+ * action: { label, run } (or a list) shows pill buttons inside the toast.
+ * kind: 'ok' | 'info' | 'warn' | 'err' adds a small coloured icon.
+ */
+export function toast(msg, ms = 2200, action = null, kind = null) {
+  if (typeof ms === 'string') { kind = ms; ms = 2200; }
   document.querySelectorAll('.toast').forEach((t) => t.remove());
-  const t = el('div', { class: 'toast', dir: 'rtl' }, el('span', {}, msg));
+  const t = el('div', { class: 'toast' + (kind ? ' k-' + kind : ''), dir: 'rtl', role: 'status' },
+    kind && TOAST_ICON[kind] ? el('span', { class: 'ti', html: TOAST_ICON[kind] }) : null, el('span', { class: 'tm' }, msg));
   const actions = !action ? [] : Array.isArray(action) ? action : [action];
   if (actions.length) t.classList.add('has-action');
   for (const a of actions) t.append(el('button', { class: 'toast-btn', onclick: () => { t.remove(); a.run(); } }, a.label));

@@ -204,7 +204,7 @@ export function openEditorMenu(crepe, x, y, { insertImage, edit }) {
       { html: I.paste, title: 'چسباندن', run: () => edit('paste') },
       { html: I.del, title: 'حذف', disabled: !hasSel, run: () => { v.dispatch(v.state.tr.deleteSelection()); v.focus(); } },
     ] },
-    { label: 'چسباندن به‌صورت متن ساده', key: 'Ctrl+Shift+V', run: () => edit('pastePlain') },
+    { label: 'چسباندن متن ساده', key: 'Ctrl+Shift+V', run: () => edit('pastePlain') },
     'sep',
     { grid: [
       { html: I.bold, title: 'پررنگ (Ctrl+B)', active: markActive(st, 'strong'), run: run(crepe, toggleStrongCommand) },

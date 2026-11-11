@@ -1,3 +1,46 @@
+/*
+ * Chrome tokens (window, panels, menus). They are derived from the theme's base colours, so custom
+ * themes that only set --bg / --fg / --accent still get a coherent chrome; a theme may override any of them.
+ */
+:root {
+  --sheet: var(--bg);
+  --chrome: color-mix(in srgb, var(--fg) 8%, var(--bg));
+  --side: color-mix(in srgb, var(--fg) 13%, var(--bg));
+  --pop: color-mix(in srgb, var(--fg) 2%, var(--bg));
+  --ctl: color-mix(in srgb, var(--fg) 7%, transparent);
+  --ctl-2: var(--bg);
+  --line: color-mix(in srgb, var(--fg) 10%, transparent);
+  --sel: color-mix(in srgb, var(--accent) 13%, transparent);
+  --on: #1f9d48;
+  --off: color-mix(in srgb, var(--fg) 24%, var(--bg));
+  --ok: #1a7f3c;
+  --sh: 0 1px 3px rgba(0, 0, 0, 0.14);
+  --sh-pop: 0 14px 44px rgba(0, 0, 0, 0.2);
+  --sh-modal: 0 24px 70px rgba(0, 0, 0, 0.3);
+}
+[data-theme='light']:not([data-custom]) {
+  --chrome: #ececf0;
+  --side: #e1e1e7;
+  --pop: #fbfbfd;
+  --ctl: rgba(0, 0, 0, 0.06);
+  --line: rgba(0, 0, 0, 0.09);
+  --sel: rgba(0, 102, 221, 0.12);
+  --off: #c4c4cc;
+}
+[data-theme='dark'], [data-theme='nord'] {
+  --chrome: color-mix(in srgb, #000 22%, var(--bg));
+  --side: color-mix(in srgb, var(--fg) 5%, var(--bg));
+  --pop: color-mix(in srgb, var(--fg) 7%, var(--bg));
+  --ctl: color-mix(in srgb, var(--fg) 9%, transparent);
+  --ctl-2: color-mix(in srgb, var(--fg) 17%, var(--bg));
+  --sel: color-mix(in srgb, var(--accent) 22%, transparent);
+  --on: #30b85a;
+  --ok: #4cc272;
+  --sh: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --sh-pop: 0 14px 44px rgba(0, 0, 0, 0.65);
+  --sh-modal: 0 24px 70px rgba(0, 0, 0, 0.7);
+}
+
 /* Built-in themes. Custom themes (userData/themes/*.css) can override any of these variables. */
 
 :root,
@@ -10,19 +53,19 @@
   --hl-type: #953800;
   --hl-prop: #0550ae;
   --bg: #ffffff;
-  --fg: #1f2328;
-  --muted: #6b7280;
-  --border: #e5e7eb;
-  --panel: #f7f7f8;
-  --panel-2: #efeff1;
-  --hover: #ececef;
-  --accent: #2563eb;
+  --fg: #1d1d1f;
+  --muted: #5f5f68;
+  --border: #e6e6ea;
+  --panel: #f4f4f7;
+  --panel-2: #ececf0;
+  --hover: #ececf0;
+  --accent: #0066dd;
   --accent-fg: #ffffff;
-  --selection: #cfe0ff;
+  --selection: #cfe2fb;
   --code-bg: #f3f4f6;
   --quote: #d0d7de;
-  --link: #0969da;
-  --danger: #d1242f;
+  --link: #0066dd;
+  --danger: #c42b1c;
   --ins-bg: #dafbe1;
   --ins-fg: #116329;
   --del-bg: #ffebe9;

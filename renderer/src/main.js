@@ -1,10 +1,13 @@
 import '@fontsource/vazirmatn/400.css';
+import '@fontsource/vazirmatn/500.css';
+import '@fontsource/vazirmatn/600.css';
 import '@fontsource/vazirmatn/700.css';
 import '@fontsource/noto-naskh-arabic/400.css';
 import '@fontsource/noto-naskh-arabic/700.css';
 import '@milkdown/crepe/theme/common/style.css';
 import './themes.css';
 import './style.css';
+import './chrome.css';
 
 import vazAr400 from '@fontsource/vazirmatn/files/vazirmatn-arabic-400-normal.woff2?url';
 import vazAr700 from '@fontsource/vazirmatn/files/vazirmatn-arabic-700-normal.woff2?url';

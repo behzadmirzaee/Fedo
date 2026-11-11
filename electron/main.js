@@ -87,6 +87,7 @@ async function writeJSON(file, data) {
 }
 
 // ---------- window ----------
+const TITLEBAR_H = 52;
 /** opts: { payload, alwaysOnTop, x, y, width, height } */
 function createWindow(opts = {}) {
   const role = mainId == null ? 'main' : 'extra';
@@ -97,8 +98,11 @@ function createWindow(opts = {}) {
     minWidth: 420,
     minHeight: 320,
     title: 'Fedo',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#ECECF0',
     autoHideMenuBar: true,
+    // Windows: no native title bar. The app's top bar is the title bar, and Windows draws its own
+    // caption buttons (− □ ✕, with snap layouts) over its right end.
+    ...(process.platform === 'win32' ? { titleBarStyle: 'hidden', titleBarOverlay: { color: '#ECECF0', symbolColor: '#1D1D1F', height: TITLEBAR_H } } : {}),
     alwaysOnTop: !!opts.alwaysOnTop,
     icon: logoPath(readLogoSync()),
     webPreferences: {
@@ -202,6 +206,14 @@ ipcMain.handle('app:set-logo', (_e, id) => {
   const { nativeImage } = require('electron');
   const img = nativeImage.createFromPath(logoPath(id));
   for (const st of windows.values()) st.win.setIcon(img);
+});
+ipcMain.handle('win:set-titlebar', (e, o) => {
+  const w = W(e);
+  if (!w || process.platform !== 'win32' || !o) return;
+  const hex = (c) => (/^#[0-9a-f]{6}$/i.test(c || '') ? c : null);
+  const color = hex(o.color), symbolColor = hex(o.symbolColor);
+  if (!color || !symbolColor) return;
+  try { w.setTitleBarOverlay({ color, symbolColor, height: TITLEBAR_H }); w.setBackgroundColor(color); } catch { /* window without an overlay */ }
 });
 ipcMain.handle('win:set-title', (e, t) => { const w = W(e); if (w) w.setTitle(t); });
 ipcMain.handle('win:devtools', (e) => { const w = W(e); w && w.webContents.toggleDevTools(); });

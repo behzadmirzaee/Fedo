@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('api', {
   onReceiveTab: on('receive-tab'),
   onSetRole: on('set-role'),
   setTitle: inv('win:set-title'),
+  setTitleBar: inv('win:set-titlebar'),
   devtools: inv('win:devtools'),
   fullscreen: inv('win:fullscreen'),
   zoom: inv('win:zoom'),

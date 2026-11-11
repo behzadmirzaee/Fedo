@@ -14,7 +14,7 @@ import { buildRegex, pmEngine, cmEngine, pmCollectEdits, pmApplyEdits, PRESETS }
 import { readOnlyComp } from './editor.js';
 import { EditorState as CMState } from '@codemirror/state';
 import { exportDocument } from './export.js';
-import { el, ICON, showMenu, modal, toast, fa, basename, dirname, relTime } from './ui.js';
+import { el, ICON, showMenu, modal, toast, kbd, fa, basename, dirname, relTime } from './ui.js';
 
 const api = window.api;
 const $ = (s) => document.querySelector(s);
@@ -73,16 +73,17 @@ function buildLayout() {
   const app = $('#app');
   app.innerHTML = '';
   const topbar = el('div', { id: 'topbar' },
-    el('button', { class: 'icon-btn', id: 'btn-menu', title: 'منو', html: ICON.menu, onclick: (e) => openMainMenu(e.currentTarget) }),
-    el('button', { class: 'icon-btn', id: 'btn-sidebar', title: 'نوار کناری (Ctrl+Shift+L)', html: ICON.sidebar, onclick: toggleSidebar }),
-    el('div', { id: 'tabs', ondblclick: (e) => { if (e.target.id === 'tabs') newTab(); } }),
-    el('button', { class: 'icon-btn', id: 'btn-newtab', title: 'سند تازه (Ctrl+T)', html: ICON.plus, onclick: () => newTab() }),
-    el('div', { class: 'grow', ondblclick: () => newTab() }),
-    el('button', { class: 'icon-btn', id: 'btn-vtabs', title: 'تب‌های عمودی', html: ICON.vtabs, onclick: () => updateSettings({ verticalTabs: !settings.verticalTabs }) }),
-    el('button', { class: 'icon-btn', id: 'btn-pin', title: 'همیشه روی بقیه‌ی پنجره‌ها (Always on Top)', html: ICON.pin, onclick: () => toggleOnTop() }),
-    el('button', { class: 'icon-btn', id: 'btn-copyall', title: 'کپی کل سند', html: ICON.copy, onclick: () => copyWholeDoc() }),
-    el('button', { class: 'icon-btn', id: 'btn-find', title: 'جستجو و جایگزینی (Ctrl+F)', html: ICON.search, onclick: () => ($('#findbar').hidden ? openFind(false) : closeFind()) }),
-    el('button', { class: 'icon-btn', id: 'btn-history', title: 'تاریخچه‌ی نسخه‌ها (Ctrl+Shift+H)', html: ICON.history, onclick: () => historyPanel.toggle() }));
+    el('div', { class: 'cap' },
+      el('button', { class: 'icon-btn', id: 'btn-menu', title: 'منوی اصلی', html: ICON.menu, onclick: (e) => openMainMenu(e.currentTarget) }),
+      el('button', { class: 'icon-btn', id: 'btn-sidebar', title: 'نوار کناری (Ctrl+Shift+L)', html: ICON.sidebar, onclick: toggleSidebar })),
+    el('div', { class: 'cap tabstrip', id: 'tabstrip' },
+      el('div', { id: 'tabs' }),
+      el('button', { class: 'icon-btn', id: 'btn-newtab', title: 'سند تازه (Ctrl+T)', html: ICON.plus, onclick: () => newTab() })),
+    el('div', { class: 'grow' }),
+    el('div', { class: 'cap' },
+      el('button', { class: 'icon-btn', id: 'btn-history', title: 'تاریخچه‌ی نسخه‌ها (Ctrl+Shift+H)', html: ICON.history, onclick: () => historyPanel.toggle() }),
+      el('button', { class: 'icon-btn', id: 'btn-find', title: 'جستجو و جایگزینی (Ctrl+F)', html: ICON.search, onclick: () => ($('#findbar').hidden ? openFind(false) : closeFind()) }),
+      el('button', { class: 'icon-btn', id: 'btn-copyall', title: 'کپی کل سند', html: ICON.copy, onclick: () => copyWholeDoc() })));
 
   const sidebar = el('div', { id: 'sidebar' },
     el('div', { class: 'side-tabs' },
@@ -112,32 +113,26 @@ function buildLayout() {
   const editors = el('div', { id: 'editors' }, findbar);
   const history = el('div', { id: 'history', hidden: true });
   const vtabs = el('div', { id: 'vtabs' },
-    el('div', { class: 'vt-head' },
-      el('span', { class: 'vt-title' }, 'تب‌ها'),
-      el('button', { class: 'icon-btn', title: 'سند تازه (Ctrl+T)', html: ICON.plus, onclick: () => newTab() }),
-      el('button', { class: 'icon-btn', title: 'تب‌های افقی', html: ICON.x, onclick: () => updateSettings({ verticalTabs: false }) })),
-    el('div', { id: 'vtabs-list', ondblclick: (e) => { if (e.target.id === 'vtabs-list') newTab(); } }));
-  const main = el('div', { id: 'main' }, sidebar, editors, history, vtabs);
+    el('div', { id: 'vtabs-list', ondblclick: (e) => { if (e.target.id === 'vtabs-list') newTab(); } }),
+    el('button', { class: 'vt-new', title: 'سند تازه (Ctrl+T)', onclick: () => newTab() }, el('span', { class: 'ic', html: ICON.plus }), el('span', {}, 'تب تازه')));
 
   const status = el('div', { id: 'statusbar' },
-    el('span', { id: 'st-words' }),
-    el('span', { id: 'st-chars' }),
-    el('span', { id: 'st-read' }),
-    el('span', { id: 'st-sel' }),
-    el('span', { id: 'st-saved' }),
+    el('span', { class: 'chip', id: 'st-words' }),
+    el('span', { class: 'chip', id: 'st-sel' }),
+    el('button', { class: 'chip', id: 'st-lock', title: 'حالت امن: فایل فقط خواندنی می‌شود (F8)', onclick: () => { const t = active(); if (t) setLocked(t, !t.locked); } }),
+    el('button', { class: 'chip on', id: 'st-typewriter', title: 'حالت ماشین‌تحریر روشن است (F9). کلیک برای خاموش کردن', onclick: () => toggleSetting('typewriter') }, 'ماشین‌تحریر'),
+    el('button', { class: 'chip on', id: 'st-mode', title: 'برگشت به ویرایش زنده (Ctrl+/)', onclick: toggleSource }, el('span', { class: 'ic', html: ICON.code }), el('span', {}, 'کد منبع')),
+    el('span', { class: 'chip ok', id: 'st-saved' }),
     el('span', { class: 'grow' }),
-    el('button', { id: 'st-more', title: 'تنظیمات نما', html: '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg><span>تنظیمات نما</span>', onclick: (e) => { e.stopPropagation(); $('#statusbar').classList.toggle('open'); } }),
-    el('span', { id: 'st-extra' },
-    el('button', { id: 'st-typewriter', title: 'حالت ماشین‌تحریر روشن است (F9). کلیک برای خاموش کردن', onclick: () => toggleSetting('typewriter') }),
-    el('button', { id: 'st-lock', title: 'حالت امن: فایل فقط خواندنی می‌شود (F8)', onclick: () => { const t = active(); if (t) setLocked(t, !t.locked); } }),
-    el('button', { id: 'st-mode', onclick: toggleSource }),
-    el('button', { id: 'st-dir', onclick: () => updateSettings({ baseDir: settings.baseDir === 'rtl' ? 'ltr' : 'rtl' }) }),
-    el('button', { id: 'st-zoom', title: 'زوم · میان‌بر: Ctrl و + یا Ctrl و −', onclick: (e) => openZoomPanel(e.currentTarget) }),
-    el('button', { id: 'st-size', title: 'اندازه‌ی متن و فاصله‌ی خطوط', onclick: (e) => openSizePanel(e.currentTarget) }),
-    el('button', { id: 'st-font', onclick: (e) => openFontMenu(e.currentTarget) }),
-    el('button', { id: 'st-theme', onclick: (e) => openThemeMenu(e.currentTarget) })));
+    el('button', { class: 'chip', id: 'st-size', title: 'اندازه‌ی متن و فاصله‌ی خطوط', onclick: (e) => openSizePanel(e.currentTarget) }, el('span', { class: 'ic', html: ICON.textSize }), el('span', {}, 'اندازه')),
+    el('div', { class: 'zoomer', title: 'زوم · میان‌بر: Ctrl و + یا Ctrl و −' },
+      el('button', { title: 'بزرگ‌نمایی (Ctrl+=)', html: ICON.plus, onclick: () => zoomBy(1) }),
+      el('button', { id: 'st-zoom', title: 'گزینه‌های زوم', onclick: (e) => openZoomPanel(e.currentTarget.parentNode) }),
+      el('button', { title: 'کوچک‌نمایی (Ctrl+-)', html: ICON.minus, onclick: () => zoomBy(-1) })));
+  const sheet = el('div', { id: 'sheet' }, editors, status);
+  const main = el('div', { id: 'main' }, sidebar, sheet, history, vtabs);
 
-  app.append(topbar, main, status);
+  app.append(topbar, main);
   historyPanel = createHistoryPanel(history, {
     getTab: active,
     getContent: () => (active() ? active().md : ''),
@@ -544,7 +539,7 @@ function groupChip(g, vertical) {
 }
 function renderTabs() {
   normalizeGroups();
-  const vertical = !!settings.verticalTabs;
+  const vertical = vertTabsOn();
   const hbox = $('#tabs');
   const vbox = $('#vtabs-list');
   hbox.innerHTML = '';
@@ -666,7 +661,7 @@ function tabMenu(t, x, y) {
     { label: 'بازکردن دوباره‌ی تب بسته‌شده', key: 'Ctrl+Shift+T', disabled: !closedStack.length, run: reopenClosed },
     'sep',
     { label: 'نمایش در پوشه', disabled: !t.path, run: () => api.reveal(t.path) },
-    { label: 'کپی مسیر فایل', disabled: !t.path, run: () => { navigator.clipboard.writeText(t.path); toast('مسیر کپی شد'); } },
+    { label: 'کپی مسیر فایل', disabled: !t.path, run: () => { navigator.clipboard.writeText(t.path); toast('مسیر کپی شد', 'ok'); } },
     { label: 'تاریخچه‌ی نسخه‌ها', disabled: !t.path, run: () => { activateTab(t.id); historyPanel.show(); } },
   ], x, y);
 }
@@ -683,11 +678,13 @@ async function copyWholeDoc() {
       await navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob([md], { type: 'text/plain' }), 'text/html': new Blob([html], { type: 'text/html' }) })]);
     } else await navigator.clipboard.writeText(md);
   } catch {
-    try { await navigator.clipboard.writeText(md); } catch { toast('کپی ممکن نشد'); return; }
+    try { await navigator.clipboard.writeText(md); } catch { toast('کپی ممکن نشد', 'err'); return; }
   }
   const b = $('#btn-copyall');
-  b.classList.add('done'); setTimeout(() => b.classList.remove('done'), 900);
-  toast('کل سند کپی شد');
+  clearTimeout(copyWholeDoc.t);
+  b.classList.add('done'); b.innerHTML = ICON.check; b.title = 'کپی شد';
+  copyWholeDoc.t = setTimeout(() => { b.classList.remove('done'); b.innerHTML = ICON.copy; b.title = 'کپی کل سند'; }, 2000);
+  toast('کل سند کپی شد', 'ok');
 }
 
 // ---------- moving tabs between windows ----------
@@ -738,7 +735,6 @@ async function receiveTabs(payloads) {
 async function toggleOnTop() {
   const on = await api.setOnTop(!document.body.classList.contains('on-top'));
   document.body.classList.toggle('on-top', on);
-  $('#btn-pin').classList.toggle('on', on);
   toast(on ? 'این پنجره همیشه روی بقیه می‌ماند' : 'همیشه‌رو خاموش شد');
 }
 
@@ -852,11 +848,12 @@ function saveModal(t, as) {
       if (e.key === 'Enter' && document.activeElement === inp) { e.preventDefault(); e.stopPropagation(); submit(); }
     };
     const box = el('div', { class: 'modal save-modal', dir: 'rtl' },
-      el('h3', {}, as ? 'ذخیره با نام تازه' : 'ذخیره‌ی سند'),
-      el('div', { class: 'sv-name-row' }, inp, extTag),
-      el('div', { class: 'sv-label' }, 'نام‌های آماده'), chips,
-      folderRow,
-      el('div', { class: 'sv-label' }, 'قالب'), fmts, note,
+      el('div', { class: 'm-body' },
+        el('h3', {}, as ? 'ذخیره با نام تازه' : 'ذخیره‌ی سند'),
+        el('div', { class: 'sv-name-row' }, inp, extTag),
+        el('div', { class: 'sv-label' }, 'نام‌های آماده'), chips,
+        folderRow,
+        el('div', { class: 'sv-label' }, 'قالب'), fmts, note),
       el('div', { class: 'row' },
         el('button', { class: 'btn sv-native', title: 'پنجره‌ی ذخیره‌ی خود ویندوز', onclick: async () => { done({ native: true }); } }, 'پنجره‌ی ویندوز…'),
         el('span', { class: 'grow' }),
@@ -910,7 +907,7 @@ async function save(t = active(), as = false, silent = false) {
     const r = await api.writeFile(p, content);
     t.mtime = r.mtime;
   } catch (e) {
-    toast('ذخیره ممکن نشد: ' + (e.message || e));
+    toast('ذخیره ممکن نشد: ' + (e.message || e), 5000, null, 'err');
     return false;
   }
   if (oldPath && !samePath(oldPath, p)) { await api.historyMove(oldPath, p); api.unwatch(oldPath); }
@@ -1077,11 +1074,11 @@ function toggleSidebar() {
   if (document.body.classList.contains('compact') && settings.sidebar) { sidebarAutoHidden = true; applySidebar(); return; }
   updateSettings({ sidebar: !settings.sidebar });
 }
-const COMPACT_W = 980, NARROW_SIDEBAR_W = 900;
+const COMPACT_W = 980, NARROW_SIDEBAR_W = 900, VTABS_MIN_W = 760;
 function applyCompact() {
   const compact = innerWidth < COMPACT_W;
   document.body.classList.toggle('compact', compact);
-  if (!compact) $('#statusbar').classList.remove('open');
+  if (document.body.classList.contains('vertical-tabs') !== vertTabsOn()) applySidebar();
   const small = innerWidth < NARROW_SIDEBAR_W;
   if (small !== applyCompact.small) {
     applyCompact.small = small;
@@ -1097,10 +1094,10 @@ document.addEventListener('mousedown', (e) => {
   if (sb && sb.classList.contains('open') && !e.target.closest('#st-extra, #st-more, .menu, .popover, .size-panel, .zoom-panel')) sb.classList.remove('open');
 });
 function setSideView(v) { updateSettings({ sideView: v }); }
+const vertTabsOn = () => !!settings.verticalTabs && innerWidth >= VTABS_MIN_W;
 function applySidebar() {
-  const vert = !!settings.verticalTabs;
+  const vert = vertTabsOn();
   if (document.body.classList.contains('vertical-tabs') !== vert) { document.body.classList.toggle('vertical-tabs', vert); renderTabs(); }
-  $('#btn-vtabs').classList.toggle('on', vert);
   const sideOn = settings.sidebar && !sidebarAutoHidden;
   $('#sidebar').hidden = !sideOn;
   $('#btn-sidebar').classList.toggle('on', sideOn);
@@ -1131,7 +1128,7 @@ async function renderTree(force = false) {
   body.innerHTML = '';
   body.append(el('div', { class: 'tree-root', title: settings.folder },
     el('span', {}, basename(settings.folder)),
-    el('span', {},
+    el('span', { class: 'tree-tools' },
       el('button', { class: 'icon-btn', title: 'به‌روزرسانی', html: ICON.refresh, onclick: () => renderTree(true) }),
       el('button', { class: 'icon-btn', title: 'بستن پوشه', html: ICON.x, onclick: () => { treeCache = null; updateSettings({ folder: null }); } }))));
   const build = (nodes) => nodes.map((n) => {
@@ -1192,25 +1189,19 @@ function updateStatus(savedMsg) {
   if (!t) return;
   const { words, chars } = countWords(t.md);
   $('#st-words').textContent = `${fa(words)} کلمه`;
-  $('#st-chars').textContent = `${fa(chars)} نویسه`;
-  $('#st-read').textContent = `${fa(Math.max(1, Math.round(words / 200)))} دقیقه مطالعه`;
+  $('#st-words').title = `${fa(chars)} نویسه · حدود ${fa(Math.max(1, Math.round(words / 200)))} دقیقه مطالعه`;
   if (savedMsg) {
-    $('#st-saved').textContent = '✓ ' + savedMsg;
+    const sv = $('#st-saved');
+    sv.innerHTML = ICON.check;
+    sv.append(el('span', {}, savedMsg));
     clearTimeout(updateStatus.t);
-    updateStatus.t = setTimeout(() => { $('#st-saved').textContent = ''; }, 2500);
+    updateStatus.t = setTimeout(() => { sv.textContent = ''; }, 2500);
   }
-  $('#st-mode').textContent = t.mode === 'source' ? 'کد منبع' : 'ویرایش زنده';
-  $('#st-dir').textContent = settings.baseDir === 'rtl' ? 'راست‌به‌چپ' : 'چپ‌به‌راست';
-  $('#st-lock').innerHTML = (t.locked ? ICON.lock : ICON.unlock) + `<span>${t.locked ? 'حالت امن: روشن' : 'حالت امن'}</span>`;
+  $('#st-mode').hidden = t.mode !== 'source';
+  $('#st-lock').innerHTML = (t.locked ? ICON.lock : ICON.unlock) + `<span>${t.locked ? 'حالت امن روشن است' : 'حالت امن'}</span>`;
   $('#st-lock').classList.toggle('on', !!t.locked);
-  $('#st-typewriter').textContent = settings.typewriter ? 'ماشین‌تحریر: روشن' : '';
-  $('#st-typewriter').style.display = settings.typewriter ? '' : 'none';
-  $('#st-typewriter').classList.toggle('on', !!settings.typewriter);
-  const th = THEMES.find((x) => x.id === settings.theme) || customThemes.find((x) => x.id === settings.theme);
-  $('#st-theme').textContent = 'تم: ' + (th ? th.name : '');
-  $('#st-zoom').textContent = `زوم ${fa(Math.round((settings.zoom || 1) * 100))}٪`;
-  $('#st-size').textContent = `اندازه ${fa(settings.fontSize)} · فاصله ${fa2(settings.lineHeight)}`;
-  $('#st-font').textContent = 'فونت: ' + (settings.textFont ? fontName(settings.textFont) : 'پیش‌فرض تم');
+  $('#st-typewriter').hidden = !settings.typewriter;
+  $('#st-zoom').textContent = `${fa(Math.round((settings.zoom || 1) * 100))}٪`;
 }
 function updateTitle() {
   const t = active();
@@ -1230,8 +1221,10 @@ function applyTheme() {
     if (!style) { style = el('style', { id: 'custom-theme' }); document.head.append(style); }
     style.textContent = custom.css;
     document.documentElement.dataset.theme = 'light';
+    document.documentElement.dataset.custom = '1';
   } else {
     if (style) style.remove();
+    delete document.documentElement.dataset.custom;
     document.documentElement.dataset.theme = THEMES.find((x) => x.id === id) ? id : 'light';
   }
   const dark = getComputedStyle(document.documentElement).colorScheme.includes('dark');
@@ -1249,6 +1242,24 @@ function applyTheme() {
   // headings follow the text font unless they were given their own
   if (settings.textFont && !settings.headFont) root.setProperty('--font-head', fontStack(settings.textFont, SANS));
   if (THEMES.find((x) => x.id === id) && id === 'sepia') root.setProperty('--text-size', settings.fontSize + 2 + 'px');
+  syncTitleBar();
+}
+// the native caption buttons (− □ ✕) are drawn by Windows over the top bar: keep their colours in step with the theme
+const toHex = (css) => {
+  const c = document.createElement('canvas').getContext('2d');
+  c.fillStyle = '#000'; c.fillStyle = css;
+  c.fillRect(0, 0, 1, 1);
+  const [r, g, b] = c.getImageData(0, 0, 1, 1).data;
+  return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
+};
+function syncTitleBar() {
+  if (!api.setTitleBar) return;
+  requestAnimationFrame(() => {
+    try {
+      const cs = getComputedStyle(document.body);
+      api.setTitleBar({ color: toHex(cs.backgroundColor), symbolColor: toHex(cs.color) });
+    } catch { /* cosmetic only */ }
+  });
 }
 function applyAll() {
   applyTheme();
@@ -1343,49 +1354,51 @@ async function openSettings() {
 function openMainMenu(anchor) {
   const r = anchor.getBoundingClientRect();
   const recent = settings.recent;
+  const fontNow = (key) => (settings[key] && !FONTS.find((f) => f.id === settings[key]) ? [{ label: settings[key], checked: true, style: `font-family: '${settings[key]}'`, run: () => {} }] : []);
+  anchor.classList.add('open');
   showMenu([
-    { label: 'سند تازه', key: 'Ctrl+T', run: () => newTab() },
-    { label: 'پنجره‌ی جدید', key: 'Ctrl+N', run: () => api.newWindow() },
-    { label: 'باز کردن…', key: 'Ctrl+O', run: openDialog },
-    { label: 'باز کردن سریع', key: 'Ctrl+P', run: openQuickOpen },
-    { label: 'باز کردن پوشه…', key: 'Ctrl+Shift+O', run: () => openFolder() },
-    { label: 'فایل‌های اخیر', disabled: !recent.length, sub: [
-      ...recent.map((r) => ({ label: basename(r.path), run: () => openPath(r.path) })),
-      'sep',
-      { label: 'نمایش در نوار کناری', run: () => updateSettings({ sidebar: true, sideView: 'recent' }) },
-      { label: 'پاک کردن فهرست', run: () => updateSettings({ recent: [] }) },
+    { tiles: [
+      { icon: ICON.plusSquare, label: 'سند تازه', title: 'Ctrl+T', run: () => newTab() },
+      { icon: ICON.folder, label: 'باز کردن', title: 'Ctrl+O', run: openDialog },
+      { icon: ICON.save, label: 'ذخیره', title: 'Ctrl+S', run: () => save() },
+      { icon: ICON.download, label: 'خروجی', title: 'ذخیره با قالب دیگر: HTML یا PDF', run: () => save(active(), true) },
     ] },
-    'sep',
-    { label: 'ذخیره', key: 'Ctrl+S', run: () => save() },
-    { label: 'ذخیره با نام…', key: 'Ctrl+Shift+S', run: () => save(active(), true) },
-    { label: 'ذخیره‌ی همه', key: 'Ctrl+Alt+S', run: saveAll },
-    { label: 'خروجی HTML', run: () => doExport('html') },
-    { label: 'خروجی PDF', run: () => doExport('pdf') },
-    'sep',
-    { label: 'جستجو', key: 'Ctrl+F', run: () => openFind(false) },
-    { label: 'جایگزینی', key: 'Ctrl+H', run: () => openFind(true) },
-    { label: 'تاریخچه‌ی نسخه‌ها', key: 'Ctrl+Shift+H', run: () => historyPanel.show() },
-    'sep',
-    { label: 'نوار کناری', key: 'Ctrl+Shift+L', checked: settings.sidebar, run: toggleSidebar },
-    { label: 'سرفصل‌ها', key: 'Ctrl+Shift+1', checked: settings.sidebar && settings.sideView === 'outline', run: () => updateSettings({ sidebar: true, sideView: 'outline' }) },
-    { label: 'کد منبع', key: 'Ctrl+/', checked: active() && active().mode === 'source', run: toggleSource },
-    { label: 'حالت امن (فقط خواندنی)', key: 'F8', checked: !!(active() && active().locked), run: () => { const t = active(); if (t) setLocked(t, !t.locked); } },
-    { label: 'غلط‌یابی املایی', checked: settings.spellcheck, run: () => toggleSetting('spellcheck') },
-    { label: 'حالت ماشین‌تحریر', key: 'F9', checked: settings.typewriter, run: () => toggleSetting('typewriter') },
-    { label: 'بزرگ‌نمایی و اندازه', sub: [
-      { label: 'بزرگ‌نمایی', key: 'Ctrl+=', run: () => zoomBy(1) },
-      { label: 'کوچک‌نمایی', key: 'Ctrl+-', run: () => zoomBy(-1) },
-      { label: 'اندازه‌ی واقعی (۱۰۰٪)', key: 'Ctrl+0', run: () => setZoom(1) },
+    { icon: ICON.search, label: 'باز کردن سریع', key: 'Ctrl+P', run: openQuickOpen },
+    { icon: ICON.folder, label: 'باز کردن پوشه…', key: 'Ctrl+Shift+O', run: () => openFolder() },
+    { icon: ICON.clock, label: 'فایل‌های اخیر', disabled: !recent.length, sub: [
+      ...recent.map((x) => ({ icon: ICON.file, label: basename(x.path), run: () => openPath(x.path) })),
       'sep',
-      { label: 'زوم…', run: () => openZoomPanel($('#st-zoom')) },
-      { label: 'اندازه‌ی متن و فاصله‌ی خطوط…', run: () => openSizePanel($('#st-size')) },
+      { icon: ICON.sidebar, label: 'نمایش در نوار کناری', run: () => updateSettings({ sidebar: true, sideView: 'recent' }) },
+      { icon: ICON.trash, label: 'پاک کردن فهرست', run: () => updateSettings({ recent: [] }) },
     ] },
-    { label: 'تمام‌صفحه', key: 'F11', run: () => api.fullscreen() },
+    { icon: ICON.save, label: 'ذخیره با نام…', key: 'Ctrl+Shift+S', run: () => save(active(), true) },
+    { icon: ICON.copy, label: 'ذخیره‌ی همه', key: 'Ctrl+Alt+S', run: saveAll },
+    { icon: ICON.window, label: 'پنجره‌ی جدید', key: 'Ctrl+N', run: () => api.newWindow() },
     'sep',
-    { label: 'تنظیمات', key: 'Ctrl+,', run: openSettings },
-    { label: 'آیکن برنامه…', run: openLogoPicker },
-    { label: 'میان‌برهای صفحه‌کلید', run: showShortcuts },
-  ], r.right, r.bottom + 4);
+    { icon: ICON.sidebar, label: 'نوار کناری', key: 'Ctrl+Shift+L', switch: () => settings.sidebar && !sidebarAutoHidden, run: toggleSidebar },
+    { icon: ICON.vtabs, label: 'تب‌های عمودی', switch: () => !!settings.verticalTabs, run: () => updateSettings({ verticalTabs: !settings.verticalTabs }) },
+    { icon: ICON.code, label: 'کد منبع', key: 'Ctrl+/', switch: () => !!(active() && active().mode === 'source'), run: toggleSource },
+    { icon: ICON.lock, label: 'حالت امن', key: 'F8', switch: () => !!(active() && active().locked), run: () => { const a = active(); if (a) setLocked(a, !a.locked); } },
+    { icon: ICON.keyboard, label: 'حالت ماشین‌تحریر', key: 'F9', switch: () => !!settings.typewriter, run: () => toggleSetting('typewriter') },
+    { icon: ICON.tickSquare, label: 'غلط‌یابی املایی', switch: () => !!settings.spellcheck, run: () => toggleSetting('spellcheck') },
+    { icon: ICON.pin, label: 'همیشه روی پنجره‌ها', switch: () => document.body.classList.contains('on-top'), run: toggleOnTop },
+    { icon: ICON.zoom, label: 'بزرگ‌نمایی', stepper: { value: () => `${fa(Math.round((settings.zoom || 1) * 100))}٪`, up: () => zoomBy(1), down: () => zoomBy(-1) } },
+    'sep',
+    { icon: ICON.palette, label: 'ظاهر', sub: [
+      { header: 'تم' },
+      ...THEMES.map((th) => ({ label: th.name, checked: settings.theme === th.id, run: () => updateSettings({ theme: th.id }) })),
+      ...customThemes.map((th) => ({ label: th.name, checked: settings.theme === th.id, run: () => updateSettings({ theme: th.id }) })),
+      'sep',
+      { label: 'فونت متن', sub: [...fontItems('textFont'), ...fontNow('textFont')] },
+      { label: 'فونت تیترها', sub: [{ label: 'مثل متن', checked: !settings.headFont, run: () => updateSettings({ headFont: '' }) }, ...fontItems('headFont').slice(1), ...fontNow('headFont')] },
+      { label: 'فونت منوها و رابط', sub: [...fontItems('uiFont'), ...fontNow('uiFont')] },
+      'sep',
+      { label: 'آیکن برنامه…', run: openLogoPicker },
+      { label: 'باز کردن پوشه‌ی تم‌ها', run: () => api.openThemesFolder() },
+    ] },
+    { icon: ICON.settings, label: 'تنظیمات', key: 'Ctrl+,', run: openSettings },
+    { icon: ICON.keyboard, label: 'میان‌برهای صفحه‌کلید', run: showShortcuts },
+  ], r.right, r.bottom + 8, () => anchor.classList.remove('open'));
 }
 
 function showShortcuts() {
@@ -1394,10 +1407,10 @@ function showShortcuts() {
     ['Ctrl+Tab', 'تب بعدی'], ['Ctrl+Shift+T', 'بازکردن دوباره‌ی تب'], ['Ctrl+1…9', 'رفتن به تب'],
     ['Ctrl+P', 'باز کردن سریع فایل'], ['Ctrl+کلیک', 'باز کردن لینک'], ['Ctrl+= / Ctrl+- / Ctrl+0', 'زوم'],
     ['Ctrl+/', 'ویرایش زنده / کد منبع'], ['Ctrl+Shift+H', 'تاریخچه‌ی نسخه‌ها'], ['Ctrl+Shift+L', 'نوار کناری'],
-    ['Ctrl+F / Ctrl+H', 'جستجو و جایگزینی'], ['F8 / F9', 'تمرکز / ماشین‌تحریر'],
+    ['Ctrl+F / Ctrl+H', 'جستجو و جایگزینی'], ['F8 / F9', 'حالت امن / ماشین‌تحریر'], ['F11', 'تمام‌صفحه'],
     ['/', 'منوی درج بلوک (داخل متن)'],
   ];
-  const body = el('div', { class: 'settings' }, rows.flatMap(([k, l]) => [el('label', { dir: 'ltr', style: 'text-align:right' }, k), el('span', {}, l)]));
+  const body = el('div', { class: 'keys-list' }, rows.map(([k, l]) => el('div', { class: 'kr' }, el('span', {}, l), el('span', { class: 'kb-group' }, k.split(' / ').map((x) => kbd(x))))));
   modal({ title: 'میان‌برهای صفحه‌کلید', body, buttons: [{ label: 'بستن', value: true, primary: true }] });
 }
 
@@ -1629,8 +1642,9 @@ const stepper = (label, get, change, fmt) => {
   const show = () => { val.textContent = fmt(get()); };
   show();
   return el('div', { class: 'sp-row' }, el('span', { class: 'sp-label' }, label),
-    el('button', { class: 'sp-btn', title: 'بیشتر', onclick: () => { change(1); show(); } }, '+'), val,
-    el('button', { class: 'sp-btn', title: 'کمتر', onclick: () => { change(-1); show(); } }, '−'));
+    el('span', { class: 'sp-step' },
+      el('button', { class: 'sp-btn', title: 'بیشتر', html: ICON.plus, onclick: () => { change(1); show(); } }), val,
+      el('button', { class: 'sp-btn', title: 'کمتر', html: ICON.minus, onclick: () => { change(-1); show(); } })));
 };
 const resetButton = (run) => el('button', { class: 'btn sp-reset', onclick: run, html: `${RESET_ICON}<span>مقدار پیش‌فرض</span>` });
 
@@ -1795,7 +1809,7 @@ document.addEventListener('copy', (e) => {
   e.preventDefault();
   e.clipboardData.setData('text/plain', v.state.doc.textBetween(0, v.state.doc.content.size, '\n\n', ' '));
   e.clipboardData.setData('text/html', getEditorHTML(t.crepe));
-  toast('کل متن کپی شد');
+  toast('کل متن کپی شد', 'ok');
 }, true);
 function isTypingField() {
   const a = document.activeElement;
@@ -1996,7 +2010,7 @@ export async function start() {
   const rd = await api.ready();
   const startupFiles = Array.isArray(rd) ? rd : rd.files;
   winRole = (rd && rd.role) || 'main';
-  if (rd && rd.alwaysOnTop) { document.body.classList.add('on-top'); $('#btn-pin').classList.add('on'); }
+  if (rd && rd.alwaysOnTop) { document.body.classList.add('on-top'); }
   api.info().then((i) => { appInfo = i; }).catch(() => {});
   api.onReceiveTab((p) => receiveTabs(p));
   api.onSetRole((r) => { winRole = r; saveSession(); });
