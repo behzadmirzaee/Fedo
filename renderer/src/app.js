@@ -57,6 +57,7 @@ const DEFAULTS = {
   sidebar: true, sideView: 'files', folder: null, typewriter: false, spellcheck: false, locked: [], logo: '08', verticalTabs: false,
   autoPair: true, pasteLink: true, plainAfterPaste: true, defaultExt: 'md',
   extColor: true, lastColor: { color: '#D93A3A', bg: null },
+  updateAuto: true, updateDownload: false, updateInstallOnQuit: true,
 };
 
 let settings = { ...DEFAULTS };
@@ -1342,6 +1343,7 @@ function applyAll() {
   api.setSpellcheck(!!settings.spellcheck);
   api.setLogo(settings.logo);
   document.body.classList.toggle('no-ext-color', settings.extColor === false);
+  if (api.updateConfig) api.updateConfig({ auto: settings.updateAuto !== false, download: !!settings.updateDownload, installOnQuit: settings.updateInstallOnQuit !== false });
   Object.assign(typingOpts, { autoPair: settings.autoPair !== false, pasteLink: settings.pasteLink !== false, plainAfterPaste: settings.plainAfterPaste !== false });
   applySidebar();
   updateStatus();
@@ -1366,6 +1368,56 @@ function fontItems(key) {
     run: () => updateSettings({ [key]: f.id }),
   }));
 }
+// ---------- updates (GitHub Releases) ----------
+let upd = { status: 'idle', current: '', manual: false };
+const updListeners = new Set();
+const faVer = (v) => String(v || '').split('.').map((n) => fa(Number(n) || 0)).join('٫');
+const updReady = () => upd.status === 'available' || upd.status === 'downloading' || upd.status === 'downloaded';
+function onUpdateState(next, initial = false) {
+  const prev = upd;
+  upd = next;
+  $('#btn-menu').classList.toggle('has-update', updReady());
+  updListeners.forEach((f) => f());
+  if (initial || prev.status === next.status) return;
+  if (next.status === 'available' && prev.status !== 'downloading') {
+    toast(`نسخه‌ی ${faVer(next.version)} آماده است`, 12000, [
+      { label: next.manual ? 'صفحه‌ی دانلود' : 'دانلود و نصب', run: () => api.updateDownload() },
+      { label: 'بعداً', run: () => {} },
+    ], 'info');
+  } else if (next.status === 'downloaded') {
+    toast(`نسخه‌ی ${faVer(next.version)} دانلود شد`, 15000, [{ label: 'نصب و راه‌اندازی دوباره', run: installUpdate }], 'ok');
+  } else if (next.status === 'error' && prev.status === 'downloading') {
+    toast('دانلود نسخه‌ی تازه کامل نشد', 6000, [{ label: 'دوباره', run: () => api.updateDownload() }], 'err');
+  }
+}
+/** unsaved work is saved (or explicitly dropped) before the installer closes the app */
+async function installUpdate() {
+  const dirty = tabs.filter((t) => t.dirty);
+  if (dirty.length) {
+    const r = await modal({
+      title: 'پیش از نصب، تغییرات ذخیره شوند؟',
+      text: `${dirty.length === 1 ? `«${tabTitle(dirty[0])}»` : `${fa(dirty.length)} سند`} تغییرات ذخیره‌نشده دارد. برنامه برای نصب بسته و دوباره باز می‌شود.`,
+      buttons: [{ label: 'انصراف', value: null }, { label: 'نصب بدون ذخیره', value: 'drop', danger: true }, { label: 'ذخیره و نصب', value: 'save', primary: true }],
+    });
+    if (!r) return;
+    if (r === 'save' && !(await saveAll())) return;
+  }
+  await persistNow();
+  api.updateInstall();
+}
+function updateStatusLine() {
+  const ago = upd.checkedAt ? relTime(upd.checkedAt) : '';
+  switch (upd.status) {
+    case 'checking': return ['muted', 'در حال بررسی…'];
+    case 'available': return ['new', `نسخه‌ی ${faVer(upd.version)} آماده‌ی دانلود است`];
+    case 'downloading': return ['new', `در حال دانلود نسخه‌ی ${faVer(upd.version)}… ${fa(upd.percent || 0)}٪`];
+    case 'downloaded': return ['ok', `نسخه‌ی ${faVer(upd.version)} دانلود شد و آماده‌ی نصب است`];
+    case 'none': return ['ok', 'آخرین نسخه نصب است' + (ago ? ` · بررسی ${ago}` : '')];
+    case 'error': return ['err', 'بررسی ممکن نشد. اتصال اینترنت را بررسی کنید.'];
+    default: return ['muted', 'هنوز بررسی نشده'];
+  }
+}
+
 // ---------- built-in extensions (switched on and off in Settings) ----------
 const EXTENSIONS = [
   { key: 'extColor', name: 'رنگ متن و پس‌زمینه', builtin: true, icon: ICON.palette, color: '#D6407F',
@@ -1526,6 +1578,36 @@ async function openSettings(section = 'look') {
     { id: 'icon', name: 'آیکن برنامه', icon: ICON.image, color: '#E0457B', body: () => [
       el('div', { class: 'lbl set-free' }, 'با انتخاب هر کدام، آیکن پنجره و نوار وظیفه عوض می‌شود.'), logoGrid,
     ] },
+    { id: 'update', name: 'به‌روزرسانی', icon: ICON.download, color: '#0E9F8E', body: () => {
+      const card = el('div', { class: 'grp up-card set-free' });
+      const paint = () => {
+        const logo = (LOGOS.find((l) => l.id === settings.logo) || LOGOS[0] || {}).url;
+        const [tone, line] = updateStatusLine();
+        const acts = el('div', { class: 'up-acts' });
+        const b = (label, run, primary) => acts.append(el('button', { class: 'hb' + (primary ? ' primary' : ''), onclick: run }, label));
+        if (upd.status === 'available') { b(upd.manual ? 'صفحه‌ی دانلود' : 'دانلود و نصب', () => api.updateDownload(), true); b('تغییرات این نسخه', () => api.updateOpenPage('notes')); }
+        else if (upd.status === 'downloaded') { b('نصب و راه‌اندازی دوباره', installUpdate, true); b('تغییرات این نسخه', () => api.updateOpenPage('notes')); }
+        else if (upd.status === 'downloading') acts.append(el('span', { class: 'up-bar' }, el('i', { style: `width:${upd.percent || 0}%` })));
+        else acts.append(el('button', { class: 'hb', disabled: upd.status === 'checking', onclick: () => api.updateCheck() }, upd.status === 'checking' ? 'در حال بررسی…' : 'بررسی دوباره'));
+        card.replaceChildren(
+          logo ? el('img', { src: logo, alt: '' }) : null,
+          el('div', { class: 'up-info' },
+            el('b', {}, `Fedo ${faVer(upd.current || (appInfo && appInfo.version) || '')}`),
+            el('span', { class: 'up-line ' + tone }, updReady() ? el('i', { class: 'dot' }) : null, line),
+            upd.manual ? el('small', {}, 'نسخه‌ی قابل‌حمل (zip) خودش را به‌روز نمی‌کند؛ نسخه‌ی تازه را از صفحه‌ی دانلود بگیرید.') : null),
+          acts);
+      };
+      paint();
+      updListeners.add(paint);
+      const auto = group(
+        toggle('updateAuto', 'بررسی خودکار', 'هنگام شروع برنامه و هر چند ساعت یک بار'),
+        upd.manual ? null : toggle('updateDownload', 'دانلود در پس‌زمینه', 'بعد از دانلود برای نصب از شما می‌پرسد'),
+        upd.manual ? null : toggle('updateInstallOnQuit', 'نصب هنگام بستن برنامه', 'اگر نسخه‌ای دانلود شده باشد'));
+      const link = (label, hint, text, which) => row(label, hint, el('button', { class: 'sv-link', onclick: () => api.updateOpenPage(which) }, text));
+      return [card, label('بررسی و نصب'), auto, label('GitHub'), group(
+        link('همه‌ی نسخه‌ها و یادداشت‌های انتشار', null, 'باز کردن در مرورگر', 'all'),
+        link('دانلود دستی', 'اگر دانلود داخل برنامه انجام نشد', 'صفحه‌ی دانلود', 'all'))];
+    } },
   ];
 
   // --- shell ---
@@ -1545,7 +1627,8 @@ async function openSettings(section = 'look') {
   };
   for (const sc of SECTIONS) {
     nav.append(el('button', { class: 'nv', 'data-id': sc.id, title: sc.name, onclick: () => show(sc.id) },
-      el('span', { class: 'sq', style: `background:${sc.color}`, html: sc.icon }), el('span', { class: 'nv-n' }, sc.name)));
+      el('span', { class: 'sq', style: `background:${sc.color}`, html: sc.icon }), el('span', { class: 'nv-n' }, sc.name),
+      sc.id === 'update' && updReady() ? el('span', { class: 'nv-dot', role: 'img', 'aria-label': 'نسخه‌ی جدید آماده است' }) : null));
   }
   // search hides rows with a marker, so leaving the search restores only what it hid
   const hideS = (n, h) => { n.hidden = h; if (h) n.dataset.sh = '1'; else delete n.dataset.sh; };
@@ -1570,7 +1653,7 @@ async function openSettings(section = 'look') {
     paintPreview();
   });
   const close = () => {
-    ov.remove(); document.removeEventListener('keydown', onEsc, true); settingsOpen = null;
+    ov.remove(); document.removeEventListener('keydown', onEsc, true); settingsOpen = null; updListeners.clear();
     for (const n of built.values()) { n.hidden = false; n.querySelectorAll('[data-sh]').forEach((x) => { x.hidden = false; delete x.dataset.sh; }); }
   };
   const onEsc = (e) => { if (e.key === 'Escape' && !document.querySelector('.menu')) { e.preventDefault(); e.stopPropagation(); close(); } };
@@ -1635,6 +1718,7 @@ function openMainMenu(anchor) {
     ] },
     { icon: ICON.settings, label: 'تنظیمات', key: 'Ctrl+,', run: () => openSettings() },
     { icon: ICON.keyboard, label: 'میان‌برهای صفحه‌کلید', run: showShortcuts },
+    { icon: ICON.download, label: 'به‌روزرسانی', badge: updReady() ? `${faVer(upd.version)} آماده است` : null, run: () => openSettings('update') },
   ], r.right, r.bottom + 8, () => anchor.classList.remove('open'));
 }
 
@@ -2284,6 +2368,7 @@ export async function start() {
   winRole = (rd && rd.role) || 'main';
   if (rd && rd.alwaysOnTop) { document.body.classList.add('on-top'); }
   api.info().then((i) => { appInfo = i; }).catch(() => {});
+  if (api.onUpdateState) { api.onUpdateState((u) => onUpdateState(u)); api.updateState().then((u) => onUpdateState(u, true)).catch(() => {}); }
   api.onReceiveTab((p) => receiveTabs(p));
   api.onSetRole((r) => { winRole = r; saveSession(); });
   if (winRole !== 'main') {

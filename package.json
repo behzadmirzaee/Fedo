@@ -1,24 +1,22 @@
 {
   "name": "fedo",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Fedo: ویرایشگر Markdown فارسی",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "start": "vite build && electron .",
-    "dist:win": "vite build && electron-builder --win"
+    "dist:win": "vite build && electron-builder --win --publish never",
+    "release:win": "vite build && electron-builder --win --publish always"
   },
   "keywords": [],
   "author": "Behzad",
   "license": "ISC",
-  "dependencies": {},
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
   "devDependencies": {
-    "electron": "^38.8.6",
-    "electron-builder": "^26.18.0",
-    "png-to-ico": "^3.0.2",
-    "resedit": "^3.1.0",
-    "vite": "^8.3.5",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/language": "^6.13.1",
@@ -30,8 +28,13 @@
     "@milkdown/crepe": "^7.23.0",
     "@milkdown/kit": "^7.23.0",
     "diff": "^9.0.0",
+    "electron": "^38.8.6",
+    "electron-builder": "^26.18.0",
     "katex": "^0.19.1",
-    "mermaid": "^12.2.0"
+    "mermaid": "^12.2.0",
+    "png-to-ico": "^3.0.2",
+    "resedit": "^3.1.0",
+    "vite": "^8.3.5"
   },
   "productName": "Fedo",
   "build": {
@@ -74,7 +77,8 @@
         }
       ],
       "signAndEditExecutable": false,
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "artifactName": "Fedo-${version}-win.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -85,9 +89,19 @@
       "uninstallerIcon": "build/icon.ico",
       "installerLanguages": [
         "en_US"
-      ]
+      ],
+      "artifactName": "Fedo-Setup-${version}.${ext}"
     },
     "afterPack": "build/after-pack.js",
-    "publish": null
+    "publish": {
+      "provider": "github",
+      "owner": "behzadmirzaee",
+      "repo": "Fedo",
+      "releaseType": "release"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/behzadmirzaee/Fedo.git"
   }
 }

@@ -192,6 +192,7 @@ app.on('open-file', (e, p) => {
 
 app.whenReady().then(async () => {
   await fsp.mkdir(themesDir(), { recursive: true });
+  require('./updater');
   createWindow();
 });
 app.on('window-all-closed', () => app.quit());

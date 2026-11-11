@@ -61,6 +61,13 @@ contextBridge.exposeInMainWorld('api', {
   setSpellcheck: inv('app:set-spellcheck'),
   setLogo: inv('app:set-logo'),
 
+  updateState: inv('update:state'),
+  updateCheck: inv('update:check'),
+  updateDownload: inv('update:download'),
+  updateInstall: inv('update:install'),
+  updateOpenPage: inv('update:open-page'),
+  updateConfig: inv('update:config'),
+  onUpdateState: on('update-state'),
   onOpenPath: on('open-path'),
   ready: inv('app:ready'),
   onRequestClose: on('request-close'),

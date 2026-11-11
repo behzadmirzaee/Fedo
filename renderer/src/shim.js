@@ -9,7 +9,7 @@ export function installShim() {
   const on = (n) => (fn) => { (listeners[n] = listeners[n] || []).push(fn); };
   const emit = (n, ...a) => (listeners[n] || []).forEach((f) => f(...a));
   let saveAnswer = '/docs/new.md';
-  window.__nv = { files, hist, drafts, emit, setSaveAnswer: (p) => { saveAnswer = p; } };
+  window.__nv = { files, hist, drafts, emit, setUpdate: (u) => { window.__upd = u; emit('update-state', u); }, setSaveAnswer: (p) => { saveAnswer = p; } };
   const hash = (s) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) | 0; return h; };
   window.api = {
     closeNow: async () => { window.__closed = true; },
@@ -57,6 +57,10 @@ export function installShim() {
     detach: async (payload, opts) => { window.__detached = { payload, opts }; return true; },
     toMain: async () => false, setOnTop: async (on) => !!on, winInfo: async () => ({ role: 'main', alwaysOnTop: false, count: 1 }),
     onReceiveTab: on('receive-tab'), onSetRole: on('set-role'),
+    updateState: async () => window.__upd || { status: 'idle', current: '2.4.0', manual: false },
+    updateCheck: async () => { emit('update-state', window.__upd = { ...(window.__upd || {}), status: 'none', current: '2.4.0', checkedAt: Date.now() }); },
+    updateDownload: async () => {}, updateInstall: async () => { window.__installed = true; return true; }, updateOpenPage: async () => {},
+    updateConfig: async () => true, onUpdateState: on('update-state'),
     onOpenPath: on('open-path'), onRequestClose: on('request-close'), onFileChanged: on('file-changed'),
   };
 }
