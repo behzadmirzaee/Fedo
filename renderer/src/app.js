@@ -29,11 +29,11 @@ export const THEMES = [
 export const FONTS = [
   { id: '', name: 'پیش‌فرض تم' },
   { id: 'Vazirmatn', name: 'وزیرمتن' },
-  { id: 'Dana', name: 'دانا' },
-  { id: 'IRANSansX', name: 'ایران‌سنس X' },
-  { id: 'IRANYekanX', name: 'ایران‌یکان X' },
+  { id: 'Dana', name: 'دانا', optional: true },
+  { id: 'IRANSansX', name: 'ایران‌سنس X', optional: true },
+  { id: 'IRANYekanX', name: 'ایران‌یکان X', optional: true },
   { id: 'Noto Naskh Arabic', name: 'نسخ' },
-];
+].filter((f) => !f.optional || (window.__nvFonts || []).includes(f.id));
 const RECENT_MAX = 10;
 let systemFonts = null;
 async function loadSystemFonts() {
