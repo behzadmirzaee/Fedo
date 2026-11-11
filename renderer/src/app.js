@@ -9,6 +9,8 @@ import { TextSelection, AllSelection } from '@milkdown/kit/prose/state';
 import { createHistoryPanel } from './history.js';
 import { openEditorMenu, handleTableKey } from './context.js';
 import { typingOpts } from './typing.js';
+import { applyColor } from './context.js';
+import { TEXT_COLORS, BG_COLORS } from './textcolor.js';
 const LOGOS = Object.entries(import.meta.glob('../logos/*.png', { eager: true, query: '?url', import: 'default' }))
   .map(([k, url]) => ({ id: k.match(/(\w+)\.png$/)[1], url })).sort((a, b) => a.id.localeCompare(b.id));
 import { buildRegex, pmEngine, cmEngine, pmCollectEdits, pmApplyEdits, PRESETS } from './search.js';
@@ -54,6 +56,7 @@ const DEFAULTS = {
   autosave: false, snapshotMinutes: 5, restoreSession: true, recent: [],
   sidebar: true, sideView: 'files', folder: null, typewriter: false, spellcheck: false, locked: [], logo: '08', verticalTabs: false,
   autoPair: true, pasteLink: true, plainAfterPaste: true, defaultExt: 'md',
+  extColor: true, lastColor: { color: '#D93A3A', bg: null },
 };
 
 let settings = { ...DEFAULTS };
@@ -199,7 +202,7 @@ async function newTab({ path = null, content = '', activate = true, mode = 'wysi
       ], e.clientX, e.clientY);
       return;
     }
-    openEditorMenu(t.crepe, e.clientX, e.clientY, { insertImage: () => insertImageFromDisk(t), edit: (op) => api.edit(op) });
+    openEditorMenu(t.crepe, e.clientX, e.clientY, { insertImage: () => insertImageFromDisk(t), edit: (op) => api.edit(op), color: colorTools(t) });
   });
   // block paste / drop into a locked document
   for (const ev of ['paste', 'drop', 'cut']) {
@@ -646,6 +649,26 @@ function tabMenu(t, x, y) {
     { icon: ICON.copy, label: 'کپی مسیر فایل', disabled: !t.path, run: () => { navigator.clipboard.writeText(t.path); toast('مسیر کپی شد', 'ok'); } },
     { icon: ICON.history, label: 'تاریخچه‌ی نسخه‌ها', key: 'Ctrl+Shift+H', disabled: !t.path, run: () => { activateTab(t.id); historyPanel.show(); } },
   ], x, y);
+}
+
+// ---------- built-in extension: text colour ----------
+function colorTools(t) {
+  return {
+    enabled: settings.extColor !== false,
+    last: settings.lastColor || DEFAULTS.lastColor,
+    guard: () => { if (t.locked) { showLockedToast(); return true; } return false; },
+    remember: (c) => { if (c && (c.color || c.bg)) updateSettings({ lastColor: { color: c.color || null, bg: c.bg || null } }); },
+  };
+}
+/** Alt+H: give the selection the last colour used */
+function applyLastColor(t) {
+  if (!t || t.mode !== 'wysiwyg' || settings.extColor === false) return false;
+  if (t.locked) { showLockedToast(); return true; }
+  const v = getView(t.crepe);
+  if (v.state.selection.empty) { toast('اول بخشی از متن را انتخاب کنید', 'info'); return true; }
+  const c = settings.lastColor || DEFAULTS.lastColor;
+  applyColor(t.crepe, { color: c.color || null, bg: c.bg || null });
+  return true;
 }
 
 // ---------- copy the whole document ----------
@@ -1318,6 +1341,7 @@ function applyAll() {
   for (const t of tabs) applySpell(t);
   api.setSpellcheck(!!settings.spellcheck);
   api.setLogo(settings.logo);
+  document.body.classList.toggle('no-ext-color', settings.extColor === false);
   Object.assign(typingOpts, { autoPair: settings.autoPair !== false, pasteLink: settings.pasteLink !== false, plainAfterPaste: settings.plainAfterPaste !== false });
   applySidebar();
   updateStatus();
@@ -1342,6 +1366,31 @@ function fontItems(key) {
     run: () => updateSettings({ [key]: f.id }),
   }));
 }
+// ---------- built-in extensions (switched on and off in Settings) ----------
+const EXTENSIONS = [
+  { key: 'extColor', name: 'رنگ متن و پس‌زمینه', builtin: true, icon: ICON.palette, color: '#D6407F',
+    hint: 'رنگ در فایل با تگ HTML ذخیره می‌شود و در خروجی HTML و PDF می‌ماند', details: true },
+  { key: 'spellcheck', name: 'غلط‌یابی املایی', icon: ICON.tickSquare, color: '#2FA84F', hint: 'خط زیر کلمه‌های نادرست و پیشنهاد در راست‌کلیک' },
+  { key: 'typewriter', name: 'حالت ماشین‌تحریر', icon: ICON.keyboard, color: '#6E6E78', hint: 'خط در حال نوشتن همیشه وسط صفحه می‌ماند', keyHint: 'F9' },
+];
+function extRow(x, sw) {
+  const on = () => (x.key === 'extColor' ? settings.extColor !== false : !!settings[x.key]);
+  const toggleBtn = sw(on, () => updateSettings({ [x.key]: !on() }), x.name);
+  const row = el('div', { class: 'ex', 'data-s': x.name + ' ' + x.hint + ' افزونه' },
+    el('span', { class: 'sq', style: `background:${x.color}`, html: x.icon }),
+    el('span', { class: 'nm' }, el('b', {}, x.name, x.builtin ? el('span', { class: 'pill' }, 'پیش‌فرض') : null), el('small', {}, x.hint)));
+  if (!x.details) { if (x.keyHint) row.append(kbd(x.keyHint)); row.append(toggleBtn); return row; }
+  const sw2 = (list, text) => el('span', { class: 'ex-sw' }, list.map((c) => el('span', { class: 'sw' + (text ? '' : ' bg'), title: c.name, style: text ? `color:${c.c}` : `background:${c.c}` }, text ? 'آ' : '')));
+  const details = el('div', { class: 'xd', hidden: true },
+    el('div', { class: 'xd-r' }, el('span', { class: 'xd-l' }, 'رنگ متن'), sw2(TEXT_COLORS, true)),
+    el('div', { class: 'xd-r' }, el('span', { class: 'xd-l' }, 'پس‌زمینه'), sw2(BG_COLORS, false)),
+    el('div', { class: 'xd-r' }, el('span', { class: 'xd-l' }, 'آخرین رنگ'), kbd('Alt+H'), el('span', { class: 'row-mut' }, 'روی متن انتخاب‌شده، با راست‌کلیک › رنگ')));
+  const more = el('button', { class: 'xb', 'aria-expanded': 'false', onclick: () => { details.hidden = !details.hidden; more.setAttribute('aria-expanded', String(!details.hidden)); more.classList.toggle('open', !details.hidden); } },
+    'تنظیمات', el('span', { class: 'ic', html: ICON.chevDown }));
+  row.append(more, toggleBtn);
+  return el('div', { class: 'ex-wrap', 'data-s': x.name + ' ' + x.hint + ' افزونه' }, row, details);
+}
+
 // ---------- settings window: sections on the right, changes apply at once ----------
 const THEME_SWATCH = { light: ['#ffffff', '#1d1d1f'], dark: ['#1e1f22', '#dcdde1'], sepia: ['#f7f1e3', '#3b2f22'], nord: ['#2e3440', '#e5e9f0'], garden: ['#fbfdf9', '#1d2a20'] };
 const PAGE_WIDTHS = [[720, 'باریک'], [860, 'متوسط'], [1040, 'پهن']];
@@ -1470,6 +1519,10 @@ async function openSettings(section = 'look') {
     { id: 'keys', name: 'میان‌برها', icon: ICON.keyboard, color: '#6E6E78', body: () => [
       el('div', { class: 'keys-grid' }, KEY_LIST.map((col) => el('div', { class: 'grp' }, col.map(([l, k]) => el('div', { class: 'kr', 'data-s': l + ' ' + k }, el('span', {}, l), kbd(k)))))),
     ] },
+    { id: 'ext', name: 'افزونه‌ها', icon: ICON.group, color: '#5B5BD6', body: () => [
+      el('div', { class: 'lbl set-free plain' }, 'خاموش کردن افزونه چیزی از فایل‌ها پاک نمی‌کند؛ فقط نمایش و ابزارهایش پنهان می‌شود.'),
+      el('div', { class: 'grp' }, EXTENSIONS.map((x) => extRow(x, sw))),
+    ] },
     { id: 'icon', name: 'آیکن برنامه', icon: ICON.image, color: '#E0457B', body: () => [
       el('div', { class: 'lbl set-free' }, 'با انتخاب هر کدام، آیکن پنجره و نوار وظیفه عوض می‌شود.'), logoGrid,
     ] },
@@ -1486,7 +1539,7 @@ async function openSettings(section = 'look') {
     current = id; search.value = '';
     nav.querySelectorAll('.nv').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
     content.replaceChildren(built.get(id));
-    for (const n of built.get(id).querySelectorAll('[hidden]')) n.hidden = false;
+    for (const n of built.get(id).querySelectorAll('[data-sh]')) { n.hidden = false; delete n.dataset.sh; }
     content.scrollTop = 0;
     if (id === 'font') paintPreview();
   };
@@ -1494,6 +1547,8 @@ async function openSettings(section = 'look') {
     nav.append(el('button', { class: 'nv', 'data-id': sc.id, title: sc.name, onclick: () => show(sc.id) },
       el('span', { class: 'sq', style: `background:${sc.color}`, html: sc.icon }), el('span', { class: 'nv-n' }, sc.name)));
   }
+  // search hides rows with a marker, so leaving the search restores only what it hid
+  const hideS = (n, h) => { n.hidden = h; if (h) n.dataset.sh = '1'; else delete n.dataset.sh; };
   search.addEventListener('input', () => {
     const q = search.value.trim().toLowerCase();
     if (!q) { show(current); return; }
@@ -1503,11 +1558,11 @@ async function openSettings(section = 'look') {
       const node = built.get(sc.id);
       const whole = sc.name.toLowerCase().includes(q);
       let hit = whole;
-      for (const r of node.querySelectorAll('[data-s]')) { const ok = whole || r.dataset.s.toLowerCase().includes(q); r.hidden = !ok; hit = hit || ok; }
-      for (const g of node.querySelectorAll('.grp:not(.set-free)')) g.hidden = !g.querySelector('[data-s]:not([hidden])');
-      for (const f of node.querySelectorAll('.set-free')) f.hidden = !whole;
-      for (const l of node.querySelectorAll('.lbl:not(.set-free)')) l.hidden = !l.nextElementSibling || l.nextElementSibling.hidden;
-      node.hidden = !hit;
+      for (const r of node.querySelectorAll('[data-s]')) { const ok = whole || r.dataset.s.toLowerCase().includes(q); hideS(r, !ok); hit = hit || ok; }
+      for (const g of node.querySelectorAll('.grp:not(.set-free)')) hideS(g, !g.querySelector('[data-s]:not([hidden])'));
+      for (const f of node.querySelectorAll('.set-free')) hideS(f, !whole);
+      for (const l of node.querySelectorAll('.lbl:not(.set-free)')) hideS(l, !l.nextElementSibling || l.nextElementSibling.hidden);
+      hideS(node, !hit);
       any = any || hit;
       return node;
     }));
@@ -1516,7 +1571,7 @@ async function openSettings(section = 'look') {
   });
   const close = () => {
     ov.remove(); document.removeEventListener('keydown', onEsc, true); settingsOpen = null;
-    for (const n of built.values()) n.hidden = false;
+    for (const n of built.values()) { n.hidden = false; n.querySelectorAll('[data-sh]').forEach((x) => { x.hidden = false; delete x.dataset.sh; }); }
   };
   const onEsc = (e) => { if (e.key === 'Escape' && !document.querySelector('.menu')) { e.preventDefault(); e.stopPropagation(); close(); } };
   const box = el('div', { class: 'modal set-modal', dir: 'rtl', role: 'dialog', 'aria-label': 'تنظیمات' }, nav,
@@ -2112,6 +2167,7 @@ function onKey(e) {
   if (t && t.locked && isEditKey(e)) { handled(); showLockedToast(); return; }
   if (ctrl && !e.shiftKey && !e.altKey && e.code === 'KeyA' && t && !isTypingField()) { handled(); selectAllDoc(t); return; }
   if (e.key === 'F9') { handled(); toggleSetting('typewriter'); return; }
+  if (e.altKey && !ctrl && !e.shiftKey && code === 'KeyH' && t && t.mode === 'wysiwyg' && settings.extColor !== false) { handled(); applyLastColor(t); return; }
   if (e.key === 'F11') { handled(); api.fullscreen(); return; }
   if (e.key === 'F12' || (ctrl && e.shiftKey && code === 'KeyI')) { handled(); api.devtools(); return; }
   if (t && t.mode === 'wysiwyg' && t.wys.contains(document.activeElement) && !document.activeElement.closest('.cm-editor')) {

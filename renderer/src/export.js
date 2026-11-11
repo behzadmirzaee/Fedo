@@ -63,6 +63,7 @@ td, th { border: 1px solid var(--border); padding: 6px 12px; }
 th { background: var(--panel); }
 hr { border: 0; border-top: 1px solid var(--border); margin: 2em 0; }
 li[data-checked] { list-style: none; }
+.nv-color.has-bg { border-radius: 3px; padding-block: 1px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 li[data-checked]::before { content: '☐'; margin-inline-end: 6px; }
 li[data-checked='true']::before { content: '☑'; }
 .katex-display { direction: ltr; }

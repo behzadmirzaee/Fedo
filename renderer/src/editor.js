@@ -3,6 +3,7 @@ import { Crepe } from '@milkdown/crepe';
 import { autoPair, pairBackspace, pasteBehaviour, ltrIslands } from './typing.js';
 import { pmSearchPlugin, cmSearchExtension } from './search.js';
 import { tableCellSchema, tableHeaderSchema } from '@milkdown/kit/preset/gfm';
+import { textColorPlugins } from './textcolor.js';
 
 // Table cells with no alignment follow their text direction (right for Persian) instead of
 // being forced to "left"; an alignment picked by the user is kept and written to the file.
@@ -294,7 +295,7 @@ export async function createEditor(root, markdownText, hooks) {
     },
   });
   crepe.editor.use(wordUndo).use(dirPlugin).use(focusPlugin).use(autoPair).use(pairBackspace).use(pasteBehaviour).use(ltrIslands).use(pmSearchPlugin).use(noPointerScroll)
-    .use(naturalAlign(tableCellSchema)).use(naturalAlign(tableHeaderSchema));
+    .use(naturalAlign(tableCellSchema)).use(naturalAlign(tableHeaderSchema)).use(textColorPlugins);
   crepe.on((api) => {
     api.markdownUpdated((_ctx, md) => hooks.onChange(md));
     api.selectionUpdated(() => hooks.onSelection && hooks.onSelection());

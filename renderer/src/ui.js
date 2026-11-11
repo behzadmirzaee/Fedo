@@ -181,10 +181,12 @@ function buildMenu(items, level, detached = false) {
       const w = it.swatches;
       const row = el('div', { class: 'mswatches', role: 'group', 'aria-label': w.label });
       const paint = (id) => row.querySelectorAll('button').forEach((b) => { const on = b.dataset.id === id; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+      if (w.glyph) row.classList.add('glyphs');
       for (const c of w.items) {
-        const b = el('button', { 'data-id': c.id, title: c.name, 'aria-label': c.name, style: `--sw:${c.color}` });
+        const b = el('button', { 'data-id': c.id, title: c.name, 'aria-label': c.name, class: c.none ? 'none' : null,
+          style: w.glyph === 'text' ? `color:${c.color || 'var(--fg)'}` : `--sw:${c.color || 'transparent'}`, html: c.none ? ICON.x : null }, w.glyph && !c.none ? 'آ' : null);
         b.addEventListener('mousedown', (e) => e.preventDefault());
-        b.addEventListener('click', () => { w.pick(c.id); paint(c.id); });
+        b.addEventListener('click', () => { if (w.close) closeMenu(); w.pick(c.id); if (!w.close) paint(c.id); });
         row.append(b);
       }
       paint(w.value);
