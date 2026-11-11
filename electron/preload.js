@@ -1,0 +1,67 @@
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+
+const inv = (ch) => (...a) => ipcRenderer.invoke(ch, ...a);
+const on = (ch) => (fn) => ipcRenderer.on(ch, (_e, ...a) => fn(...a));
+
+contextBridge.exposeInMainWorld('api', {
+  closeNow: inv('win:close-now'),
+  newWindow: inv('win:new'),
+  detach: inv('win:detach'),
+  toMain: inv('win:to-main'),
+  setOnTop: inv('win:set-on-top'),
+  winInfo: inv('win:info'),
+  onReceiveTab: on('receive-tab'),
+  onSetRole: on('set-role'),
+  setTitle: inv('win:set-title'),
+  devtools: inv('win:devtools'),
+  fullscreen: inv('win:fullscreen'),
+  zoom: inv('win:zoom'),
+  find: inv('win:find'),
+  stopFind: inv('win:stop-find'),
+  edit: inv('win:edit'),
+  pickImage: inv('file:pick-image'),
+  onFound: on('found'),
+
+  openDialog: inv('file:open-dialog'),
+  openFolderDialog: inv('file:open-folder-dialog'),
+  saveDialog: inv('file:save-dialog'),
+  readFile: inv('file:read'),
+  writeFile: inv('file:write'),
+  stat: inv('file:stat'),
+  reveal: inv('file:reveal'),
+  openUrl: inv('shell:open-url'),
+  draftSave: inv('drafts:save'),
+  draftDelete: inv('drafts:delete'),
+  draftList: inv('drafts:list'),
+  openExternal: inv('file:open-external'),
+  saveImage: inv('file:save-image'),
+  tree: inv('file:tree'),
+  watch: inv('file:watch'),
+  unwatch: inv('file:unwatch'),
+  pathForFile: (f) => (webUtils ? webUtils.getPathForFile(f) : f.path),
+
+  historyList: inv('history:list'),
+  historyAdd: inv('history:add'),
+  historyRead: inv('history:read'),
+  historyLabel: inv('history:label'),
+  historyDelete: inv('history:delete'),
+  historyMove: inv('history:move'),
+
+  getSettings: inv('settings:get'),
+  setSettings: inv('settings:set'),
+  getSession: inv('session:get'),
+  setSession: inv('session:set'),
+  customThemes: inv('themes:custom'),
+  openThemesFolder: inv('themes:open-folder'),
+
+  exportHTML: inv('export:html'),
+  exportPDF: inv('export:pdf'),
+  info: inv('app:info'),
+  setSpellcheck: inv('app:set-spellcheck'),
+  setLogo: inv('app:set-logo'),
+
+  onOpenPath: on('open-path'),
+  ready: inv('app:ready'),
+  onRequestClose: on('request-close'),
+  onFileChanged: on('file-changed'),
+});

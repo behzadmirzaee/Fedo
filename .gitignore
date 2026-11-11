@@ -1,0 +1,8 @@
+node_modules/
+dist/
+release/
+# Commercial fonts (Dana, IRANSansX, IRANYekanX) are licensed files and must not be published.
+# Put them in renderer/fonts/ locally and they are bundled automatically.
+renderer/fonts/*.woff2
+renderer/fonts/*.woff
+renderer/fonts/*.ttf

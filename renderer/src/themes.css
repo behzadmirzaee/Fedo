@@ -1,0 +1,185 @@
+/* Built-in themes. Custom themes (userData/themes/*.css) can override any of these variables. */
+
+:root,
+[data-theme='light'] {
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-number: #0550ae;
+  --hl-comment: #6e7781;
+  --hl-func: #8250df;
+  --hl-type: #953800;
+  --hl-prop: #0550ae;
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --panel: #f7f7f8;
+  --panel-2: #efeff1;
+  --hover: #ececef;
+  --accent: #2563eb;
+  --accent-fg: #ffffff;
+  --selection: #cfe0ff;
+  --code-bg: #f3f4f6;
+  --quote: #d0d7de;
+  --link: #0969da;
+  --danger: #d1242f;
+  --ins-bg: #dafbe1;
+  --ins-fg: #116329;
+  --del-bg: #ffebe9;
+  --del-fg: #82071e;
+  --font-ui: 'Vazirmatn', 'Segoe UI', system-ui, sans-serif;
+  --font-text: 'Vazirmatn', 'Segoe UI', system-ui, sans-serif;
+  --font-head: 'Vazirmatn', 'Segoe UI', system-ui, sans-serif;
+  --font-code: 'NvArabic', 'Cascadia Code', Consolas, 'Fira Code', Menlo, monospace;
+  --text-size: 17px;
+  --line-height: 1.95;
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --hl-keyword: #ff7b72;
+  --hl-string: #a5d6ff;
+  --hl-number: #79c0ff;
+  --hl-comment: #8b949e;
+  --hl-func: #d2a8ff;
+  --hl-type: #ffa657;
+  --hl-prop: #79c0ff;
+  --bg: #1e1f22;
+  --fg: #dcdde1;
+  --muted: #8b8f98;
+  --border: #33353a;
+  --panel: #252629;
+  --panel-2: #2c2d31;
+  --hover: #303237;
+  --accent: #6ea8fe;
+  --accent-fg: #0b1220;
+  --selection: #2f4a7a;
+  --code-bg: #2a2b2f;
+  --quote: #4a4d55;
+  --link: #79b8ff;
+  --danger: #ff7b72;
+  --ins-bg: #1c3a26;
+  --ins-fg: #7ee2a0;
+  --del-bg: #45201f;
+  --del-fg: #ffa198;
+  color-scheme: dark;
+}
+
+[data-theme='sepia'] {
+  --hl-keyword: #a0381c;
+  --hl-string: #3d6b1f;
+  --hl-number: #1c5c8a;
+  --hl-comment: #9a8a70;
+  --hl-func: #7a3e9d;
+  --hl-type: #8a5a00;
+  --hl-prop: #1c5c8a;
+  --bg: #f7f1e3;
+  --fg: #3b2f22;
+  --muted: #8a7a64;
+  --border: #e4d8c0;
+  --panel: #efe6d2;
+  --panel-2: #e8dcc3;
+  --hover: #e6d9bf;
+  --accent: #9a5b13;
+  --accent-fg: #ffffff;
+  --selection: #ead3a8;
+  --code-bg: #ece2cc;
+  --quote: #cdb994;
+  --link: #8a4b08;
+  --danger: #b42318;
+  --ins-bg: #dcefd0;
+  --ins-fg: #2f5d1c;
+  --del-bg: #f6d8cf;
+  --del-fg: #8a1c0b;
+  --font-text: 'Noto Naskh Arabic', 'Vazirmatn', Georgia, serif;
+  --font-head: 'Vazirmatn', Georgia, serif;
+  --text-size: 19px;
+  --line-height: 2.05;
+  color-scheme: light;
+}
+
+[data-theme='nord'] {
+  --hl-keyword: #81a1c1;
+  --hl-string: #a3be8c;
+  --hl-number: #b48ead;
+  --hl-comment: #7b88a1;
+  --hl-func: #88c0d0;
+  --hl-type: #8fbcbb;
+  --hl-prop: #d8dee9;
+  --bg: #2e3440;
+  --fg: #e5e9f0;
+  --muted: #9aa5b8;
+  --border: #3b4252;
+  --panel: #2a303b;
+  --panel-2: #353c4a;
+  --hover: #3b4252;
+  --accent: #88c0d0;
+  --accent-fg: #1f242d;
+  --selection: #434c5e;
+  --code-bg: #3b4252;
+  --quote: #5e81ac;
+  --link: #8fbcbb;
+  --danger: #bf616a;
+  --ins-bg: #3b4a3a;
+  --ins-fg: #a3be8c;
+  --del-bg: #4c3438;
+  --del-fg: #e0a0a6;
+  color-scheme: dark;
+}
+
+[data-theme='garden'] {
+  --hl-keyword: #b3261e;
+  --hl-string: #2e6b30;
+  --hl-number: #1d5f8a;
+  --hl-comment: #7d8b80;
+  --hl-func: #6b3fa0;
+  --hl-type: #8a5200;
+  --hl-prop: #1d5f8a;
+  --bg: #fbfdf9;
+  --fg: #1d2a20;
+  --muted: #66766a;
+  --border: #dde7dc;
+  --panel: #f1f6ef;
+  --panel-2: #e6efe3;
+  --hover: #e3ece0;
+  --accent: #2f7d4f;
+  --accent-fg: #ffffff;
+  --selection: #cde8d5;
+  --code-bg: #eef4ec;
+  --quote: #a9cbb3;
+  --link: #1f6f43;
+  --danger: #c0392b;
+  --ins-bg: #d6f2dd;
+  --ins-fg: #1b5e33;
+  --del-bg: #f9e0dc;
+  --del-fg: #8e1f14;
+  --font-head: 'Noto Naskh Arabic', 'Vazirmatn', serif;
+  color-scheme: light;
+}
+
+/* map app variables onto Milkdown Crepe */
+.milkdown {
+  --crepe-color-background: var(--bg);
+  --crepe-color-on-background: var(--fg);
+  --crepe-color-surface: var(--panel);
+  --crepe-color-surface-low: var(--panel-2);
+  --crepe-color-on-surface: var(--fg);
+  --crepe-color-on-surface-variant: var(--muted);
+  --crepe-color-outline: var(--muted);
+  --crepe-color-primary: var(--accent);
+  --crepe-color-secondary: var(--selection);
+  --crepe-color-on-secondary: var(--fg);
+  --crepe-color-inverse: var(--fg);
+  --crepe-color-on-inverse: var(--bg);
+  --crepe-color-inline-code: var(--danger);
+  --crepe-color-error: var(--danger);
+  --crepe-color-hover: var(--hover);
+  --crepe-color-selected: var(--selection);
+  --crepe-color-inline-area: var(--code-bg);
+  --crepe-base-font-size: var(--text-size);
+  --crepe-font-title: var(--font-head);
+  --crepe-font-default: var(--font-text);
+  --crepe-font-code: var(--font-code);
+  --crepe-shadow-1: 0 1px 3px rgba(0, 0, 0, 0.18);
+  --crepe-shadow-2: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
