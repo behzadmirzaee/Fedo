@@ -375,11 +375,11 @@ function applyPendingScroll(t) {
 
 // ---------- tab groups (Chrome-style) ----------
 export const GROUP_COLORS = [
-  { id: 'grey', name: 'خاکستری', c: '#80868b' }, { id: 'blue', name: 'آبی', c: '#1a73e8' },
-  { id: 'red', name: 'قرمز', c: '#d93025' }, { id: 'yellow', name: 'زرد', c: '#f9ab00' },
-  { id: 'green', name: 'سبز', c: '#188038' }, { id: 'pink', name: 'صورتی', c: '#d01884' },
-  { id: 'purple', name: 'بنفش', c: '#a142f4' }, { id: 'cyan', name: 'فیروزه‌ای', c: '#007b83' },
-  { id: 'orange', name: 'نارنجی', c: '#fa903e' },
+  { id: 'blue', name: 'آبی', c: '#0066DD' }, { id: 'green', name: 'سبز', c: '#1F9D48' },
+  { id: 'orange', name: 'نارنجی', c: '#E8830C' }, { id: 'red', name: 'قرمز', c: '#D93A3A' },
+  { id: 'purple', name: 'بنفش', c: '#8E5BD9' }, { id: 'pink', name: 'صورتی', c: '#E0457B' },
+  { id: 'cyan', name: 'فیروزه‌ای', c: '#0E9F8E' }, { id: 'yellow', name: 'زرد', c: '#B7791F' },
+  { id: 'grey', name: 'خاکستری', c: '#6E6E78' },
 ];
 const groups = new Map(); // id -> { id, name, color, collapsed }
 const colorOf = (g) => (GROUP_COLORS.find((c) => c.id === g.color) || GROUP_COLORS[0]).c;
@@ -400,43 +400,12 @@ function normalizeGroups() {
   tabs.splice(0, tabs.length, ...out);
   for (const id of [...groups.keys()]) if (!tabs.some((t) => t.groupId === id)) groups.delete(id);
 }
-async function editGroup(g, isNew = false) {
-  let color = g.color;
-  const swatches = el('div', { class: 'grp-colors' });
-  const preview = el('span', { class: 'grp-preview' });
-  const picked = el('span', { class: 'grp-picked' });
-  const paint = () => {
-    const c = GROUP_COLORS.find((x) => x.id === color) || GROUP_COLORS[0];
-    swatches.querySelectorAll('.grp-sw').forEach((n) => { const on = n.dataset.id === color; n.classList.toggle('on', on); n.setAttribute('aria-pressed', on); });
-    preview.style.setProperty('--g', c.c);
-    picked.textContent = 'رنگ انتخاب‌شده: ' + c.name;
-    const inp = document.querySelector('.modal input[type=text]');
-    preview.textContent = (inp && inp.value.trim()) || 'نام گروه';
-  };
-  for (const c of GROUP_COLORS) {
-    const b = el('button', { class: 'grp-sw', type: 'button', title: c.name, 'data-id': c.id, style: `--g:${c.c}`,
-      html: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' });
-    b.addEventListener('click', () => { color = c.id; paint(); });
-    swatches.append(b);
-  }
-  const body = el('div', { class: 'grp-body' },
-    el('div', { class: 'grp-row' }, el('span', { class: 'grp-label' }, 'رنگ گروه'), picked),
-    swatches,
-    el('div', { class: 'grp-row' }, el('span', { class: 'grp-label' }, 'پیش‌نمایش'), preview));
-  setTimeout(() => { paint(); const inp = document.querySelector('.modal input[type=text]'); if (inp) { inp.placeholder = 'مثلاً: کار، پروژه‌ی زارچی'; inp.addEventListener('input', paint); } }, 0);
-  const name = await modal({ title: isNew ? 'گروه تازه' : 'ویرایش گروه', text: 'نام گروه (اختیاری)', input: g.name || '', body, bodyAfter: true,
-    buttons: [{ label: 'انصراف', value: null }, { label: isNew ? 'ساخت گروه' : 'ذخیره', primary: true }] });
-  if (name == null) return false;
-  g.name = name.trim(); g.color = color;
-  renderTabs(); saveSessionSoon();
-  return true;
-}
 async function addToNewGroup(t) {
   const g = { id: 'g' + Date.now().toString(36), name: '', color: nextColor(), collapsed: false };
   groups.set(g.id, g);
   t.groupId = g.id;
-  normalizeGroups(); renderTabs();
-  if (!(await editGroup(g, true))) { t.groupId = null; groups.delete(g.id); normalizeGroups(); renderTabs(); }
+  normalizeGroups(); renderTabs(); saveSessionSoon();
+  groupMenuAt(g, true);
 }
 function setGroup(t, gid) { t.groupId = gid; normalizeGroups(); renderTabs(); saveSessionSoon(); }
 function toggleGroup(g) {
@@ -448,19 +417,28 @@ function toggleGroup(g) {
   }
   renderTabs(); saveSessionSoon();
 }
-function groupMenu(g, x, y) {
+function groupMenu(g, x, y, isNew = false) {
   const members = tabs.filter((t) => t.groupId === g.id);
+  const redraw = () => { renderTabs(); saveSessionSoon(); };
   showMenu([
-    { header: g.name || 'گروه بی‌نام' },
-    { label: 'تغییر نام و رنگ…', run: () => editGroup(g) },
-    { label: 'رنگ', sub: GROUP_COLORS.map((c) => ({ label: '● ' + c.name, style: `color:${c.c}`, checked: g.color === c.id, run: () => { g.color = c.id; renderTabs(); saveSessionSoon(); } })) },
-    { label: g.collapsed ? 'باز کردن گروه' : 'جمع کردن گروه', run: () => toggleGroup(g) },
-    { label: 'سند تازه در این گروه', run: async () => { const t = await newTab(); setGroup(t, g.id); } },
+    { field: { label: 'نام گروه', value: g.name || '', placeholder: 'مثلاً: کار', focus: true, input: (v) => { g.name = v.trim(); redraw(); } } },
+    { swatches: { label: 'رنگ', value: g.color, items: GROUP_COLORS.map((c) => ({ id: c.id, name: c.name, color: c.c })), pick: (id) => { g.color = id; redraw(); } } },
     'sep',
-    { label: 'انتقال گروه به پنجره‌ی جدید', run: () => detachTabs(members, false) },
-    { label: 'لغو گروه', run: () => { members.forEach((t) => { t.groupId = null; }); groups.delete(g.id); renderTabs(); saveSessionSoon(); } },
-    { label: 'بستن همه‌ی تب‌های گروه', run: async () => { for (const t of members) if (!(await closeTab(t))) break; } },
+    { icon: ICON.plusSquare, label: 'سند تازه در این گروه', run: async () => { const t = await newTab(); setGroup(t, g.id); } },
+    isNew ? null : { icon: ICON.chevDown, label: g.collapsed ? 'باز کردن گروه' : 'جمع کردن گروه', run: () => toggleGroup(g) },
+    { icon: ICON.window, label: 'انتقال گروه به پنجره‌ی جدید', run: () => detachTabs(members, false) },
+    { icon: ICON.x, label: 'لغو گروه', run: () => { members.forEach((t) => { t.groupId = null; }); groups.delete(g.id); redraw(); } },
+    { icon: ICON.trash, label: 'بستن همه‌ی تب‌های گروه', danger: true, run: async () => { for (const t of members) if (!(await closeTab(t))) break; } },
   ], x, y);
+}
+/** open the group popover next to its chip (or the tab, for a group that was just made) */
+function groupMenuAt(g, isNew) {
+  requestAnimationFrame(() => {
+    const node = document.querySelector(`[data-gid="${g.id}"]`) || document.querySelector('.tab.active');
+    if (!node) return;
+    const r = node.getBoundingClientRect();
+    groupMenu(g, r.right, r.bottom + 8, isNew);
+  });
 }
 
 function tabNode(t, vertical) {
@@ -648,24 +626,25 @@ function tabMenu(t, x, y) {
   const idx = tabs.indexOf(t);
   const others = [...groups.values()].filter((g) => g.id !== t.groupId);
   showMenu([
-    { label: 'سند تازه', key: 'Ctrl+T', run: () => newTab() },
+    { icon: ICON.plusSquare, label: 'سند تازه', key: 'Ctrl+T', run: () => newTab() },
     'sep',
-    { label: 'افزودن به گروه تازه', run: () => addToNewGroup(t) },
-    others.length ? { label: 'افزودن به گروه', sub: others.map((g) => ({ label: '● ' + (g.name || 'گروه بی‌نام'), style: `color:${colorOf(g)}`, run: () => setGroup(t, g.id) })) } : null,
-    t.groupId ? { label: 'خارج کردن از گروه', run: () => setGroup(t, null) } : null,
+    { icon: ICON.group, label: 'افزودن به گروه تازه', run: () => addToNewGroup(t) },
+    others.length ? { icon: '', label: 'افزودن به گروه', sub: others.map((g) => ({ label: g.name || 'گروه بی‌نام', icon: `<span class="gdot" style="--g:${colorOf(g)}"></span>`, run: () => setGroup(t, g.id) })) } : null,
+    t.groupId ? { icon: '', label: 'خارج کردن از گروه', run: () => setGroup(t, null) } : null,
+    t.groupId ? { icon: '', label: 'ویرایش گروه…', run: () => groupMenuAt(groups.get(t.groupId)) } : null,
     'sep',
-    { label: 'انتقال به پنجره‌ی جدید', run: () => detachTabs([t], false) },
-    { label: 'پنجره‌ی همیشه‌رو (Always on Top)', run: () => detachTabs([t], true) },
-    winRole !== 'main' ? { label: 'برگرداندن به پنجره‌ی اصلی', run: () => sendTabsToMain([t]) } : null,
+    { icon: ICON.window, label: 'انتقال به پنجره‌ی جدید', run: () => detachTabs([t], false) },
+    { icon: ICON.pin, label: 'پنجره‌ی همیشه‌رو', run: () => detachTabs([t], true) },
+    winRole !== 'main' ? { icon: '', label: 'برگرداندن به پنجره‌ی اصلی', run: () => sendTabsToMain([t]) } : null,
     'sep',
-    { label: 'بستن', key: 'Ctrl+W', run: () => closeTab(t) },
-    { label: 'بستن بقیه‌ی تب‌ها', run: async () => { for (const o of tabs.filter((o) => o !== t)) if (!(await closeTab(o))) break; } },
-    { label: 'بستن تب‌های بعدی', disabled: idx === tabs.length - 1, run: async () => { for (const o of tabs.slice(idx + 1)) if (!(await closeTab(o))) break; } },
-    { label: 'بازکردن دوباره‌ی تب بسته‌شده', key: 'Ctrl+Shift+T', disabled: !closedStack.length, run: reopenClosed },
+    { icon: ICON.x, label: 'بستن', key: 'Ctrl+W', run: () => closeTab(t) },
+    { icon: '', label: 'بستن بقیه‌ی تب‌ها', disabled: tabs.length < 2, run: async () => { for (const o of tabs.filter((o) => o !== t)) if (!(await closeTab(o))) break; } },
+    { icon: '', label: 'بستن تب‌های بعدی', disabled: idx === tabs.length - 1, run: async () => { for (const o of tabs.slice(idx + 1)) if (!(await closeTab(o))) break; } },
+    { icon: '', label: 'بازکردن تب بسته‌شده', key: 'Ctrl+Shift+T', disabled: !closedStack.length, run: reopenClosed },
     'sep',
-    { label: 'نمایش در پوشه', disabled: !t.path, run: () => api.reveal(t.path) },
-    { label: 'کپی مسیر فایل', disabled: !t.path, run: () => { navigator.clipboard.writeText(t.path); toast('مسیر کپی شد', 'ok'); } },
-    { label: 'تاریخچه‌ی نسخه‌ها', disabled: !t.path, run: () => { activateTab(t.id); historyPanel.show(); } },
+    { icon: ICON.folder, label: 'نمایش در پوشه', disabled: !t.path, run: () => api.reveal(t.path) },
+    { icon: ICON.copy, label: 'کپی مسیر فایل', disabled: !t.path, run: () => { navigator.clipboard.writeText(t.path); toast('مسیر کپی شد', 'ok'); } },
+    { icon: ICON.history, label: 'تاریخچه‌ی نسخه‌ها', key: 'Ctrl+Shift+H', disabled: !t.path, run: () => { activateTab(t.id); historyPanel.show(); } },
   ], x, y);
 }
 
@@ -796,76 +775,115 @@ async function editNamePresets() {
   else if (ok === 'ok') updateSettings({ namePresets: ta.value.split('\n').map(cleanName).filter(Boolean).slice(0, 30) });
 }
 
-/** Fedo's own save window: name, ready-made names, time stamp, folder and format. Resolves to {path, ext} or null. */
+const SAVE_KINDS = new Set(['md', 'txt']);
+const plural = (n, one, many) => (n === 1 ? one : `${fa(n)} ${many}`);
+/**
+ * Fedo's own save window: name, ready-made names, time stamp, folder and one or more formats.
+ * Resolves to { path, ext, folder, copies: [path], exports: [{ kind, path }] } or null.
+ * `path` is where the document itself now lives (Markdown or plain text); null when only exports were chosen.
+ */
 function saveModal(t, as) {
   return new Promise((resolve) => {
     if (!appInfo) appInfo = { documents: '' };
-    const cur = t.path ? basename(t.path).replace(/\.[^.]+$/, '') : suggestedName(t).replace(/\.md$/, '');
+    let cur = t.path ? basename(t.path).replace(/\.[^.]+$/, '') : suggestedName(t).replace(/\.md$/, '');
+    let stamp = STAMP_RE.test(cur);
+    cur = cur.replace(STAMP_RE, '');
+    const stampText = timeStamp();
     let folder = t.path ? dirname(t.path) : settings.lastSaveDir || appInfo.documents || '';
-    let ext = t.path ? (/\.txt$/i.test(t.path) ? 'txt' : 'md') : (settings.defaultExt === 'txt' ? 'txt' : 'md');
-    const inp = el('input', { type: 'text', class: 'sv-name', dir: 'auto', lang: 'en', spellcheck: 'false' });
+    const picked = new Set([t.path ? (/\.txt$/i.test(t.path) ? 'txt' : 'md') : (settings.defaultExt === 'txt' ? 'txt' : 'md')]);
+
+    const inp = el('input', { type: 'text', class: 'sv-name', dir: 'auto', lang: 'en', spellcheck: 'false', 'aria-label': 'نام فایل', id: 'sv-name' });
     inp.value = cur === 'بدون عنوان' ? '' : cur;
     inp.placeholder = 'File name';
-    const extTag = el('span', { class: 'sv-ext', dir: 'ltr' }, '.' + ext);
+    const tail = el('span', { class: 'sv-tail', dir: 'ltr' });
+    const nameBox = el('label', { class: 'sv-field', for: 'sv-name' }, inp, tail);
     const chips = el('div', { class: 'sv-chips' });
+    const stampBtn = el('button', { class: 'sv-chip sv-stamp', title: 'تاریخ و ساعت به آخر نام اضافه می‌شود تا نام تکراری نشود', 'aria-pressed': 'false',
+      onclick: () => { stamp = !stamp; paint(); inp.focus(); } }, el('span', { class: 'ic', html: ICON.clock }), el('span', {}, 'تاریخ و ساعت'));
     const renderChips = () => {
       chips.innerHTML = '';
       for (const n of settings.namePresets || DEFAULT_NAME_PRESETS) {
-        chips.append(el('button', { class: 'sv-chip', dir: 'auto', onclick: () => { inp.value = n; inp.focus(); check(); } }, n));
+        chips.append(el('button', { class: 'sv-chip', dir: 'auto', onclick: () => { inp.value = n; inp.focus(); paint(); } }, n));
       }
-      chips.append(el('button', { class: 'sv-chip sv-time', title: 'تاریخ و ساعت به آخر نام اضافه می‌شود تا نام تکراری نشود', html: ICON.clock + '<span>زمان</span>',
-        onclick: () => { const base = inp.value.trim().replace(STAMP_RE, ''); inp.value = (base ? base + ' ' : '') + timeStamp(); inp.focus(); check(); } }));
-      chips.append(el('button', { class: 'sv-chip sv-edit', title: 'ویرایش نام‌های آماده', html: ICON.edit,
+      chips.append(el('button', { class: 'sv-chip icon', title: 'ویرایش نام‌های آماده', 'aria-label': 'ویرایش نام‌های آماده', html: ICON.edit,
         onclick: async () => { ov.style.visibility = 'hidden'; await editNamePresets(); ov.style.visibility = ''; renderChips(); inp.focus(); } }));
+      chips.append(el('span', { class: 'grow' }), stampBtn);
     };
     renderChips();
-    const folderTxt = el('span', { class: 'sv-folder-path', dir: 'ltr', title: folder }, folder || 'انتخاب نشده');
-    const folderRow = el('div', { class: 'sv-folder' }, el('span', { class: 'sv-label' }, 'پوشه'), folderTxt,
-      el('button', { class: 'btn', onclick: async () => { const d = await api.openFolderDialog(); if (d) { folder = d; folderTxt.textContent = d; folderTxt.title = d; check(); } } }, 'تغییر…'));
-    const fmts = el('div', { class: 'sv-formats' });
+
+    const folderTxt = el('span', { class: 'sv-path', dir: 'ltr', title: folder }, folder || 'انتخاب نشده');
+    const folderRow = el('div', { class: 'sv-folder' }, el('span', { class: 'ic', html: ICON.folder }), folderTxt,
+      el('button', { class: 'hb', onclick: async () => { const d = await api.openFolderDialog(); if (d) { folder = d; folderTxt.textContent = d; folderTxt.title = d; paint(); } } }, 'تغییر…'));
+
+    const fmts = el('div', { class: 'sv-formats', role: 'group', 'aria-label': 'قالب‌های فایل' });
     for (const f of SAVE_FORMATS) {
-      fmts.append(el('button', { class: 'sv-fmt' + (f.ext === ext ? ' on' : ''), 'data-ext': f.ext,
-        onclick: (e) => { ext = f.ext; fmts.querySelectorAll('.sv-fmt').forEach((b) => b.classList.toggle('on', b === e.currentTarget)); extTag.textContent = '.' + ext; check(); } },
-        el('b', {}, f.label), el('small', { dir: 'ltr' }, f.sub)));
+      fmts.append(el('button', { class: 'sv-fmt', role: 'checkbox', 'data-ext': f.ext, onclick: () => {
+        if (picked.has(f.ext)) { if (picked.size > 1) picked.delete(f.ext); else { toast('دست‌کم یک قالب لازم است', 'info'); return; } } else picked.add(f.ext);
+        paint();
+      } }, el('span', { class: 'ck', html: ICON.check }), el('b', {}, f.label), el('small', { dir: 'ltr' }, f.sub)));
     }
-    const note = el('div', { class: 'sv-note' });
+    const layout = { v: settings.pdfLayout || 'continuous' };
+    const pdfSeg = el('div', { class: 'sg' });
+    for (const [v, l, tip] of [['continuous', 'یک صفحه‌ی پیوسته', 'عرض A4، ارتفاع به اندازه‌ی محتوا'], ['pages', 'صفحه‌بندی A4', 'مثل چاپ معمولی، چند صفحه']]) {
+      pdfSeg.append(el('button', { 'data-v': v, title: tip, onclick: () => { layout.v = v; paint(); } }, l));
+    }
+    const pdfRow = el('div', { class: 'sv-pdf' }, el('span', {}, 'چیدمان PDF'), pdfSeg);
+    const outs = el('div', { class: 'sv-outs' });
+    const summary = el('span', { class: 'sv-summary' });
     const okBtn = el('button', { class: 'btn primary' }, 'ذخیره');
-    const check = () => {
-      const exportOnly = ext === 'html' || ext === 'pdf';
-      okBtn.textContent = exportOnly ? 'ساخت خروجی' : 'ذخیره';
-      note.textContent = exportOnly ? 'یک نسخه‌ی ' + (ext === 'pdf' ? 'PDF' : 'HTML') + ' ساخته می‌شود؛ خود سند همین‌جا باز می‌ماند.' : '';
+
+    const fullName = () => { const n = cleanName(inp.value); return n ? n + (stamp ? '-' + stampText : '') : ''; };
+    const order = () => SAVE_FORMATS.map((f) => f.ext).filter((x) => picked.has(x));
+    function paint() {
+      tail.textContent = stamp ? '-' + stampText : '';
+      stampBtn.classList.toggle('on', stamp); stampBtn.setAttribute('aria-pressed', String(stamp));
+      fmts.querySelectorAll('.sv-fmt').forEach((b) => { const on = picked.has(b.dataset.ext); b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
+      pdfRow.hidden = !picked.has('pdf');
+      pdfSeg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === layout.v));
+      const name = fullName() || 'File name';
+      outs.replaceChildren(...order().map((x) => el('span', { class: 'sv-out', dir: 'ltr' }, el('b', {}, name), '.' + x)));
+      const n = picked.size;
+      const docKind = order().find((x) => SAVE_KINDS.has(x));
+      okBtn.textContent = n > 1 ? `ذخیره‌ی ${fa(n)} فایل` : docKind ? 'ذخیره' : 'ساخت خروجی';
+      summary.textContent = !docKind ? 'فقط خروجی ساخته می‌شود؛ خود سند همین‌جا باز می‌ماند.'
+        : n > 1 ? `سند به‌صورت ${docKind === 'md' ? 'Markdown' : 'متن ساده'} ذخیره می‌شود و ${plural(n - 1, 'یک فایل دیگر', 'فایل دیگر')} کنارش ساخته می‌شود.` : '';
       okBtn.disabled = !cleanName(inp.value) || !folder;
-    };
+    }
     const done = (v) => { ov.remove(); document.removeEventListener('keydown', onKey, true); resolve(v); };
     const submit = () => {
-      const name = cleanName(inp.value);
+      const name = fullName();
       if (!name || !folder) return;
       const sep = folder.includes('\\') ? '\\' : '/';
-      done({ path: folder.replace(/[\\/]+$/, '') + sep + name + '.' + ext, ext, folder });
+      const at = (x) => folder.replace(/[\\/]+$/, '') + sep + name + '.' + x;
+      const list = order();
+      const docKind = list.find((x) => SAVE_KINDS.has(x)) || null;
+      if (picked.has('pdf')) updateSettings({ pdfLayout: layout.v });
+      done({
+        path: docKind ? at(docKind) : null, ext: docKind, folder,
+        copies: list.filter((x) => SAVE_KINDS.has(x) && x !== docKind).map(at),
+        exports: list.filter((x) => !SAVE_KINDS.has(x)).map((kind) => ({ kind, path: at(kind) })),
+      });
     };
     okBtn.addEventListener('click', submit);
-    inp.addEventListener('input', check);
+    inp.addEventListener('input', paint);
     const onKey = (e) => {
       if (ov.style.visibility === 'hidden') return;
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(null); }
       if (e.key === 'Enter' && document.activeElement === inp) { e.preventDefault(); e.stopPropagation(); submit(); }
     };
-    const box = el('div', { class: 'modal save-modal', dir: 'rtl' },
+    const lbl = (text, extra) => el('div', { class: 'sv-label' }, el('span', {}, text), extra || null);
+    const box = el('div', { class: 'modal save-modal', dir: 'rtl', role: 'dialog', 'aria-label': as ? 'ذخیره با نام' : 'ذخیره' },
       el('div', { class: 'm-body' },
-        el('h3', {}, as ? 'ذخیره با نام تازه' : 'ذخیره‌ی سند'),
-        el('div', { class: 'sv-name-row' }, inp, extTag),
-        el('div', { class: 'sv-label' }, 'نام‌های آماده'), chips,
-        folderRow,
-        el('div', { class: 'sv-label' }, 'قالب'), fmts, note),
-      el('div', { class: 'row' },
-        el('button', { class: 'btn sv-native', title: 'پنجره‌ی ذخیره‌ی خود ویندوز', onclick: async () => { done({ native: true }); } }, 'پنجره‌ی ویندوز…'),
-        el('span', { class: 'grow' }),
-        el('button', { class: 'btn', onclick: () => done(null) }, 'انصراف'), okBtn));
+        el('h3', {}, as ? 'ذخیره با نام' : 'ذخیره‌ی سند'),
+        el('div', { class: 'sv-block' }, lbl('نام فایل'), nameBox, chips),
+        el('div', { class: 'sv-block' }, lbl('پوشه', el('button', { class: 'sv-link', title: 'پنجره‌ی ذخیره‌ی خود ویندوز', onclick: () => done({ native: true }) }, 'پنجره‌ی ویندوز…')), folderRow),
+        el('div', { class: 'sv-block' }, lbl('قالب', el('span', { class: 'sv-hint' }, 'می‌توانید چند قالب را با هم انتخاب کنید')), fmts, pdfRow, outs)),
+      el('div', { class: 'row' }, summary, el('button', { class: 'btn', onclick: () => done(null) }, 'انصراف'), okBtn));
     const ov = el('div', { class: 'overlay' }, box);
     ov.addEventListener('mousedown', (e) => { if (e.target === ov) done(null); });
     document.addEventListener('keydown', onKey, true);
     document.body.append(ov);
-    check();
+    paint();
     inp.focus(); inp.select();
   });
 }
@@ -873,10 +891,18 @@ async function askSavePath(t, as) {
   for (;;) {
     const r = await saveModal(t, as);
     if (!r) return null;
-    if (r.native) { const p = await api.saveDialog(suggestedName(t)); return p ? { path: p, ext: /\.txt$/i.test(p) ? 'txt' : 'md' } : null; }
-    const ex = await api.stat(r.path).catch(() => ({ exists: false }));
-    if (ex.exists && !samePath(r.path, t.path)) {
-      const ok = await modal({ title: `«${basename(r.path)}» از قبل هست`, text: 'جایگزین شود؟ محتوای فعلی آن فایل از بین می‌رود.',
+    if (r.native) { const p = await api.saveDialog(suggestedName(t)); return p ? { path: p, ext: /\.txt$/i.test(p) ? 'txt' : 'md', copies: [], exports: [] } : null; }
+    const all = [r.path, ...r.copies, ...r.exports.map((x) => x.path)].filter(Boolean);
+    const taken = [];
+    for (const p of all) {
+      if (samePath(p, t.path)) continue;
+      const ex = await api.stat(p).catch(() => ({ exists: false }));
+      if (ex.exists) taken.push(basename(p));
+    }
+    if (taken.length) {
+      const ok = await modal({
+        title: taken.length === 1 ? `«${taken[0]}» از قبل هست` : `${fa(taken.length)} فایل با این نام از قبل هست`,
+        text: (taken.length > 1 ? taken.map((x) => `«${x}»`).join('، ') + '. ' : '') + 'جایگزین شوند؟ محتوای فعلی آن‌ها از بین می‌رود.',
         buttons: [{ label: 'انتخاب نام دیگر', value: false }, { label: 'جایگزین کن', value: true, danger: true }] });
       if (!ok) continue;
     }
@@ -884,25 +910,40 @@ async function askSavePath(t, as) {
     return r;
   }
 }
-async function exportTo(t, kind, p) {
+/** build HTML / PDF files; one toast at the end */
+async function exportTo(t, list) {
+  if (!list.length) return [];
   if (t.mode === 'source') setMode(t, 'wysiwyg');
-  try {
-    const out = await exportDocument({ kind, layout: settings.pdfLayout || 'continuous', html: getEditorHTML(t.crepe), title: basename(p).replace(/\.[^.]+$/, ''), baseDir: settings.baseDir, docPath: p, directPath: p });
-    if (out) toast('خروجی ساخته شد: ' + basename(out), 8000, [
-      { label: 'باز کردن فایل', run: () => api.openExternal(out) },
-      { label: 'نمایش در پوشه', run: () => api.reveal(out) },
-    ]);
-  } catch (e) { toast('ساخت خروجی ممکن نشد: ' + (e.message || e)); }
+  const made = [];
+  for (const { kind, path: p } of list) {
+    try {
+      const out = await exportDocument({ kind, layout: settings.pdfLayout || 'continuous', html: getEditorHTML(t.crepe), title: basename(p).replace(/\.[^.]+$/, ''), baseDir: settings.baseDir, docPath: p, directPath: p });
+      if (out) made.push(out);
+    } catch (e) { toast(`ساخت ${kind.toUpperCase()} ممکن نشد: ` + (e.message || e), 6000, null, 'err'); }
+  }
+  return made;
+}
+function announceFiles(files, savedDoc) {
+  if (!files.length) return;
+  const last = files[files.length - 1];
+  const msg = files.length === 1 && !savedDoc ? 'خروجی ساخته شد: ' + basename(last)
+    : savedDoc ? `ذخیره شد، به‌همراه ${plural(files.length, basename(last), 'فایل دیگر')}` : `${fa(files.length)} فایل ساخته شد`;
+  toast(msg, 8000, [
+    files.length === 1 ? { label: 'باز کردن فایل', run: () => api.openExternal(last) } : null,
+    { label: 'نمایش در پوشه', run: () => api.reveal(last) },
+  ].filter(Boolean), 'ok');
 }
 
 async function save(t = active(), as = false, silent = false) {
   if (!t) return false;
   let p = t.path;
+  let extras = null;
   if (!p || as) {
     const r = await askSavePath(t, as);
     if (!r) return false;
-    if (r.ext === 'html' || r.ext === 'pdf') { await exportTo(t, r.ext, r.path); return false; }
+    if (!r.path) { announceFiles(await exportTo(t, r.exports), false); return false; }
     p = r.path;
+    extras = r;
   }
   const oldPath = t.path;
   const content = t.mode === 'source' && t.cm ? t.cm.state.doc.toString() : t.md;
@@ -930,6 +971,12 @@ async function save(t = active(), as = false, silent = false) {
   updateStatus(silent ? 'ذخیره‌ی خودکار' : 'ذخیره شد');
   if (t.id === activeId && historyPanel.visible()) historyPanel.refresh();
   saveSession();
+  if (extras && (extras.copies.length || extras.exports.length)) {
+    const files = [];
+    for (const c of extras.copies) { try { await api.writeFile(c, content); files.push(c); } catch (e) { toast('ساخت ' + basename(c) + ' ممکن نشد', 5000, null, 'err'); } }
+    files.push(...await exportTo(t, extras.exports));
+    announceFiles(files, true);
+  }
   return true;
 }
 async function saveAll() {

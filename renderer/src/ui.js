@@ -21,6 +21,24 @@ export const ICON = {
   chevron: p('M15.5 5L8.5 12L15.5 19'),
   chevDown: p('M19 8.5L12 15.5L5 8.5'),
   chevUp: p('M5 15.5L12 8.5L19 15.5'),
+  cut: p('M8.5 7.5a2.5 2.5 0 1 1-5 0a2.5 2.5 0 0 1 5 0zM8.5 16.5a2.5 2.5 0 1 1-5 0a2.5 2.5 0 0 1 5 0zM8 9l12 8M8 15l12-8'),
+  paste: p('M9 4.5h6a1 1 0 0 1 1 1v1.5H8V5.5a1 1 0 0 1 1-1zM8 6H7a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V9a3 3 0 0 0-3-3h-1'),
+  pastePlain: p('M9 4.5h6a1 1 0 0 1 1 1v1.5H8V5.5a1 1 0 0 1 1-1zM8 6H7a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V9a3 3 0 0 0-3-3h-1M9 12.5h6M9 16h4'),
+  bold: p('M7.29 5H11.8C13.63 5 15.26 6.34 15.44 8.16C15.64 10.24 14 12 11.95 12H7.29V5ZM7.29 12H13.06C14.89 12 16.52 13.34 16.69 15.16C16.89 17.24 15.25 19 13.21 19H7.29V12Z'),
+  italic: p('M13 19H7M17 5H11M10 19L14 5'),
+  link: p('M9.63 6.79H8.21C5.34 6.79 3 9.13 3 12C3 14.86 5.34 17.21 8.21 17.21H9.63M14.37 6.79H15.79C18.66 6.79 21 9.13 21 12C21 14.86 18.66 17.21 15.79 17.21H14.37M8.5 12h7'),
+  quote: p('M12.31 19.52C13.28 18.82 14 17.78 14.31 16.63C14.53 15.82 14.54 14.89 14.05 14.21C13.59 13.55 12.7 13.23 11.93 13.45C10.51 13.84 10.05 15.63 11.01 16.71C11.37 17.12 11.9 17.37 12.45 17.39M18.85 19.52C19.82 18.82 20.54 17.78 20.86 16.63C21.08 15.82 21.08 14.89 20.6 14.21C20.14 13.55 19.24 13.23 18.47 13.45C17.06 13.84 16.6 15.63 17.55 16.71C17.92 17.12 18.45 17.37 19 17.39M7.91 18.31H3M20.45 9.09H3M7.91 13.71H3M20.45 4.49H3'),
+  ol: p('M16 16C16 14.9 16.9 14 18 14C19.1 14 20 14.9 20 16C20 16.48 19.79 17.21 19.05 17.88C18.31 18.54 16.31 20 16.31 20H20M18 10V4L16.15 5.49M4 6H12.67M4 12H12.67M4 18H12.67'),
+  ul: p('M4 18H16M4 12H16M4 6H16M20 6h.01M20 12h.01M20 18h.01'),
+  strike: p('M8.11 15.5C8.11 17.43 9.85 19 12 19C14.15 19 15.89 17.43 15.89 15.5C15.89 13.42 14.39 12.62 12.72 12M8.41 9.2C8.35 8.97 8.32 8.74 8.32 8.5C8.32 6.57 9.85 5 12 5C13.65 5 14.94 5.93 15.44 7.23M5.88 12H18.12'),
+  table: p('M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3zM4 9.5h16M4 14.5h16M12 4v16'),
+  formula: p('M17 5H8l5 7l-5 7h9'),
+  diagram: p('M6 4h3a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM15 15h3a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1zM7.5 9v5.5a3 3 0 0 0 3 3H14'),
+  hr: p('M4 12h16'),
+  alignL: p('M4 6h16M4 12h10M4 18h13'),
+  alignC: p('M4 6h16M7 12h10M5.5 18h13'),
+  alignR: p('M4 6h16M10 12h10M7 18h13'),
+  group: p('M3 6.5C3 3.87 3.03 3 6.5 3C9.97 3 10 3.87 10 6.5C10 9.13 10.01 10 6.5 10C2.99 10 3 9.13 3 6.5ZM14 6.5C14 3.87 14.03 3 17.5 3C20.97 3 21 3.87 21 6.5C21 9.13 21.01 10 17.5 10C13.99 10 14 9.13 14 6.5ZM3 17.5C3 14.87 3.03 14 6.5 14C9.97 14 10 14.87 10 17.5C10 20.13 10.01 21 6.5 21C2.99 21 3 20.13 3 17.5ZM14 17.5C14 14.87 14.03 14 17.5 14C20.97 14 21 14.87 21 17.5C21 20.13 21.01 21 17.5 21C13.99 21 14 20.13 14 17.5Z'),
   swap: p('M16.84 20.16V6.55M20.92 16.07L16.84 20.16L12.76 16.07M6.91 3.83V17.45M2.83 7.93L6.91 3.83L10.99 7.93'),
   refresh: s('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'),
   search: p('M20.76 11.77a8.99 8.99 0 1 1-17.98 0a8.99 8.99 0 0 1 17.98 0zM18.02 18.49L21.54 22'),
@@ -117,7 +135,7 @@ export function kbd(key) {
  *   | {grid: [{html, title, run, active, mirror, disabled}]}
  * x,y is the anchor's right/top edge (menus open toward the left, as in an RTL app)
  */
-function buildMenu(items, level) {
+function buildMenu(items, level, detached = false) {
   const m = el('div', { class: 'menu', dir: 'rtl' });
   if (items.some((it) => it && it.icon)) m.classList.add('has-icons');
   const closeSubs = (node) => aim(level, () => { closeFrom(level + 1); m.querySelectorAll('.mi.open').forEach((n) => n.classList.remove('open')); }, node);
@@ -129,13 +147,48 @@ function buildMenu(items, level) {
     if (it.tiles) {
       const g = el('div', { class: 'mtiles', style: `--n:${it.tiles.length}` });
       for (const b of it.tiles) {
-        const btn = el('button', { class: 'mt', title: b.title || null }, el('span', { class: 'ic', html: b.icon }), el('span', {}, b.label));
+        const btn = el('button', { class: 'mt', title: b.title || null, disabled: !!b.disabled }, el('span', { class: 'ic', html: b.icon }), el('span', {}, b.label));
         btn.addEventListener('mousedown', (e) => e.preventDefault());
         btn.addEventListener('click', () => { closeMenu(); b.run(); });
         g.append(btn);
       }
       g.addEventListener('mouseenter', () => closeSubs(g));
       m.append(g);
+      continue;
+    }
+    if (it.columns) {
+      // side-by-side lists under small headers (e.g. table rows | columns)
+      const wrap = el('div', { class: 'mcols' });
+      for (const col of it.columns) {
+        const c = el('div', { class: 'mcol' }, el('div', { class: 'mh' }, col.header));
+        const sub = buildMenu(col.items, level, true);
+        c.append(...sub.childNodes);
+        wrap.append(c);
+      }
+      m.append(wrap);
+      continue;
+    }
+    if (it.field) {
+      const f = it.field;
+      const inp = el('input', { type: 'text', value: f.value || '', placeholder: f.placeholder || '', dir: 'auto', 'aria-label': f.label, spellcheck: 'false' });
+      inp.addEventListener('input', () => f.input(inp.value));
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); closeMenu(); } });
+      m.append(el('label', { class: 'mfield' }, el('span', { class: 'mh' }, f.label), inp));
+      if (f.focus) setTimeout(() => { inp.focus(); inp.select(); }, 0);
+      continue;
+    }
+    if (it.swatches) {
+      const w = it.swatches;
+      const row = el('div', { class: 'mswatches', role: 'group', 'aria-label': w.label });
+      const paint = (id) => row.querySelectorAll('button').forEach((b) => { const on = b.dataset.id === id; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+      for (const c of w.items) {
+        const b = el('button', { 'data-id': c.id, title: c.name, 'aria-label': c.name, style: `--sw:${c.color}` });
+        b.addEventListener('mousedown', (e) => e.preventDefault());
+        b.addEventListener('click', () => { w.pick(c.id); paint(c.id); });
+        row.append(b);
+      }
+      paint(w.value);
+      m.append(el('div', { class: 'mh' }, w.label), row);
       continue;
     }
     if (it.grid) {
@@ -161,7 +214,18 @@ function buildMenu(items, level) {
       it.sub ? el('span', { class: 'arrow', html: ICON.chevron }) : null);
     mi.addEventListener('mousedown', (e) => e.preventDefault()); // keep the editor selection
     if (it.disabled) mi.classList.add('disabled');
-    else if (it.stepper) {
+    else if (it.segment) {
+      mi.classList.add('static');
+      const sg = el('span', { class: 'mseg', role: 'group', 'aria-label': it.label });
+      for (const b of it.segment) {
+        const btn = el('button', { class: b.on ? 'on' : '', title: b.title, 'aria-label': b.title, html: b.html });
+        btn.addEventListener('mousedown', (e) => e.preventDefault());
+        btn.addEventListener('click', (e) => { e.stopPropagation(); closeMenu(); b.run(); });
+        sg.append(btn);
+      }
+      mi.append(sg);
+      mi.addEventListener('mouseenter', () => closeSubs(mi));
+    } else if (it.stepper) {
       const val = el('span', { class: 'sv' }, it.stepper.value());
       const step = (fn) => (e) => { e.stopPropagation(); fn(); val.textContent = it.stepper.value(); };
       mi.classList.add('static');
@@ -200,6 +264,7 @@ function buildMenu(items, level) {
     m.append(mi);
   }
   // reaching the submenu cancels any pending switch in the parent menu
+  if (detached) return m;
   m.addEventListener('mouseenter', () => clearTimeout(aimTimer));
   document.body.append(m);
   openMenus.push(m);

@@ -12,27 +12,9 @@ import {
   isInTable, selectedRect, addRowBefore, addRowAfter, addColumnBefore, addColumnAfter,
   deleteRow, deleteColumn, deleteTable, moveTableRow, moveTableColumn,
 } from '@milkdown/kit/prose/tables';
-import { showMenu, modal, toast } from './ui.js';
+import { showMenu, modal, toast, ICON } from './ui.js';
 
-const ic = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
-const I = {
-  bold: ic('<path d="M7 5h6a3.5 3.5 0 0 1 0 7H7zM7 12h7a3.5 3.5 0 0 1 0 7H7z"/>'),
-  italic: ic('<path d="M14 5h-4M14 19h-4M14 5l-4 14"/>'),
-  code: ic('<path d="M9 8l-4 4 4 4M15 8l4 4-4 4"/>'),
-  link: ic('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
-  strike: ic('<path d="M4 12h16M16 7a4 3 0 0 0-8 0c0 4 8 2 8 6a4 3 0 0 1-8 0"/>'),
-  quote: ic('<path d="M7 7h4v4c0 3-2 5-4 6M13 7h4v4c0 3-2 5-4 6"/>'),
-  ol: ic('<path d="M10 6h10M10 12h10M10 18h10M4 5h1v4M4 9h2M4 15h2l-2 3h2"/>'),
-  ul: ic('<path d="M10 6h10M10 12h10M10 18h10"/><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/>'),
-  task: ic('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/>'),
-  cut: ic('<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8 16L18 4M16 16L6 4"/>'),
-  copy: ic('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>'),
-  paste: ic('<rect x="6" y="5" width="12" height="16" rx="2"/><path d="M9 5V3h6v2M9 11h6M9 15h6"/>'),
-  del: ic('<path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/>'),
-  aL: ic('<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>'),
-  aC: ic('<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>'),
-  aR: ic('<path d="M4 6h16M10 10h10M4 14h16M10 18h10"/>'),
-};
+const I = { ...ICON, del: ICON.trash, task: ICON.tickSquare, aL: ICON.alignL, aC: ICON.alignC, aR: ICON.alignR };
 
 function ctxOf(crepe) {
   return crepe.editor.ctx;
@@ -108,7 +90,8 @@ export function tableCommands(crepe) {
       v().dispatch(st.tr.setSelection(TextSelection.near(st.doc.resolve(Math.min(keep, st.doc.content.size)))));
       v().focus();
     },
-    copyTable: async () => { await navigator.clipboard.writeText(tableMarkdown(crepe)); toast('جدول به‌صورت Markdown کپی شد'); },
+    copyTable: async () => { await navigator.clipboard.writeText(tableMarkdown(crepe)); toast('جدول به‌صورت Markdown کپی شد', 'ok'); },
+    alignment: () => { const $f = v().state.selection.$from; for (let d = $f.depth; d > 0; d--) { const n = $f.node(d); if (/cell|header/.test(n.type.name)) return n.attrs.alignment || null; } return null; },
     info,
   };
 }
@@ -172,39 +155,46 @@ export function openEditorMenu(crepe, x, y, { insertImage, edit }) {
   const T = tableCommands(crepe);
   const t = inTable ? T.info() : null;
 
+  const cur = inTable ? T.alignment() : null;
   const tableSub = inTable ? [
-    { label: 'افزودن سطر بالا', disabled: t && t.row === 0, run: T.addRowAbove },
-    { label: 'افزودن سطر پایین', key: 'Ctrl+Enter', run: T.addRowBelow },
-    { label: 'افزودن ستون قبل', run: T.addColBefore },
-    { label: 'افزودن ستون بعد', run: T.addColAfter },
+    { columns: [
+      { header: 'سطر', items: [
+        { label: 'افزودن بالا', disabled: t && t.row === 0, run: T.addRowAbove },
+        { label: 'افزودن پایین', key: 'Ctrl+Enter', run: T.addRowBelow },
+        { label: 'انتقال به بالا', key: 'Alt+↑', disabled: !t || t.row <= 1, run: T.moveRowUp },
+        { label: 'انتقال به پایین', key: 'Alt+↓', disabled: !t || t.row === 0 || t.row >= t.rows - 1, run: T.moveRowDown },
+        { label: 'حذف سطر', key: 'Ctrl+Shift+⌫', danger: true, disabled: t && t.row === 0, run: T.deleteRow },
+      ] },
+      { header: 'ستون', items: [
+        { label: 'افزودن قبل', run: T.addColBefore },
+        { label: 'افزودن بعد', run: T.addColAfter },
+        { label: 'انتقال به قبل', key: 'Alt+→', disabled: !t || t.col === 0, run: T.moveColPrev },
+        { label: 'انتقال به بعد', key: 'Alt+←', disabled: !t || t.col >= t.cols - 1, run: T.moveColNext },
+        { label: 'حذف ستون', danger: true, run: T.deleteCol },
+      ] },
+    ] },
     'sep',
-    { label: 'انتقال سطر به بالا', key: 'Alt+↑', disabled: !t || t.row <= 1, run: T.moveRowUp },
-    { label: 'انتقال سطر به پایین', key: 'Alt+↓', disabled: !t || t.row === 0 || t.row >= t.rows - 1, run: T.moveRowDown },
-    { label: 'انتقال ستون به قبل', key: 'Alt+→', disabled: !t || t.col === 0, run: T.moveColPrev },
-    { label: 'انتقال ستون به بعد', key: 'Alt+←', disabled: !t || t.col >= t.cols - 1, run: T.moveColNext },
+    { icon: I.aR, label: 'تراز ستون', segment: [
+      { html: I.aL, title: 'چپ', on: cur === 'left', run: T.align('left') },
+      { html: I.aC, title: 'وسط', on: cur === 'center', run: T.align('center') },
+      { html: I.aR, title: 'راست', on: cur === 'right', run: T.align('right') },
+    ] },
     'sep',
-    { label: 'تراز ستون: چپ', run: T.align('left') },
-    { label: 'تراز ستون: وسط', run: T.align('center') },
-    { label: 'تراز ستون: راست', run: T.align('right') },
-    'sep',
-    { label: 'حذف سطر', key: 'Ctrl+Shift+⌫', disabled: t && t.row === 0, run: T.deleteRow },
-    { label: 'حذف ستون', run: T.deleteCol },
-    'sep',
-    { label: 'کپی جدول (Markdown)', run: T.copyTable },
-    { label: 'حذف جدول', run: T.deleteTable },
+    { icon: I.copy, label: 'کپی جدول به‌صورت Markdown', run: T.copyTable },
+    { icon: I.del, label: 'حذف جدول', danger: true, run: T.deleteTable },
   ] : [
-    { label: 'درج جدول ۳ × ۳', run: run(crepe, insertTableCommand, { row: 3, col: 3 }) },
-    { label: 'درج جدول ۴ × ۲', run: run(crepe, insertTableCommand, { row: 4, col: 2 }) },
+    { icon: I.table, label: 'درج جدول ۳ × ۳', run: run(crepe, insertTableCommand, { row: 3, col: 3 }) },
+    { icon: I.table, label: 'درج جدول ۴ × ۲', run: run(crepe, insertTableCommand, { row: 4, col: 2 }) },
   ];
 
   showMenu([
-    { grid: [
-      { html: I.cut, title: 'برش', disabled: !hasSel, run: () => edit('cut') },
-      { html: I.copy, title: 'کپی', disabled: !hasSel, run: () => edit('copy') },
-      { html: I.paste, title: 'چسباندن', run: () => edit('paste') },
-      { html: I.del, title: 'حذف', disabled: !hasSel, run: () => { v.dispatch(v.state.tr.deleteSelection()); v.focus(); } },
+    { tiles: [
+      { icon: I.cut, label: 'برش', title: 'Ctrl+X', disabled: !hasSel, run: () => edit('cut') },
+      { icon: I.copy, label: 'کپی', title: 'Ctrl+C', disabled: !hasSel, run: () => edit('copy') },
+      { icon: I.paste, label: 'چسباندن', title: 'Ctrl+V', run: () => edit('paste') },
+      { icon: I.del, label: 'حذف', title: 'Delete', disabled: !hasSel, run: () => { v.dispatch(v.state.tr.deleteSelection()); v.focus(); } },
     ] },
-    { label: 'چسباندن متن ساده', key: 'Ctrl+Shift+V', run: () => edit('pastePlain') },
+    { icon: I.pastePlain, label: 'چسباندن متن ساده', key: 'Ctrl+Shift+V', run: () => edit('pastePlain') },
     'sep',
     { grid: [
       { html: I.bold, title: 'پررنگ (Ctrl+B)', active: markActive(st, 'strong'), run: run(crepe, toggleStrongCommand) },
@@ -212,24 +202,24 @@ export function openEditorMenu(crepe, x, y, { insertImage, edit }) {
       { html: I.code, title: 'کد درون‌خطی', active: markActive(st, 'inlineCode'), run: run(crepe, toggleInlineCodeCommand) },
       { html: I.link, title: 'پیوند', active: markActive(st, 'link'), run: () => askLink(crepe) },
       { html: I.quote, title: 'نقل‌قول', run: run(crepe, wrapInBlockquoteCommand) },
-      { html: I.ol, title: 'فهرست شماره‌دار', mirror: true, run: run(crepe, wrapInOrderedListCommand) },
-      { html: I.ul, title: 'فهرست نقطه‌ای', mirror: true, run: run(crepe, wrapInBulletListCommand) },
+      { html: I.ol, title: 'فهرست شماره‌دار', run: run(crepe, wrapInOrderedListCommand) },
+      { html: I.ul, title: 'فهرست نقطه‌ای', run: run(crepe, wrapInBulletListCommand) },
       { html: I.task, title: 'فهرست کارها', run: () => makeTaskList(crepe) },
     ] },
     'sep',
-    { label: 'خط‌خورده', key: 'Alt+Shift+5', run: run(crepe, toggleStrikethroughCommand) },
-    { label: 'پاراگراف', sub: [
+    { icon: I.strike, label: 'خط‌خورده', key: 'Alt+Shift+5', checked: markActive(st, 'strike_through'), run: run(crepe, toggleStrikethroughCommand) },
+    { icon: I.textSize, label: 'پاراگراف', sub: [
       { label: 'متن ساده', key: 'Ctrl+Alt+0', run: run(crepe, turnIntoTextCommand) },
       ...[1, 2, 3, 4, 5, 6].map((n) => ({ label: `تیتر ${'۱۲۳۴۵۶'[n - 1]}`, key: `Ctrl+Alt+${n}`, run: run(crepe, wrapInHeadingCommand, n) })),
     ] },
-    { label: 'جدول', sub: tableSub },
-    { label: 'درج', sub: [
-      { label: 'تصویر…', run: insertImage },
-      { label: 'جدول', run: run(crepe, insertTableCommand, { row: 3, col: 3 }) },
-      { label: 'بلوک کد', run: run(crepe, createCodeBlockCommand) },
-      { label: 'فرمول ریاضی', run: () => { crepe.editor.action(callCommand(createCodeBlockCommand.key, 'LaTeX')); view(crepe).focus(); } },
-      { label: 'نمودار (mermaid)', run: () => { crepe.editor.action(callCommand(createCodeBlockCommand.key, 'mermaid')); view(crepe).focus(); } },
-      { label: 'خط جداکننده', run: run(crepe, insertHrCommand) },
+    { icon: I.table, label: 'جدول', sub: tableSub },
+    { icon: I.plusSquare, label: 'درج', sub: [
+      { icon: I.image, label: 'تصویر…', run: insertImage },
+      { icon: I.table, label: 'جدول', run: run(crepe, insertTableCommand, { row: 3, col: 3 }) },
+      { icon: I.code, label: 'بلوک کد', run: run(crepe, createCodeBlockCommand) },
+      { icon: I.formula, label: 'فرمول ریاضی', run: () => { crepe.editor.action(callCommand(createCodeBlockCommand.key, 'LaTeX')); view(crepe).focus(); } },
+      { icon: I.diagram, label: 'نمودار mermaid', run: () => { crepe.editor.action(callCommand(createCodeBlockCommand.key, 'mermaid')); view(crepe).focus(); } },
+      { icon: I.hr, label: 'خط جداکننده', run: run(crepe, insertHrCommand) },
     ] },
   ], x, y);
 }

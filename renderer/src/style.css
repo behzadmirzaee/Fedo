@@ -145,44 +145,9 @@ body.ctrl-down .milkdown .ProseMirror a { cursor: pointer; text-decoration: unde
 .milkdown .nv-code-text .cm-line[dir='rtl'] { direction: rtl; text-align: right; }
 
 
-.grp-body { margin: 6px 0 16px; }
-.grp-row { display: flex; align-items: center; gap: 10px; margin: 12px 0 8px; font-size: 13px; }
-.grp-label { color: var(--muted); }
-.grp-picked { font-weight: 600; }
-.grp-colors { display: flex; flex-wrap: wrap; gap: 10px; }
-.grp-sw { width: 32px; height: 32px; border-radius: 50%; border: 0; padding: 0; background: var(--g); cursor: pointer; display: grid; place-items: center; opacity: 0.55; transition: transform 0.12s, opacity 0.12s, box-shadow 0.12s; }
-.grp-sw:hover { opacity: 0.85; }
-.grp-sw svg { width: 16px; height: 16px; opacity: 0; }
-.grp-sw.on { opacity: 1; transform: scale(1.12); box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--g); }
-.grp-sw.on svg { opacity: 1; }
-.grp-preview { display: inline-block; background: var(--g); color: #fff; border-radius: 6px; padding: 2px 10px; font-size: 12px; font-weight: 600; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 
 /* ---------- save window ---------- */
-.save-modal { width: 520px; max-width: calc(100vw - 40px); }
-.save-modal .sv-name-row { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 8px; padding-inline: 10px; background: var(--bg); }
-.save-modal .sv-name-row:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
-.save-modal .sv-name { flex: 1; border: 0 !important; outline: 0; background: transparent; font-size: 15px; padding: 9px 0 !important; box-shadow: none !important; margin: 0 !important; width: auto !important; }
-.save-modal .sv-ext { color: var(--muted); font-size: 13px; }
-.save-modal .sv-label { font-size: 12px; color: var(--muted); margin: 14px 0 6px; }
-.sv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.sv-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); background: var(--panel-2); color: var(--fg); border-radius: 999px; padding: 4px 12px; cursor: pointer; font-size: 13px; }
-.sv-chip:hover { border-color: var(--accent); color: var(--accent); }
-.sv-chip svg { width: 14px; height: 14px; }
-.sv-chip.sv-time { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); background: color-mix(in srgb, var(--accent) 8%, transparent); }
-.sv-chip.sv-edit { padding: 4px 8px; color: var(--muted); background: transparent; border-style: dashed; }
-.sv-folder { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
-.sv-folder .sv-label { margin: 0; flex: none; }
-.sv-folder-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; background: var(--panel-2); border-radius: 6px; padding: 6px 8px; direction: ltr; text-align: left; }
-.sv-formats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.sv-fmt { display: flex; flex-direction: column; align-items: center; gap: 2px; border: 1px solid var(--border); background: var(--bg); border-radius: 8px; padding: 8px 4px; cursor: pointer; color: var(--fg); }
-.sv-fmt small { color: var(--muted); font-size: 11px; }
-.sv-fmt:hover { border-color: var(--accent); }
-.sv-fmt.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: inset 0 0 0 1px var(--accent); }
-.sv-note { font-size: 12px; color: var(--muted); min-height: 18px; margin-top: 8px; }
-.save-modal .row { display: flex; align-items: center; gap: 8px; }
-.save-modal .row .grow { flex: 1; }
-.save-modal .sv-native { color: var(--muted); }
 .np-edit { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: var(--bg); color: var(--fg); font: inherit; line-height: 1.8; resize: vertical; margin-bottom: 12px; }
 
 /* ---------- v2.3 ---------- */
@@ -194,5 +159,3 @@ body.ctrl-down .milkdown .ProseMirror a { cursor: pointer; text-decoration: unde
 .milkdown .ProseMirror li[dir='ltr'] > .label-wrapper .label,
 .milkdown .ProseMirror [dir='ltr'] > .label-wrapper .label { direction: ltr; unicode-bidi: isolate; }
 /* save window: file names are usually English */
-.save-modal .sv-name { text-align: start; }
-.save-modal .sv-name:placeholder-shown { direction: ltr; text-align: left; }
