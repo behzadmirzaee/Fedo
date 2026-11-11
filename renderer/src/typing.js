@@ -5,6 +5,9 @@ import { Decoration, DecorationSet } from '@milkdown/kit/prose/view';
 import { toggleMark } from '@milkdown/kit/prose/commands';
 import { keymap } from '@milkdown/kit/prose/keymap';
 
+/** switches set from Settings › نوشتن */
+export const typingOpts = { autoPair: true, pasteLink: true, plainAfterPaste: true };
+
 const PAIRS = { '"': '"', "'": "'", '(': ')', '[': ']', '{': '}', '«': '»', '“': '”' };
 const CLOSERS = new Set(Object.values(PAIRS));
 const SYMMETRIC = new Set(['"', "'"]);
@@ -34,6 +37,7 @@ export const autoPair = $prose(() => new Plugin({
         const mark = state.schema.marks[WRAP_MARKS[text]];
         if (mark) return toggleMark(mark)(state, view.dispatch);
       }
+      if (!typingOpts.autoPair) return false;
       // wrap a selection in a pair: (text) "text" «text»
       if (!sel.empty && PAIRS[text]) {
         const tr = state.tr.insertText(PAIRS[text], to).insertText(text, from);
@@ -66,7 +70,7 @@ export const autoPair = $prose(() => new Plugin({
 export const pairBackspace = $prose(() => keymap({
   Backspace: (state, dispatch) => {
     const sel = state.selection;
-    if (!sel.empty || inCode(state)) return false;
+    if (!typingOpts.autoPair || !sel.empty || inCode(state)) return false;
     const prev = charBefore(state, sel.from);
     const next = charAfter(state, sel.from);
     if (!prev || PAIRS[prev] !== next) return false;
@@ -88,13 +92,14 @@ export const pasteBehaviour = $prose(() => new Plugin({
         const text = ((event.clipboardData && event.clipboardData.getData('text/plain')) || '').trim();
         const { state } = view;
         const link = state.schema.marks.link;
-        if (link && !state.selection.empty && URL_RE.test(text) && !inCode(state)) {
+        if (typingOpts.pasteLink && link && !state.selection.empty && URL_RE.test(text) && !inCode(state)) {
           event.preventDefault();
           const href = /^www\./i.test(text) ? 'https://' + text : text;
           const { from, to } = state.selection;
           view.dispatch(state.tr.addMark(from, to, link.create({ href })).setSelection(TextSelection.create(state.doc, to)).setStoredMarks([]));
           return true;
         }
+        if (!typingOpts.plainAfterPaste) return false;
         justPasted = true;
         setTimeout(() => { justPasted = false; }, 0);
         return false;

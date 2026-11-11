@@ -8,6 +8,7 @@ import {
 import { TextSelection, AllSelection } from '@milkdown/kit/prose/state';
 import { createHistoryPanel } from './history.js';
 import { openEditorMenu, handleTableKey } from './context.js';
+import { typingOpts } from './typing.js';
 const LOGOS = Object.entries(import.meta.glob('../logos/*.png', { eager: true, query: '?url', import: 'default' }))
   .map(([k, url]) => ({ id: k.match(/(\w+)\.png$/)[1], url })).sort((a, b) => a.id.localeCompare(b.id));
 import { buildRegex, pmEngine, cmEngine, pmCollectEdits, pmApplyEdits, PRESETS } from './search.js';
@@ -52,6 +53,7 @@ const DEFAULTS = {
   theme: 'light', baseDir: 'rtl', fontSize: 17, pageWidth: 860, lineHeight: 1.95,
   autosave: false, snapshotMinutes: 5, restoreSession: true, recent: [],
   sidebar: true, sideView: 'files', folder: null, typewriter: false, spellcheck: false, locked: [], logo: '08', verticalTabs: false,
+  autoPair: true, pasteLink: true, plainAfterPaste: true, defaultExt: 'md',
 };
 
 let settings = { ...DEFAULTS };
@@ -799,7 +801,7 @@ function saveModal(t, as) {
     if (!appInfo) appInfo = { documents: '' };
     const cur = t.path ? basename(t.path).replace(/\.[^.]+$/, '') : suggestedName(t).replace(/\.md$/, '');
     let folder = t.path ? dirname(t.path) : settings.lastSaveDir || appInfo.documents || '';
-    let ext = t.path && /\.txt$/i.test(t.path) ? 'txt' : 'md';
+    let ext = t.path ? (/\.txt$/i.test(t.path) ? 'txt' : 'md') : (settings.defaultExt === 'txt' ? 'txt' : 'md');
     const inp = el('input', { type: 'text', class: 'sv-name', dir: 'auto', lang: 'en', spellcheck: 'false' });
     inp.value = cur === 'بدون عنوان' ? '' : cur;
     inp.placeholder = 'File name';
@@ -1268,6 +1270,7 @@ function applyAll() {
   for (const t of tabs) applySpell(t);
   api.setSpellcheck(!!settings.spellcheck);
   api.setLogo(settings.logo);
+  Object.assign(typingOpts, { autoPair: settings.autoPair !== false, pasteLink: settings.pasteLink !== false, plainAfterPaste: settings.plainAfterPaste !== false });
   applySidebar();
   updateStatus();
 }
@@ -1284,18 +1287,6 @@ function toggleSetting(k) {
   if (names[k]) toast(`${names[k]} ${settings[k] ? 'روشن' : 'خاموش'} شد`);
 }
 
-async function openThemeMenu(anchor) {
-  customThemes = await api.customThemes();
-  const r = anchor.getBoundingClientRect();
-  showMenu([
-    { header: 'تم‌های پیش‌فرض' },
-    ...THEMES.map((th) => ({ label: th.name, checked: settings.theme === th.id, run: () => updateSettings({ theme: th.id }) })),
-    ...(customThemes.length ? [{ header: 'تم‌های شما' }, ...customThemes.map((th) => ({ label: th.name, checked: settings.theme === th.id, run: () => updateSettings({ theme: th.id }) }))] : []),
-    'sep',
-    { label: 'باز کردن پوشه‌ی تم‌ها', run: () => api.openThemesFolder() },
-  ], r.right, r.bottom + 4);
-}
-
 function fontItems(key) {
   return FONTS.map((f) => ({
     label: f.name, checked: settings[key] === f.id,
@@ -1303,49 +1294,191 @@ function fontItems(key) {
     run: () => updateSettings({ [key]: f.id }),
   }));
 }
-function openFontMenu(anchor) {
-  const r = anchor.getBoundingClientRect();
-  const custom = (key) => (settings[key] && !FONTS.find((f) => f.id === settings[key]) ? [{ label: settings[key], checked: true, style: `font-family: '${settings[key]}'`, run: () => {} }] : []);
-  showMenu([
-    { header: 'فونت متن' },
-    ...fontItems('textFont'), ...custom('textFont'),
-    'sep',
-    { label: 'فونت تیترها', sub: [{ label: 'مثل متن', checked: !settings.headFont, run: () => updateSettings({ headFont: '' }) }, ...fontItems('headFont').slice(1), ...custom('headFont')] },
-    { label: 'فونت منوها و رابط', sub: [...fontItems('uiFont'), ...custom('uiFont')] },
-    { label: 'فونت‌های نصب‌شده روی ویندوز…', run: openSettings },
-  ], r.right, r.top);
-}
-
-async function openSettings() {
+// ---------- settings window: sections on the right, changes apply at once ----------
+const THEME_SWATCH = { light: ['#ffffff', '#1d1d1f'], dark: ['#1e1f22', '#dcdde1'], sepia: ['#f7f1e3', '#3b2f22'], nord: ['#2e3440', '#e5e9f0'], garden: ['#fbfdf9', '#1d2a20'] };
+const PAGE_WIDTHS = [[720, 'باریک'], [860, 'متوسط'], [1040, 'پهن']];
+const KEY_LIST = [
+  [['تب تازه', 'Ctrl+T'], ['پنجره‌ی جدید', 'Ctrl+N'], ['باز کردن', 'Ctrl+O'], ['باز کردن سریع', 'Ctrl+P'], ['باز کردن پوشه', 'Ctrl+Shift+O'], ['ذخیره', 'Ctrl+S'], ['ذخیره با نام', 'Ctrl+Shift+S'], ['ذخیره‌ی همه', 'Ctrl+Alt+S'],
+    ['بستن تب', 'Ctrl+W'], ['بازکردن تب بسته‌شده', 'Ctrl+Shift+T'], ['تب بعدی', 'Ctrl+Tab'], ['تاریخچه‌ی نسخه‌ها', 'Ctrl+Shift+H'], ['تنظیمات', 'Ctrl+,'], ['تمام‌صفحه', 'F11']],
+  [['جستجو', 'Ctrl+F'], ['جایگزینی', 'Ctrl+H'], ['چسباندن متن ساده', 'Ctrl+Shift+V'], ['خط‌خورده', 'Alt+Shift+5'], ['منوی درج بلوک', '/'], ['باز کردن لینک', 'Ctrl+کلیک'], ['کد منبع', 'Ctrl+/'], ['نوار کناری', 'Ctrl+Shift+L'],
+    ['سرفصل‌ها', 'Ctrl+Shift+1'], ['حالت امن', 'F8'], ['حالت ماشین‌تحریر', 'F9'], ['بزرگ‌نمایی', 'Ctrl+='], ['کوچک‌نمایی', 'Ctrl+-'], ['اندازه‌ی واقعی', 'Ctrl+0']],
+];
+let settingsOpen = null;
+async function openSettings(section = 'look') {
+  if (typeof section !== 'string') section = 'look';
+  if (settingsOpen) { settingsOpen(section); return; }
   customThemes = await api.customThemes();
   const sys = await loadSystemFonts();
-  const fontSel = (id, val, first) => el('select', { id },
-    el('optgroup', { label: 'فونت‌های برنامه' }, [first || FONTS[0], ...FONTS.slice(1)].map((f) => el('option', { value: f.id, selected: f.id === val }, f.name))),
-    sys.length ? el('optgroup', { label: 'فونت‌های ویندوز' }, sys.map((f) => el('option', { value: f, selected: f === val }, f))) : null);
-  const sel = (id, opts, val) => el('select', { id }, opts.map(([v, l]) => el('option', { value: v, selected: String(v) === String(val) }, l)));
-  const num = (id, val, min, max, step = 1) => el('input', { type: 'number', id, value: val, min, max, step });
-  const chk = (id, val) => el('input', { type: 'checkbox', id, checked: val });
-  const body = el('div', { class: 'settings' },
-    el('label', {}, 'تم'), sel('s-theme', [...THEMES.map((t) => [t.id, t.name]), ...customThemes.map((t) => [t.id, t.name])], settings.theme),
-    el('label', {}, 'فونت متن'), fontSel('s-tf', settings.textFont),
-    el('label', {}, 'فونت تیترها'), fontSel('s-hf', settings.headFont, { id: '', name: 'مثل متن' }),
-    el('label', {}, 'فونت رابط'), fontSel('s-uf', settings.uiFont),
-    el('label', {}, 'جهت پیش‌فرض'), sel('s-dir', [['rtl', 'راست‌به‌چپ (فارسی)'], ['ltr', 'چپ‌به‌راست (انگلیسی)']], settings.baseDir),
-    el('label', {}, 'اندازه‌ی متن'), num('s-size', settings.fontSize, 12, 28),
-    el('label', {}, 'فاصله‌ی خطوط'), num('s-lh', settings.lineHeight, 1.3, 2.6, 0.05),
-    el('label', {}, 'عرض صفحه'), num('s-width', settings.pageWidth, 560, 1600, 20),
-    el('label', {}, 'ذخیره‌ی خودکار'), chk('s-autosave', settings.autosave),
-    el('label', {}, 'ثبت نسخه هر'), el('span', {}, num('s-snap', settings.snapshotMinutes, 1, 60), ' دقیقه'),
-    el('label', {}, 'بازکردن تب‌های قبلی'), chk('s-session', settings.restoreSession));
-  const r = await modal({ title: 'تنظیمات', body, buttons: [{ label: 'انصراف', value: false }, { label: 'ذخیره', value: true, primary: true }] });
-  if (!r) return;
-  const v = (id) => body.querySelector('#' + id);
-  updateSettings({
-    theme: v('s-theme').value, baseDir: v('s-dir').value,
-    textFont: v('s-tf').value, headFont: v('s-hf').value, uiFont: v('s-uf').value,
-    fontSize: Number(v('s-size').value) || 17, lineHeight: Number(v('s-lh').value) || 1.95, pageWidth: Number(v('s-width').value) || 860,
-    autosave: v('s-autosave').checked, snapshotMinutes: Math.max(1, Number(v('s-snap').value) || 5), restoreSession: v('s-session').checked,
+
+  // --- small controls ---
+  const row = (label, hint, control, tall) => el('div', { class: 'row' + (hint || tall ? ' tw' : ''), 'data-s': label + ' ' + (hint || '') },
+    el('span', {}, label, hint ? el('small', {}, hint) : null), control);
+  const sw = (get, set, label) => {
+    const b = el('button', { class: 'tg big' + (get() ? ' on' : ''), role: 'switch', 'aria-checked': String(!!get()), 'aria-label': label });
+    b.addEventListener('click', async () => { await set(!get()); const on = !!get(); b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
+    return b;
+  };
+  const toggle = (key, label, hint, key2) => row(label, hint, key2
+    ? el('span', { class: 'row-end' }, kbd(key2), sw(() => settings[key], () => updateSettings({ [key]: !settings[key] }), label))
+    : sw(() => settings[key] !== false && !!settings[key], () => updateSettings({ [key]: !settings[key] }), label));
+  const seg = (opts, get, set) => {
+    const box = el('div', { class: 'sg' });
+    const paint = () => box.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === String(get())));
+    for (const [v, l] of opts) box.append(el('button', { 'data-v': v, onclick: () => { set(v); paint(); } }, l));
+    paint();
+    return box;
+  };
+  const step = (get, change, fmt) => {
+    const val = el('span', {}, fmt(get()));
+    const go = (d) => () => { change(d); val.textContent = fmt(get()); paintPreview(); };
+    return el('div', { class: 'st' }, el('button', { title: 'بیشتر', html: ICON.plus, onclick: go(1) }), val, el('button', { title: 'کمتر', html: ICON.minus, onclick: go(-1) }));
+  };
+  const clampSet = (key, stepBy, min, max) => (d) => updateSettings({ [key]: Math.round(Math.min(max, Math.max(min, settings[key] + d * stepBy)) * 100) / 100 });
+  const fontSel = (key, first) => {
+    const sel = el('select', { class: 'sel', 'aria-label': 'فونت' },
+      el('optgroup', { label: 'فونت‌های برنامه' }, [first || FONTS[0], ...FONTS.slice(1)].map((f) => el('option', { value: f.id, selected: f.id === settings[key] }, f.name))),
+      sys.length ? el('optgroup', { label: 'فونت‌های ویندوز' }, sys.map((f) => el('option', { value: f, selected: f === settings[key] }, f))) : null);
+    sel.addEventListener('change', () => { updateSettings({ [key]: sel.value }); paintPreview(); });
+    return sel;
+  };
+  const group = (...rows) => el('div', { class: 'grp' }, rows);
+  const label = (t) => el('div', { class: 'lbl' }, t);
+
+  // --- sections ---
+  const preview = el('div', { class: 'grp set-preview set-free' },
+    el('div', { class: 'pv-h' }, 'تیتر نمونه'),
+    el('div', { class: 'pv-t' }, 'این یک نمونه‌ی متن فارسی است با چند کلمه‌ی English در میان آن، تا اندازه و فاصله‌ی خطوط را ببینید.'));
+  function paintPreview() {
+    const cs = getComputedStyle(document.documentElement);
+    preview.querySelector('.pv-h').style.fontFamily = cs.getPropertyValue('--font-head');
+    Object.assign(preview.querySelector('.pv-t').style, { fontFamily: cs.getPropertyValue('--font-text'), fontSize: settings.fontSize + 'px', lineHeight: settings.lineHeight });
+  }
+  const themeGrid = el('div', { class: 'th-grid set-free' });
+  const paintThemes = () => {
+    themeGrid.innerHTML = '';
+    const tile = (th, sw2) => themeGrid.append(el('button', { class: 'th' + (settings.theme === th.id ? ' on' : ''), onclick: () => { updateSettings({ theme: th.id }); paintThemes(); } },
+      el('span', { class: 'tp', style: sw2 ? `background:${sw2[0]};color:${sw2[1]}` : null }, el('i', { style: 'width:60%;opacity:.75' }), el('i', { style: 'width:90%' }), el('i', { style: 'width:75%' })),
+      el('span', { class: 'th-n' }, th.name)));
+    for (const th of THEMES) tile(th, THEME_SWATCH[th.id]);
+    for (const th of customThemes) tile(th, null);
+    themeGrid.append(el('button', { class: 'th', title: 'فایل‌های CSS تم خودتان را در این پوشه بگذارید', onclick: () => api.openThemesFolder() },
+      el('span', { class: 'tp add', html: ICON.folder }), el('span', { class: 'th-n' }, 'پوشه‌ی تم‌ها')));
+  };
+  paintThemes();
+  const logoGrid = el('div', { class: 'ic-grid set-free' });
+  const paintLogos = () => {
+    logoGrid.innerHTML = '';
+    for (const l of LOGOS) {
+      const on = settings.logo === l.id;
+      logoGrid.append(el('button', { class: 'ic' + (on ? ' on' : ''), title: `آیکن ${fa(Number(l.id))}`, 'aria-pressed': String(on), onclick: () => { updateSettings({ logo: l.id, logoChosen: true }); paintLogos(); } },
+        el('img', { src: l.url, alt: '' }), on ? el('span', { class: 'bd', html: ICON.check }) : null));
+    }
+  };
+  paintLogos();
+  const recentInfo = el('span', { class: 'row-mut' });
+  const paintRecent = () => { recentInfo.textContent = settings.recent.length ? `${fa(settings.recent.length)} فایل` : 'خالی است'; };
+  paintRecent();
+  const lockNow = () => !!(active() && active().locked);
+
+  const SECTIONS = [
+    { id: 'look', name: 'ظاهر', icon: ICON.palette, color: '#2F7BF6', body: () => [
+      label('تم'), themeGrid,
+      label('پنجره'), group(
+        row('عرض صفحه', null, seg(PAGE_WIDTHS.map(([v, l]) => [String(v), l]), () => settings.pageWidth, (v) => updateSettings({ pageWidth: Number(v) }))),
+        toggle('verticalTabs', 'تب‌های عمودی', 'تب‌ها در ستونی سمت چپ پنجره'),
+        toggle('sidebar', 'نوار کناری', null, 'Ctrl+Shift+L')),
+    ] },
+    { id: 'write', name: 'نوشتن', icon: ICON.edit, color: '#E8830C', body: () => [
+      label('هنگام تایپ'), group(
+        toggle('autoPair', 'بستن خودکار جفت‌ها', 'گیومه، پرانتز، کروشه و آکولاد'),
+        toggle('pasteLink', 'پیوند با چسباندن آدرس', 'وقتی متنی انتخاب شده باشد'),
+        toggle('plainAfterPaste', 'تایپ معمولی بعد از چسباندن', 'سبک متن چسبانده‌شده به نوشته‌ی بعدی نمی‌رسد'),
+        row('جهت پیش‌فرض متن', null, seg([['rtl', 'راست‌به‌چپ'], ['ltr', 'چپ‌به‌راست']], () => settings.baseDir, (v) => updateSettings({ baseDir: v })))),
+      label('ابزارها'), group(
+        toggle('spellcheck', 'غلط‌یابی املایی'),
+        toggle('typewriter', 'حالت ماشین‌تحریر', 'خط در حال نوشتن وسط صفحه می‌ماند', 'F9'),
+        row('حالت امن', 'فایل فقط خواندنی می‌شود، برای هر فایل جدا', el('span', { class: 'row-end' }, kbd('F8'),
+          sw(lockNow, () => { const a = active(); if (a) setLocked(a, !a.locked, true); }, 'حالت امن')))),
+    ] },
+    { id: 'font', name: 'فونت', icon: ICON.textSize, color: '#8E5BD9', body: () => [
+      group(
+        row('فونت متن', null, fontSel('textFont')),
+        row('فونت تیترها', null, fontSel('headFont', { id: '', name: 'مثل متن' })),
+        row('فونت منوها و رابط', null, fontSel('uiFont')),
+        row('اندازه‌ی متن', null, step(() => settings.fontSize, clampSet('fontSize', 1, 12, 32), (v) => fa(v))),
+        row('فاصله‌ی خطوط', null, step(() => settings.lineHeight, clampSet('lineHeight', 0.05, 1.2, 3), (v) => fa2(v)))),
+      label('پیش‌نمایش'), preview,
+    ] },
+    { id: 'files', name: 'فایل و ذخیره', icon: ICON.save, color: '#2FA84F', body: () => [
+      label('ذخیره'), group(
+        toggle('autosave', 'ذخیره‌ی خودکار', 'فایل‌های ذخیره‌شده کمی بعد از هر تغییر ذخیره می‌شوند'),
+        row('قالب پیش‌فرض سند تازه', null, seg([['md', 'Markdown'], ['txt', 'متن ساده']], () => settings.defaultExt || 'md', (v) => updateSettings({ defaultExt: v })))),
+      label('شروع و تاریخچه'), group(
+        toggle('restoreSession', 'بازکردن تب‌های قبلی هنگام شروع'),
+        row('ثبت خودکار نسخه', 'با هر ذخیره، و هنگام نوشتن هر چند دقیقه یک بار', step(() => settings.snapshotMinutes, clampSet('snapshotMinutes', 1, 1, 60), (v) => `${fa(v)} دقیقه`)),
+        row('فایل‌های اخیر', null, el('span', { class: 'row-end' }, recentInfo,
+          el('button', { class: 'sel as-btn', onclick: () => { updateSettings({ recent: [] }); paintRecent(); toast('فهرست فایل‌های اخیر پاک شد', 'ok'); } }, 'پاک کردن فهرست')))),
+    ] },
+    { id: 'keys', name: 'میان‌برها', icon: ICON.keyboard, color: '#6E6E78', body: () => [
+      el('div', { class: 'keys-grid' }, KEY_LIST.map((col) => el('div', { class: 'grp' }, col.map(([l, k]) => el('div', { class: 'kr', 'data-s': l + ' ' + k }, el('span', {}, l), kbd(k)))))),
+    ] },
+    { id: 'icon', name: 'آیکن برنامه', icon: ICON.image, color: '#E0457B', body: () => [
+      el('div', { class: 'lbl set-free' }, 'با انتخاب هر کدام، آیکن پنجره و نوار وظیفه عوض می‌شود.'), logoGrid,
+    ] },
+  ];
+
+  // --- shell ---
+  const search = el('input', { type: 'text', placeholder: 'جستجو در تنظیمات', 'aria-label': 'جستجو در تنظیمات', spellcheck: 'false' });
+  const nav = el('div', { class: 'set-nav' }, el('label', { class: 'set-search' }, el('span', { class: 'ic', html: ICON.search }), search));
+  const content = el('div', { class: 'set-content' });
+  const secEl = (sc) => el('section', { class: 'set-sec', 'data-title': sc.name }, el('h2', {}, sc.name), sc.body());
+  const built = new Map(SECTIONS.map((sc) => [sc.id, secEl(sc)]));
+  let current = SECTIONS.find((x) => x.id === section) ? section : 'look';
+  const show = (id) => {
+    current = id; search.value = '';
+    nav.querySelectorAll('.nv').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
+    content.replaceChildren(built.get(id));
+    for (const n of built.get(id).querySelectorAll('[hidden]')) n.hidden = false;
+    content.scrollTop = 0;
+    if (id === 'font') paintPreview();
+  };
+  for (const sc of SECTIONS) {
+    nav.append(el('button', { class: 'nv', 'data-id': sc.id, title: sc.name, onclick: () => show(sc.id) },
+      el('span', { class: 'sq', style: `background:${sc.color}`, html: sc.icon }), el('span', { class: 'nv-n' }, sc.name)));
+  }
+  search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    if (!q) { show(current); return; }
+    nav.querySelectorAll('.nv').forEach((b) => b.classList.remove('on'));
+    let any = false;
+    content.replaceChildren(...SECTIONS.map((sc) => {
+      const node = built.get(sc.id);
+      const whole = sc.name.toLowerCase().includes(q);
+      let hit = whole;
+      for (const r of node.querySelectorAll('[data-s]')) { const ok = whole || r.dataset.s.toLowerCase().includes(q); r.hidden = !ok; hit = hit || ok; }
+      for (const g of node.querySelectorAll('.grp:not(.set-free)')) g.hidden = !g.querySelector('[data-s]:not([hidden])');
+      for (const f of node.querySelectorAll('.set-free')) f.hidden = !whole;
+      for (const l of node.querySelectorAll('.lbl:not(.set-free)')) l.hidden = !l.nextElementSibling || l.nextElementSibling.hidden;
+      node.hidden = !hit;
+      any = any || hit;
+      return node;
+    }));
+    if (!any) content.append(el('div', { class: 'set-none' }, 'چیزی با این عبارت پیدا نشد.'));
+    paintPreview();
   });
+  const close = () => {
+    ov.remove(); document.removeEventListener('keydown', onEsc, true); settingsOpen = null;
+    for (const n of built.values()) n.hidden = false;
+  };
+  const onEsc = (e) => { if (e.key === 'Escape' && !document.querySelector('.menu')) { e.preventDefault(); e.stopPropagation(); close(); } };
+  const box = el('div', { class: 'modal set-modal', dir: 'rtl', role: 'dialog', 'aria-label': 'تنظیمات' }, nav,
+    el('div', { class: 'set-main' }, el('button', { class: 'set-close', title: 'بستن (Esc)', html: ICON.x, onclick: close }), content));
+  const ov = el('div', { class: 'overlay' }, box);
+  ov.addEventListener('mousedown', (e) => { if (e.target === ov) close(); });
+  document.addEventListener('keydown', onEsc, true);
+  document.body.append(ov);
+  settingsOpen = show;
+  show(current);
 }
 
 // ======================================================================
@@ -1393,26 +1526,16 @@ function openMainMenu(anchor) {
       { label: 'فونت تیترها', sub: [{ label: 'مثل متن', checked: !settings.headFont, run: () => updateSettings({ headFont: '' }) }, ...fontItems('headFont').slice(1), ...fontNow('headFont')] },
       { label: 'فونت منوها و رابط', sub: [...fontItems('uiFont'), ...fontNow('uiFont')] },
       'sep',
-      { label: 'آیکن برنامه…', run: openLogoPicker },
+      { label: 'فونت‌های نصب‌شده روی ویندوز…', run: () => openSettings('font') },
+      { label: 'آیکن برنامه…', run: () => openSettings('icon') },
       { label: 'باز کردن پوشه‌ی تم‌ها', run: () => api.openThemesFolder() },
     ] },
-    { icon: ICON.settings, label: 'تنظیمات', key: 'Ctrl+,', run: openSettings },
+    { icon: ICON.settings, label: 'تنظیمات', key: 'Ctrl+,', run: () => openSettings() },
     { icon: ICON.keyboard, label: 'میان‌برهای صفحه‌کلید', run: showShortcuts },
   ], r.right, r.bottom + 8, () => anchor.classList.remove('open'));
 }
 
-function showShortcuts() {
-  const rows = [
-    ['Ctrl+T', 'سند تازه (تب جدید)'], ['Ctrl+N', 'پنجره‌ی جدید'], ['Ctrl+O', 'باز کردن'], ['Ctrl+S', 'ذخیره'], ['Ctrl+W', 'بستن تب'],
-    ['Ctrl+Tab', 'تب بعدی'], ['Ctrl+Shift+T', 'بازکردن دوباره‌ی تب'], ['Ctrl+1…9', 'رفتن به تب'],
-    ['Ctrl+P', 'باز کردن سریع فایل'], ['Ctrl+کلیک', 'باز کردن لینک'], ['Ctrl+= / Ctrl+- / Ctrl+0', 'زوم'],
-    ['Ctrl+/', 'ویرایش زنده / کد منبع'], ['Ctrl+Shift+H', 'تاریخچه‌ی نسخه‌ها'], ['Ctrl+Shift+L', 'نوار کناری'],
-    ['Ctrl+F / Ctrl+H', 'جستجو و جایگزینی'], ['F8 / F9', 'حالت امن / ماشین‌تحریر'], ['F11', 'تمام‌صفحه'],
-    ['/', 'منوی درج بلوک (داخل متن)'],
-  ];
-  const body = el('div', { class: 'keys-list' }, rows.map(([k, l]) => el('div', { class: 'kr' }, el('span', {}, l), el('span', { class: 'kb-group' }, k.split(' / ').map((x) => kbd(x))))));
-  modal({ title: 'میان‌برهای صفحه‌کلید', body, buttons: [{ label: 'بستن', value: true, primary: true }] });
-}
+const showShortcuts = () => openSettings('keys');
 
 // ======================================================================
 // find / replace
@@ -1791,7 +1914,7 @@ function openLogoPicker(firstRun = false) {
   }
   modal({
     title: firstRun ? 'به Fedo خوش آمدید! یک آیکن انتخاب کنید' : 'آیکن برنامه',
-    text: firstRun ? 'این آیکن روی پنجره و نوار وظیفه دیده می‌شود. بعداً هم از منو، «آیکن برنامه…» قابل تغییر است.' : 'آیکن پنجره و نوار وظیفه همان لحظه عوض می‌شود.',
+    text: firstRun ? 'این آیکن روی پنجره و نوار وظیفه دیده می‌شود. بعداً هم از «تنظیمات»، بخش «آیکن برنامه» قابل تغییر است.' : 'آیکن پنجره و نوار وظیفه همان لحظه عوض می‌شود.',
     body: grid,
     buttons: [{ label: firstRun ? 'شروع' : 'بستن', value: true, primary: true }],
   }).then(() => { if (!settings.logoChosen) updateSettings({ logoChosen: true }); });
