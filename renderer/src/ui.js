@@ -20,6 +20,8 @@ export const ICON = {
   folder: p('M21.42 15.73C21.42 19.31 19.31 21.42 15.73 21.42H7.95C4.36 21.42 2.25 19.31 2.25 15.73V7.93C2.25 4.36 3.56 2.25 7.14 2.25H9.14C9.86 2.25 10.54 2.59 10.97 3.16L11.88 4.38C12.31 4.95 12.99 5.29 13.71 5.29H16.54C20.12 5.29 21.45 7.12 21.45 10.77L21.42 15.73ZM7.48 14.46H16.22'),
   chevron: p('M15.5 5L8.5 12L15.5 19'),
   chevDown: p('M19 8.5L12 15.5L5 8.5'),
+  chevUp: p('M5 15.5L12 8.5L19 15.5'),
+  swap: p('M16.84 20.16V6.55M20.92 16.07L16.84 20.16L12.76 16.07M6.91 3.83V17.45M2.83 7.93L6.91 3.83L10.99 7.93'),
   refresh: s('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'),
   search: p('M20.76 11.77a8.99 8.99 0 1 1-17.98 0a8.99 8.99 0 0 1 17.98 0zM18.02 18.49L21.54 22'),
   zoom: p('M20.76 11.77a8.99 8.99 0 1 1-17.98 0a8.99 8.99 0 0 1 17.98 0zM18.02 18.49L21.54 22M8.5 11.77h6.5M11.77 8.5v6.5'),
@@ -123,6 +125,7 @@ function buildMenu(items, level) {
     if (!it) continue;
     if (it === 'sep') { m.append(el('div', { class: 'sep' })); continue; }
     if (it.header) { m.append(el('div', { class: 'mh' }, it.header)); continue; }
+    if (it.note) { m.append(el('div', { class: 'mnote' }, it.note)); continue; }
     if (it.tiles) {
       const g = el('div', { class: 'mtiles', style: `--n:${it.tiles.length}` });
       for (const b of it.tiles) {
@@ -152,6 +155,7 @@ function buildMenu(items, level) {
       m.classList.contains('has-icons') ? el('span', { class: 'ic', html: it.icon || '' }) : null,
       el('span', { class: 'lb', style: it.style || null }, it.label),
       it.badge ? el('span', { class: 'badge' }, it.badge) : null,
+      it.count ? el('span', { class: 'ct' }, it.count) : null,
       it.key ? kbd(it.key) : null,
       it.checked ? el('span', { class: 'tick', html: ICON.check }) : null,
       it.sub ? el('span', { class: 'arrow', html: ICON.chevron }) : null);
@@ -266,6 +270,13 @@ export function toast(msg, ms = 2200, action = null, kind = null) {
 const faNum = new Intl.NumberFormat('fa-IR');
 export const fa = (n) => faNum.format(n);
 export const faTime = (t) => new Intl.DateTimeFormat('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(t);
+/** «امروز» / «دیروز» / full date */
+export function faDayRel(t) {
+  const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+  const days = Math.round((d0 - new Date(t).setHours(0, 0, 0, 0)) / 86400000);
+  return days === 0 ? 'امروز' : days === 1 ? 'دیروز' : faDay(t);
+}
+export const faClock = (t) => new Intl.DateTimeFormat('fa-IR', { hour: '2-digit', minute: '2-digit' }).format(t);
 export const faDay = (t) => new Intl.DateTimeFormat('fa-IR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).format(t);
 export const basename = (p) => p.split(/[\\/]/).pop();
 export const dirname = (p) => p.replace(/[\\/][^\\/]*$/, '');

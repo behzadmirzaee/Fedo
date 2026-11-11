@@ -1,6 +1,6 @@
 // Version history panel
 import { diffLines } from 'diff';
-import { el, ICON, fa, faTime, faDay, modal, toast, relTime } from './ui.js';
+import { el, ICON, fa, faTime, faDay, faDayRel, faClock, modal, toast, relTime } from './ui.js';
 import { dirOfText } from './editor.js';
 
 const KIND = { save: 'ذخیره', auto: 'ذخیره‌ی خودکار', open: 'باز کردن فایل', restore: 'قبل از بازگردانی', manual: 'نسخه‌ی دستی', external: 'تغییر بیرونی' };
@@ -13,18 +13,18 @@ export function createHistoryPanel(root, { getTab, getContent, restore, snapshot
 
   const list = el('div', { class: 'h-list' });
   const diffBox = el('div', { class: 'h-diff' });
-  const segCur = el('button', { class: 'on', onclick: () => setCompare('current') }, 'با متن فعلی');
-  const segPrev = el('button', { onclick: () => setCompare('prev') }, 'با نسخه‌ی قبلی');
-  const btnRestore = el('button', { class: 'btn primary', onclick: doRestore }, 'بازگردانی');
-  const btnLabel = el('button', { class: 'btn', onclick: doLabel }, 'نام‌گذاری');
-  const btnCopy = el('button', { class: 'btn', onclick: doCopy }, 'کپی');
-  const btnDel = el('button', { class: 'btn danger', onclick: doDelete }, 'حذف');
-  const actions = el('div', { class: 'h-actions' }, el('div', { class: 'seg' }, segCur, segPrev), btnRestore, btnLabel, btnCopy, btnDel);
-  const detail = el('div', { class: 'h-detail' }, actions, diffBox);
-  const title = el('span', { class: 'grow' }, 'تاریخچه‌ی نسخه‌ها');
+  const segCur = el('button', { class: 'on', onclick: () => setCompare('current') }, 'تفاوت با متن فعلی');
+  const segPrev = el('button', { onclick: () => setCompare('prev') }, 'تفاوت با نسخه‌ی قبلی');
+  const btnRestore = el('button', { class: 'hb primary', onclick: doRestore }, 'بازگردانی');
+  const btnLabel = el('button', { class: 'hb', onclick: doLabel }, 'نام‌گذاری');
+  const btnCopy = el('button', { class: 'hb', onclick: doCopy }, 'کپی');
+  const btnDel = el('button', { class: 'hb danger', onclick: doDelete }, 'حذف');
+  const seg = el('div', { class: 'seg' }, segCur, segPrev);
+  const actions = el('div', { class: 'h-actions' }, btnRestore, btnLabel, btnCopy, el('span', { class: 'grow' }), btnDel);
+  const detail = el('div', { class: 'h-detail' }, seg, diffBox, actions);
   root.append(
-    el('div', { class: 'h-head' }, title,
-      el('button', { class: 'btn', onclick: async () => { const r = await snapshotNow(); if (r) refresh(); } }, 'ثبت نسخه'),
+    el('div', { class: 'h-head' }, el('span', { class: 'grow' }, 'تاریخچه‌ی نسخه‌ها'),
+      el('button', { class: 'hb', onclick: async () => { const r = await snapshotNow(); if (r) refresh(); } }, 'ثبت نسخه'),
       el('button', { class: 'icon-btn', title: 'بستن', html: ICON.x, onclick: () => hide() })),
     list, detail);
 
@@ -44,7 +44,7 @@ export function createHistoryPanel(root, { getTab, getContent, restore, snapshot
     list.innerHTML = '';
     diffBox.innerHTML = '';
     cache = new Map();
-    actions.style.display = 'none';
+    detail.style.display = 'none';
     if (!tab || !tab.path) {
       list.append(el('div', { class: 'h-empty' }, 'تاریخچه برای فایل‌های ذخیره‌شده نگه داشته می‌شود. اول این سند را ذخیره کنید (Ctrl+S).'));
       return;
@@ -56,15 +56,15 @@ export function createHistoryPanel(root, { getTab, getContent, restore, snapshot
     }
     let day = '';
     versions.forEach((v, i) => {
-      const d = faDay(v.time);
+      const d = faDayRel(v.time);
       if (d !== day) { day = d; list.append(el('div', { class: 'h-day' }, d)); }
       const prev = versions[i + 1];
       const delta = prev ? v.size - prev.size : v.size;
-      const item = el('div', { class: 'h-item' + (selected === v.id ? ' sel' : ''), 'data-id': v.id, onclick: () => select(v.id) },
-        el('span', { class: 'h-time', title: relTime(v.time) }, faTime(v.time)),
-        el('span', { class: 'h-delta', html: delta >= 0 ? `<span class="plus">+${fa(delta)}</span>` : `<span class="minus">−${fa(-delta)}</span>` }),
-        el('span', { class: 'h-kind' }, `${KIND[v.kind] || v.kind} · ${fa(v.size)} نویسه`),
-        v.label ? el('span', { class: 'h-label', dir: dirOfText(v.label) || 'auto' }, v.label) : null);
+      const item = el('button', { class: 'h-item' + (selected === v.id ? ' sel' : ''), 'data-id': v.id, title: `${faDay(v.time)}، ${faTime(v.time)} · ${fa(v.size)} نویسه`, onclick: () => select(v.id) },
+        el('span', { class: 'h-time' }, faClock(v.time)),
+        el('span', { class: 'h-kind' }, KIND[v.kind] || v.kind),
+        el('span', { class: 'h-label', dir: dirOfText(v.label || '') || 'auto' }, v.label || ''),
+        el('span', { class: 'h-delta ' + (delta > 0 ? 'plus' : delta < 0 ? 'minus' : 'zero'), dir: 'ltr' }, delta > 0 ? `+${fa(delta)}` : delta < 0 ? `−${fa(-delta)}` : fa(0)));
       list.append(item);
     });
     if (!selected || !versions.find((v) => v.id === selected)) selected = versions[0].id;
@@ -74,7 +74,7 @@ export function createHistoryPanel(root, { getTab, getContent, restore, snapshot
   async function select(id) {
     selected = id;
     list.querySelectorAll('.h-item').forEach((n) => n.classList.toggle('sel', n.dataset.id === id));
-    actions.style.display = '';
+    detail.style.display = '';
     const idx = versions.findIndex((v) => v.id === id);
     const text = await read(id);
     let base;
@@ -109,7 +109,7 @@ export function createHistoryPanel(root, { getTab, getContent, restore, snapshot
       const head = first ? [] : lines.slice(0, CTX);
       const tail = last ? [] : lines.slice(-CTX);
       head.forEach((l) => diffBox.append(line('ctx', '', l)));
-      diffBox.append(el('div', { class: 'gap' }, `${fa(lines.length - head.length - tail.length)} خط بدون تغییر`));
+      diffBox.append(el('div', { class: 'gap' }, `⋯ ${fa(lines.length - head.length - tail.length)} خط بدون تغییر`));
       tail.forEach((l) => diffBox.append(line('ctx', '', l)));
     });
   }
@@ -144,10 +144,10 @@ export function createHistoryPanel(root, { getTab, getContent, restore, snapshot
   }
   async function doCopy() {
     await navigator.clipboard.writeText(await read(selected));
-    toast('متن این نسخه کپی شد');
+    toast('متن این نسخه کپی شد', 'ok');
   }
   async function doDelete() {
-    const ok = await modal({ title: 'حذف این نسخه؟', text: 'این کار برگشت‌پذیر نیست.', buttons: [{ label: 'انصراف', value: false }, { label: 'حذف', value: true, primary: true }] });
+    const ok = await modal({ title: 'حذف این نسخه؟', text: 'این کار برگشت‌پذیر نیست.', buttons: [{ label: 'انصراف', value: false }, { label: 'حذف', value: true, danger: true }] });
     if (!ok) return;
     await window.api.historyDelete(getTab().path, selected);
     selected = null;

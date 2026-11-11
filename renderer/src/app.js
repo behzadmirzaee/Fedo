@@ -94,25 +94,26 @@ function buildLayout() {
       el('button', { 'data-v': 'recent', onclick: () => setSideView('recent') }, 'اخیر')),
     el('div', { class: 'side-body', id: 'side-body' }));
 
-  const chev = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>';
-  const findbar = el('div', { id: 'findbar', hidden: true, dir: 'rtl' },
+  const findbar = el('div', { id: 'findbar', hidden: true, dir: 'rtl', role: 'search' },
     el('div', { class: 'r' },
-      el('button', { class: 'icon-btn fb-toggle', id: 'find-toggle', title: 'نمایش جایگزینی (Ctrl+H)', html: chev, onclick: () => toggleReplaceRow() }),
-      el('input', { id: 'find-q', placeholder: 'جستجو در متن', dir: 'auto', spellcheck: 'false' }),
-      el('button', { class: 'fb-opt', id: 'find-case', title: 'حساس به حروف بزرگ و کوچک', onclick: () => toggleFindOpt('matchCase') }, 'Aa'),
-      el('button', { class: 'fb-opt', id: 'find-word', title: 'فقط کلمه‌ی کامل', onclick: () => toggleFindOpt('wholeWord') }, 'کلمه'),
-      el('span', { class: 'count', id: 'find-count' }),
-      el('button', { class: 'icon-btn', title: 'قبلی (Shift+Enter)', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 15l6-6 6 6"/></svg>', onclick: () => findStep(-1) }),
-      el('button', { class: 'icon-btn', title: 'بعدی (Enter)', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>', onclick: () => findStep(1) }),
-      el('button', { class: 'icon-btn', title: 'بستن (Esc)', html: ICON.x, onclick: closeFind })),
+      el('label', { class: 'fld ops' },
+        el('span', { class: 'ic', html: ICON.search }),
+        el('input', { id: 'find-q', placeholder: 'جستجو در متن', 'aria-label': 'جستجو در متن', dir: 'auto', spellcheck: 'false' }),
+        el('span', { class: 'count', id: 'find-count' }),
+        el('button', { class: 'fb-opt', id: 'find-case', dir: 'ltr', title: 'حساس به حروف بزرگ و کوچک', 'aria-pressed': 'false', onclick: () => toggleFindOpt('matchCase') }, 'Aa'),
+        el('button', { class: 'fb-opt', id: 'find-word', title: 'فقط کلمه‌ی کامل', 'aria-pressed': 'false', onclick: () => toggleFindOpt('wholeWord') }, 'کلمه‌ی کامل')),
+      el('button', { class: 'fb-btn', title: 'مورد قبلی (Shift+Enter)', html: ICON.chevUp, onclick: () => findStep(-1) }),
+      el('button', { class: 'fb-btn', title: 'مورد بعدی (Enter)', html: ICON.chevDown, onclick: () => findStep(1) }),
+      el('button', { class: 'fb-btn', title: 'بستن جستجو (Esc)', html: ICON.x, onclick: closeFind })),
     el('div', { class: 'r', id: 'replace-row' },
-      el('input', { id: 'find-r', placeholder: 'جایگزین با', dir: 'auto', spellcheck: 'false' }),
-      el('button', { class: 'btn', title: 'جایگزینی همین مورد (Enter)', onclick: replaceOne }, 'جایگزینی'),
-      el('button', { class: 'btn', title: 'جایگزینی همه (Ctrl+Alt+Enter)', onclick: replaceAllText }, 'همه')),
-    el('div', { class: 'r fb-presets' },
-      el('button', { class: 'btn fb-preset-btn', onclick: (e) => openPresetMenu(e.currentTarget) }, 'اقدام‌های آماده…')));
+      el('label', { class: 'fld' },
+        el('span', { class: 'ic', html: ICON.swap }),
+        el('input', { id: 'find-r', placeholder: 'جایگزینی با', 'aria-label': 'جایگزینی با', dir: 'auto', spellcheck: 'false' })),
+      el('button', { class: 'fb-act', title: 'جایگزینی همین مورد (Enter)', onclick: replaceOne }, 'جایگزینی'),
+      el('button', { class: 'fb-act', title: 'جایگزینی همه (Ctrl+Alt+Enter)', onclick: replaceAllText }, 'همه'),
+      el('button', { class: 'fb-act', id: 'find-presets', 'aria-expanded': 'false', onclick: (e) => openPresetMenu(e.currentTarget) }, el('span', {}, 'اقدام‌های آماده'), el('span', { class: 'ic', html: ICON.chevDown }))));
 
-  const editors = el('div', { id: 'editors' }, findbar);
+  const editors = el('div', { id: 'editors' });
   const history = el('div', { id: 'history', hidden: true });
   const vtabs = el('div', { id: 'vtabs' },
     el('div', { id: 'vtabs-list', ondblclick: (e) => { if (e.target.id === 'vtabs-list') newTab(); } }),
@@ -131,7 +132,7 @@ function buildLayout() {
       el('button', { title: 'بزرگ‌نمایی (Ctrl+=)', html: ICON.plus, onclick: () => zoomBy(1) }),
       el('button', { id: 'st-zoom', title: 'گزینه‌های زوم', onclick: (e) => openZoomPanel(e.currentTarget.parentNode) }),
       el('button', { title: 'کوچک‌نمایی (Ctrl+-)', html: ICON.minus, onclick: () => zoomBy(-1) })));
-  const sheet = el('div', { id: 'sheet' }, editors, status);
+  const sheet = el('div', { id: 'sheet' }, findbar, editors, status);
   const main = el('div', { id: 'main' }, sidebar, sheet, history, vtabs);
 
   app.append(topbar, main);
@@ -150,7 +151,7 @@ function buildLayout() {
       return true;
     },
   });
-  history.addEventListener('toggle', () => $('#btn-history').classList.toggle('on', !history.hidden));
+  history.addEventListener('toggle', () => $('#btn-history').classList.toggle('open', !history.hidden));
 }
 
 // ======================================================================
@@ -1335,7 +1336,7 @@ async function openSettings(section = 'look') {
   };
   const clampSet = (key, stepBy, min, max) => (d) => updateSettings({ [key]: Math.round(Math.min(max, Math.max(min, settings[key] + d * stepBy)) * 100) / 100 });
   const fontSel = (key, first) => {
-    const sel = el('select', { class: 'sel', 'aria-label': 'فونت' },
+    const sel = el('select', { class: 'set-select', 'aria-label': 'فونت' },
       el('optgroup', { label: 'فونت‌های برنامه' }, [first || FONTS[0], ...FONTS.slice(1)].map((f) => el('option', { value: f.id, selected: f.id === settings[key] }, f.name))),
       sys.length ? el('optgroup', { label: 'فونت‌های ویندوز' }, sys.map((f) => el('option', { value: f, selected: f === settings[key] }, f))) : null);
     sel.addEventListener('change', () => { updateSettings({ [key]: sel.value }); paintPreview(); });
@@ -1370,7 +1371,7 @@ async function openSettings(section = 'look') {
     logoGrid.innerHTML = '';
     for (const l of LOGOS) {
       const on = settings.logo === l.id;
-      logoGrid.append(el('button', { class: 'ic' + (on ? ' on' : ''), title: `آیکن ${fa(Number(l.id))}`, 'aria-pressed': String(on), onclick: () => { updateSettings({ logo: l.id, logoChosen: true }); paintLogos(); } },
+      logoGrid.append(el('button', { class: 'logo-tile' + (on ? ' on' : ''), title: `آیکن ${fa(Number(l.id))}`, 'aria-pressed': String(on), onclick: () => { updateSettings({ logo: l.id, logoChosen: true }); paintLogos(); } },
         el('img', { src: l.url, alt: '' }), on ? el('span', { class: 'bd', html: ICON.check }) : null));
     }
   };
@@ -1417,7 +1418,7 @@ async function openSettings(section = 'look') {
         toggle('restoreSession', 'بازکردن تب‌های قبلی هنگام شروع'),
         row('ثبت خودکار نسخه', 'با هر ذخیره، و هنگام نوشتن هر چند دقیقه یک بار', step(() => settings.snapshotMinutes, clampSet('snapshotMinutes', 1, 1, 60), (v) => `${fa(v)} دقیقه`)),
         row('فایل‌های اخیر', null, el('span', { class: 'row-end' }, recentInfo,
-          el('button', { class: 'sel as-btn', onclick: () => { updateSettings({ recent: [] }); paintRecent(); toast('فهرست فایل‌های اخیر پاک شد', 'ok'); } }, 'پاک کردن فهرست')))),
+          el('button', { class: 'set-select as-btn', onclick: () => { updateSettings({ recent: [] }); paintRecent(); toast('فهرست فایل‌های اخیر پاک شد', 'ok'); } }, 'پاک کردن فهرست')))),
     ] },
     { id: 'keys', name: 'میان‌برها', icon: ICON.keyboard, color: '#6E6E78', body: () => [
       el('div', { class: 'keys-grid' }, KEY_LIST.map((col) => el('div', { class: 'grp' }, col.map(([l, k]) => el('div', { class: 'kr', 'data-s': l + ' ' + k }, el('span', {}, l), kbd(k)))))),
@@ -1547,16 +1548,14 @@ function engineFor(t) {
   return t.mode === 'source' && t.cm ? cmEngine(t.cm) : pmEngine(getView(t.crepe));
 }
 function findOpen() { return !$('#findbar').hidden; }
-function toggleReplaceRow(force) {
-  const row = $('#replace-row');
-  const show = force != null ? force : row.style.display === 'none';
-  row.style.display = show ? '' : 'none';
-  $('#find-toggle').classList.toggle('open', show);
+// the replace row is part of the bar; it only hides while the file is in safe mode (read-only)
+function toggleReplaceRow() {
+  const t = active();
+  $('#replace-row').style.display = t && t.locked ? 'none' : '';
 }
 function toggleFindOpt(k) {
   findOpts[k] = !findOpts[k];
-  $('#find-case').classList.toggle('on', findOpts.matchCase);
-  $('#find-word').classList.toggle('on', findOpts.wholeWord);
+  for (const [id, on] of [['#find-case', findOpts.matchCase], ['#find-word', findOpts.wholeWord]]) { $(id).classList.toggle('on', on); $(id).setAttribute('aria-pressed', String(on)); }
   runFind();
 }
 function openFind(withReplace) {
@@ -1564,8 +1563,8 @@ function openFind(withReplace) {
   const bar = $('#findbar');
   const wasOpen = !bar.hidden;
   bar.hidden = false;
-  $('#btn-find').classList.add('on');
-  if (withReplace || !wasOpen) toggleReplaceRow(!!withReplace || (wasOpen && $('#replace-row').style.display !== 'none'));
+  $('#btn-find').classList.add('open');
+  toggleReplaceRow();
   const q = $('#find-q');
   let sel = '';
   if (t && t.mode === 'source' && t.cm) { const r = t.cm.state.selection.main; sel = t.cm.state.sliceDoc(r.from, r.to); }
@@ -1576,7 +1575,7 @@ function openFind(withReplace) {
 }
 function closeFind() {
   $('#findbar').hidden = true;
-  $('#btn-find').classList.remove('on');
+  $('#btn-find').classList.remove('open');
   for (const t of tabs) { try { engineFor(t).clear(); } catch {} }
   $('#find-count').textContent = '';
   const t = active();
@@ -1642,12 +1641,27 @@ async function replaceAllText() {
   updateFindCount();
   toast(`${fa(done)} مورد جایگزین شد. برای برگرداندن Ctrl+Z`);
 }
+// each ready-made action shows how many places it would touch, before anything is applied
+function presetCount(t, p) {
+  try {
+    if (p.find) { const re = buildRegex({ text: p.find }); return re ? (t.md.match(new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g')) || []).length : 0; }
+    if (t.mode === 'source') return null;
+    return pmCollectEdits(getView(t.crepe), p.rule).length;
+  } catch { return null; }
+}
 function openPresetMenu(anchor) {
+  const t = active();
+  if (!t) return;
   const r = anchor.getBoundingClientRect();
+  anchor.classList.add('on'); anchor.setAttribute('aria-expanded', 'true');
   showMenu([
     { header: 'اقدام‌های آماده روی کل سند' },
-    ...PRESETS.map((p) => ({ label: p.label, run: () => runPreset(p) })),
-  ], r.right, r.bottom + 4);
+    ...PRESETS.map((p) => {
+      const n = presetCount(t, p);
+      return { label: p.label, count: n == null ? null : n ? `${fa(n)} مورد` : 'در متن نیست', disabled: n === 0, run: () => runPreset(p) };
+    }),
+    { note: 'برای اعمال همه‌ی موارد، قبل از تغییر تأیید می‌گیرد.' },
+  ], r.right, r.bottom + 6, () => { anchor.classList.remove('on'); anchor.setAttribute('aria-expanded', 'false'); });
 }
 async function runPreset(p) {
   const t = active();
@@ -1809,33 +1823,64 @@ function fuzzyScore(q, text) {
   }
   return score - text.length * 0.01;
 }
+/** file name with the letters that matched the query emphasised */
+function markMatch(name, q) {
+  const out = el('span', { class: 'qn', dir: bidi(name) });
+  if (!q) { out.textContent = name; return out; }
+  const low = name.toLowerCase();
+  const at = low.indexOf(q);
+  if (at >= 0) { out.append(name.slice(0, at), el('b', {}, name.slice(at, at + q.length)), name.slice(at + q.length)); return out; }
+  let ti = 0;
+  for (const ch of q) {
+    const k = low.indexOf(ch, ti);
+    if (k < 0) break;
+    out.append(name.slice(ti, k), el('b', {}, name[k]));
+    ti = k + 1;
+  }
+  out.append(name.slice(ti));
+  return out;
+}
 async function openQuickOpen() {
+  if (document.querySelector('.qo-overlay')) return;
   const items = new Map();
-  const add = (p, kind) => { if (p && !items.has(posKey(p))) items.set(posKey(p), { path: p, kind }); };
-  tabs.forEach((t) => add(t.path, 'تب باز'));
-  settings.recent.forEach((r) => add(r.path, 'اخیر'));
+  const add = (p, group, extra = {}) => { if (p && !items.has(posKey(p))) items.set(posKey(p), { path: p, group, ...extra }); };
+  tabs.forEach((t) => add(t.path, 0, { tabId: t.id }));
+  settings.recent.forEach((r) => add(r.path, 1));
   if (settings.folder) {
     if (!treeCache) treeCache = await api.tree(settings.folder);
-    const walk = (nodes) => nodes.forEach((n) => (n.type === 'dir' ? walk(n.children) : add(n.path, basename(settings.folder))));
+    const walk = (nodes) => nodes.forEach((n) => (n.type === 'dir' ? walk(n.children) : add(n.path, 2)));
     walk(treeCache);
   }
+  const GROUPS = ['تب‌های باز', 'فایل‌های اخیر', 'در پوشه‌ی باز'];
   const all = [...items.values()];
   let sel = 0, shown = [];
-  const input = el('input', { type: 'text', placeholder: 'اسم فایل را بنویسید…', dir: 'auto' });
+  const input = el('input', { type: 'text', placeholder: 'نام فایل را بنویسید', 'aria-label': 'نام فایل', dir: 'auto', spellcheck: 'false' });
   const list = el('div', { class: 'qo-list' });
-  const ov = el('div', { class: 'overlay qo-overlay' }, el('div', { class: 'qo', dir: 'rtl' }, input, list));
-  const close = () => { ov.remove(); const t = active(); if (t) focusEditor(t); };
-  const pick = (i) => { const it = shown[i]; close(); if (it) openPath(it.path); };
+  const total = el('span', {});
+  const hint = (keys, text) => el('span', { class: 'qo-hint' }, el('span', { class: 'kb', dir: 'ltr' }, keys.map((k) => el('kbd', {}, k))), text);
+  const ov = el('div', { class: 'overlay qo-overlay' }, el('div', { class: 'qo', dir: 'rtl', role: 'dialog', 'aria-label': 'باز کردن سریع' },
+    el('label', { class: 'qo-head' }, el('span', { class: 'ic', html: ICON.search }), input, kbd('Esc')),
+    list,
+    el('div', { class: 'qo-foot' }, hint(['↑', '↓'], 'جابه‌جایی'), hint(['Enter'], 'باز کردن'), el('span', { class: 'grow' }), total)));
+  // Escape closes it even if the focus has slipped back to the editor
+  const onEsc = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } };
+  const close = () => { ov.remove(); document.removeEventListener('keydown', onEsc, true); const t = active(); if (t) focusEditor(t); };
+  const pick = (i) => { const it = shown[i]; close(); if (!it) return; if (it.tabId && tabs.some((t) => t.id === it.tabId)) activateTab(it.tabId); else openPath(it.path); };
   const render = () => {
     const q = input.value.trim().toLowerCase();
     shown = all.map((it) => ({ ...it, s: fuzzyScore(q, basename(it.path)) || fuzzyScore(q, it.path) * 0.5 }))
-      .filter((it) => it.s > 0).sort((a, b) => (q ? b.s - a.s : 0)).slice(0, 50);
+      .filter((it) => it.s > 0).sort((a, b) => a.group - b.group || (q ? b.s - a.s : 0)).slice(0, 50);
     sel = Math.min(sel, Math.max(0, shown.length - 1));
     list.innerHTML = '';
-    if (!shown.length) list.append(el('div', { class: 'side-empty' }, all.length ? 'فایلی پیدا نشد.' : 'هنوز فایلی باز نشده. یک پوشه باز کنید تا فایل‌هایش اینجا بیایند.'));
+    total.textContent = shown.length ? `${fa(shown.length)} نتیجه` : '';
+    if (!shown.length) list.append(el('div', { class: 'qo-empty' }, all.length ? 'فایلی با این نام پیدا نشد.' : 'هنوز فایلی باز نشده. یک پوشه باز کنید تا فایل‌هایش اینجا بیایند.'));
+    let group = -1;
     shown.forEach((it, i) => {
-      const row = el('div', { class: 'qo-item' + (i === sel ? ' sel' : '') },
-        el('span', { class: 'rn', dir: bidi(basename(it.path)) }, basename(it.path)), el('span', { class: 'qo-kind' }, it.kind), el('span', { class: 'rp' }, dirname(it.path)));
+      if (it.group !== group) { group = it.group; list.append(el('div', { class: 'qo-hd' }, GROUPS[group])); }
+      const row = el('div', { class: 'qo-item' + (i === sel ? ' sel' : ''), role: 'option', 'aria-selected': String(i === sel) },
+        el('span', { class: 'ic', html: ICON.file }),
+        el('span', { class: 'nm' }, markMatch(basename(it.path), q), el('small', {}, dirname(it.path))),
+        it.tabId ? el('span', { class: 'qo-kind' }, 'رفتن به تب') : null);
       row.addEventListener('mousedown', (e) => { e.preventDefault(); pick(i); });
       list.append(row);
     });
@@ -1847,9 +1892,10 @@ async function openQuickOpen() {
     if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(shown.length - 1, sel + 1); render(); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(0, sel - 1); render(); }
     else if (e.key === 'Enter') { e.preventDefault(); pick(sel); }
-    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
   });
+  input.addEventListener('blur', () => setTimeout(() => { if (ov.isConnected) input.focus(); }, 0));
   ov.addEventListener('mousedown', (e) => { if (e.target === ov) close(); });
+  document.addEventListener('keydown', onEsc, true);
   document.body.append(ov);
   render();
   input.focus();
