@@ -5,7 +5,7 @@ name: Build Windows installer
 
 on:
   push:
-    branches: [redesign, main]
+    branches: [redesign]
   workflow_dispatch:
 
 jobs:
