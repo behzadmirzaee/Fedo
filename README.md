@@ -1,4 +1,4 @@
-# Fedo
+# Fedo - Advanced RTL MD Editor
 
 ویرایشگر Markdown دسکتاپ
 
