@@ -2,14 +2,14 @@
 import { insert } from '@milkdown/kit/utils';
 import { openSearchPanel } from '@codemirror/search';
 import {
-  createEditor, setMarkdown, getView, headingsFromView, jumpTo, centerCaret,
+  createEditor, setMarkdown, getView, headingsFromView, jumpTo,
   createSource, sourceHeadings, setMermaidDark, getEditorHTML, dirOfText, headingBackspace,
 } from './editor.js';
 import { TextSelection, AllSelection } from '@milkdown/kit/prose/state';
 import { createHistoryPanel } from './history.js';
 import { openEditorMenu, handleTableKey } from './context.js';
 import { typingOpts } from './typing.js';
-import { applyColor } from './context.js';
+import { applyColor, openColorPanel } from './context.js';
 import { TEXT_COLORS, BG_COLORS } from './textcolor.js';
 const LOGOS = Object.entries(import.meta.glob('../logos/*.png', { eager: true, query: '?url', import: 'default' }))
   .map(([k, url]) => ({ id: k.match(/(\w+)\.png$/)[1], url })).sort((a, b) => a.id.localeCompare(b.id));
@@ -50,12 +50,17 @@ async function loadSystemFonts() {
 const fontName = (id) => (FONTS.find((f) => f.id === id) || { name: id }).name;
 const fontStack = (id, fallback) => `'${id.replace(/'/g, '')}', ${fallback}`;
 
+// Fedo's own values for the document look; the user can keep their own defaults on top (settings.userDefaults)
+const FEDO_DOC = { fontSize: 17, lineHeight: 1.95, pageWidth: 860 };
+const DOC_KEYS = Object.keys(FEDO_DOC);
+const docDefaults = () => ({ ...FEDO_DOC, ...(settings.userDefaults || {}) });
 const DEFAULTS = {
   textFont: '', headFont: '', uiFont: '', zoom: 1, positions: {},
   theme: 'light', baseDir: 'rtl', fontSize: 17, pageWidth: 860, lineHeight: 1.95,
   autosave: false, snapshotMinutes: 5, restoreSession: true, recent: [],
-  sidebar: true, sideView: 'files', folder: null, typewriter: false, spellcheck: false, locked: [], logo: '08', verticalTabs: false,
+  sidebar: true, sideView: 'files', folder: null, spellcheck: false, locked: [], logo: '08', verticalTabs: false,
   autoPair: true, pasteLink: true, plainAfterPaste: true, defaultExt: 'md',
+  userDefaults: null,
   extColor: true, lastColor: { color: '#D93A3A', bg: null },
   updateAuto: true, updateDownload: false, updateInstallOnQuit: true,
 };
@@ -80,8 +85,7 @@ function buildLayout() {
   app.innerHTML = '';
   const topbar = el('div', { id: 'topbar' },
     el('div', { class: 'cap' },
-      el('button', { class: 'icon-btn', id: 'btn-menu', title: 'منوی اصلی', html: ICON.menu, onclick: (e) => openMainMenu(e.currentTarget) }),
-      el('button', { class: 'icon-btn', id: 'btn-sidebar', title: 'نوار کناری (Ctrl+Shift+L)', html: ICON.sidebar, onclick: toggleSidebar })),
+      el('button', { class: 'icon-btn', id: 'btn-menu', title: 'منوی اصلی', html: ICON.menu, onclick: (e) => openMainMenu(e.currentTarget) })),
     el('div', { class: 'cap tabstrip', id: 'tabstrip' },
       el('div', { id: 'tabs' }),
       el('button', { class: 'icon-btn', id: 'btn-newtab', title: 'سند تازه (Ctrl+T)', html: ICON.plus, onclick: () => newTab() })),
@@ -121,13 +125,12 @@ function buildLayout() {
   const history = el('div', { id: 'history', hidden: true });
   const vtabs = el('div', { id: 'vtabs' },
     el('div', { id: 'vtabs-list', ondblclick: (e) => { if (e.target.id === 'vtabs-list') newTab(); } }),
-    el('button', { class: 'vt-new', title: 'سند تازه (Ctrl+T)', onclick: () => newTab() }, el('span', { class: 'ic', html: ICON.plus }), el('span', {}, 'تب تازه')));
+    el('button', { class: 'vt-new', title: 'سند تازه (Ctrl+T)', onclick: () => newTab() }, el('span', { class: 'ic', html: ICON.plus }), el('span', {}, 'سند تازه')));
 
   const status = el('div', { id: 'statusbar' },
     el('span', { class: 'chip', id: 'st-words' }),
     el('span', { class: 'chip', id: 'st-sel' }),
     el('button', { class: 'chip', id: 'st-lock', title: 'حالت امن: فایل فقط خواندنی می‌شود (F8)', onclick: () => { const t = active(); if (t) setLocked(t, !t.locked); } }),
-    el('button', { class: 'chip on', id: 'st-typewriter', title: 'حالت ماشین‌تحریر روشن است (F9). کلیک برای خاموش کردن', onclick: () => toggleSetting('typewriter') }, 'ماشین‌تحریر'),
     el('button', { class: 'chip on', id: 'st-mode', title: 'برگشت به ویرایش زنده (Ctrl+/)', onclick: toggleSource }, el('span', { class: 'ic', html: ICON.code }), el('span', {}, 'کد منبع')),
     el('span', { class: 'chip ok', id: 'st-saved' }),
     el('span', { class: 'grow' }),
@@ -156,6 +159,14 @@ function buildLayout() {
     },
   });
   history.addEventListener('toggle', () => $('#btn-history').classList.toggle('open', !history.hidden));
+  // tabs, group chips and buttons have their own menus; everything else in the bar gets the strip menu
+  const onStripMenu = (e) => {
+    if (e.target.closest('.tab, .gchip, .group-chip, button, input, [data-gid]')) return;
+    e.preventDefault();
+    stripMenu(e.clientX, e.clientY);
+  };
+  topbar.addEventListener('contextmenu', onStripMenu);
+  vtabs.addEventListener('contextmenu', onStripMenu);
 }
 
 // ======================================================================
@@ -265,8 +276,25 @@ function editorHooks(t) {
     },
     resolveImage: (url) => resolveImage(t, url),
     uploadImage: (file) => uploadImage(t, file),
+    // a click lands after the hover already opened the panel: reopen once the click's own mousedown has passed
+    colorMenu: (anchor) => setTimeout(() => openColorPanel(t.crepe, anchor, colorTools(t)), 0),
   };
 }
+// code block «کپی» turns into «کپی شد» for two seconds, then back
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('.milkdown-code-block .copy-button');
+  if (!b) return;
+  b.classList.add('nv-copied');
+  clearTimeout(b._nvT);
+  b._nvT = setTimeout(() => b.classList.remove('nv-copied'), 2000);
+});
+// the colour button of the selection toolbar opens its panel on hover, not only on click
+document.addEventListener('mouseover', (e) => {
+  const b = e.target.closest && e.target.closest('[data-toolbar-item="nv-color"]');
+  if (!b || settings.extColor === false) return;
+  const t = tabs.find((x) => x.pane.contains(b));
+  if (t && !t.locked) openColorPanel(t.crepe, b, colorTools(t));
+});
 
 function toFileURL(p) {
   const norm = p.replace(/\\/g, '/');
@@ -319,7 +347,6 @@ async function uploadImage(t, file) {
 
 function contentChanged(t, md) {
   t.md = md;
-  if (settings.typewriter && t.id === activeId && t.mode === 'wysiwyg' && Date.now() - (t.lastKeyAt || 0) < 1500) centerCaret(t.crepe, t.pane);
   const wasDirty = t.dirty;
   t.dirty = t.md !== t.baseline;
   if (wasDirty !== t.dirty) { renderTabs(); updateTitle(); }
@@ -646,9 +673,22 @@ function tabMenu(t, x, y) {
     { icon: '', label: 'بستن تب‌های بعدی', disabled: idx === tabs.length - 1, run: async () => { for (const o of tabs.slice(idx + 1)) if (!(await closeTab(o))) break; } },
     { icon: '', label: 'بازکردن تب بسته‌شده', key: 'Ctrl+Shift+T', disabled: !closedStack.length, run: reopenClosed },
     'sep',
+    vtabsSwitch(),
+    'sep',
     { icon: ICON.folder, label: 'نمایش در پوشه', disabled: !t.path, run: () => api.reveal(t.path) },
     { icon: ICON.copy, label: 'کپی مسیر فایل', disabled: !t.path, run: () => { navigator.clipboard.writeText(t.path); toast('مسیر کپی شد', 'ok'); } },
     { icon: ICON.history, label: 'تاریخچه‌ی نسخه‌ها', key: 'Ctrl+Shift+H', disabled: !t.path, run: () => { activateTab(t.id); historyPanel.show(); } },
+  ], x, y);
+}
+
+const vtabsSwitch = () => ({ icon: ICON.vtabs, label: 'تب‌های عمودی', switch: () => !!settings.verticalTabs, run: () => updateSettings({ verticalTabs: !settings.verticalTabs }) });
+/** right-click on the empty part of the tab bar (top bar or vertical tab column) */
+function stripMenu(x, y) {
+  showMenu([
+    { icon: ICON.plusSquare, label: 'سند تازه', key: 'Ctrl+T', run: () => newTab() },
+    { icon: '', label: 'بازکردن تب بسته‌شده', key: 'Ctrl+Shift+T', disabled: !closedStack.length, run: reopenClosed },
+    'sep',
+    vtabsSwitch(),
   ], x, y);
 }
 
@@ -1141,7 +1181,7 @@ function toggleSource() {
 // ======================================================================
 // sidebar: files + outline
 // ======================================================================
-// In a small window the sidebar steps aside by itself; the button still opens it by hand.
+// In a small window the sidebar steps aside by itself; the main menu still opens it by hand.
 let sidebarAutoHidden = false;
 function toggleSidebar() {
   if (sidebarAutoHidden) { sidebarAutoHidden = false; applySidebar(); return; }
@@ -1174,7 +1214,6 @@ function applySidebar() {
   if (document.body.classList.contains('vertical-tabs') !== vert) { document.body.classList.toggle('vertical-tabs', vert); renderTabs(); }
   const sideOn = settings.sidebar && !sidebarAutoHidden;
   $('#sidebar').hidden = !sideOn;
-  $('#btn-sidebar').classList.toggle('on', sideOn);
   requestAnimationFrame(() => { const ed = $('#editors'); if (ed) document.body.classList.toggle('narrow-page', ed.clientWidth < 760); });
   document.querySelectorAll('.side-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.v === settings.sideView));
   if (settings.sideView === 'files') renderTree();
@@ -1274,7 +1313,6 @@ function updateStatus(savedMsg) {
   $('#st-mode').hidden = t.mode !== 'source';
   $('#st-lock').innerHTML = (t.locked ? ICON.lock : ICON.unlock) + `<span>${t.locked ? 'حالت امن روشن است' : 'حالت امن'}</span>`;
   $('#st-lock').classList.toggle('on', !!t.locked);
-  $('#st-typewriter').hidden = !settings.typewriter;
   $('#st-zoom').textContent = `${fa(Math.round((settings.zoom || 1) * 100))}٪`;
 }
 function updateTitle() {
@@ -1343,6 +1381,8 @@ function applyAll() {
   api.setSpellcheck(!!settings.spellcheck);
   api.setLogo(settings.logo);
   document.body.classList.toggle('no-ext-color', settings.extColor === false);
+  const lc = settings.lastColor || DEFAULTS.lastColor;
+  document.documentElement.style.setProperty('--nv-last-color', lc.bg || lc.color || '#D93A3A');
   if (api.updateConfig) api.updateConfig({ auto: settings.updateAuto !== false, download: !!settings.updateDownload, installOnQuit: settings.updateInstallOnQuit !== false });
   Object.assign(typingOpts, { autoPair: settings.autoPair !== false, pasteLink: settings.pasteLink !== false, plainAfterPaste: settings.plainAfterPaste !== false });
   applySidebar();
@@ -1357,7 +1397,7 @@ function updateSettings(patch) {
 }
 function toggleSetting(k) {
   updateSettings({ [k]: !settings[k] });
-  const names = { typewriter: 'حالت ماشین‌تحریر', spellcheck: 'غلط‌یابی املایی' };
+  const names = { spellcheck: 'غلط‌یابی املایی' };
   if (names[k]) toast(`${names[k]} ${settings[k] ? 'روشن' : 'خاموش'} شد`);
 }
 
@@ -1406,7 +1446,8 @@ async function installUpdate() {
   api.updateInstall();
 }
 function updateStatusLine() {
-  const ago = upd.checkedAt ? relTime(upd.checkedAt) : '';
+  // right after a check the time adds nothing; it shows once a minute has passed
+  const ago = upd.checkedAt && Date.now() - upd.checkedAt >= 60000 ? relTime(upd.checkedAt) : '';
   switch (upd.status) {
     case 'checking': return ['muted', 'در حال بررسی…'];
     case 'available': return ['new', `نسخه‌ی ${faVer(upd.version)} آماده‌ی دانلود است`];
@@ -1423,7 +1464,6 @@ const EXTENSIONS = [
   { key: 'extColor', name: 'رنگ متن و پس‌زمینه', builtin: true, icon: ICON.palette, color: '#D6407F',
     hint: 'رنگ در فایل با تگ HTML ذخیره می‌شود و در خروجی HTML و PDF می‌ماند', details: true },
   { key: 'spellcheck', name: 'غلط‌یابی املایی', icon: ICON.tickSquare, color: '#2FA84F', hint: 'خط زیر کلمه‌های نادرست و پیشنهاد در راست‌کلیک' },
-  { key: 'typewriter', name: 'حالت ماشین‌تحریر', icon: ICON.keyboard, color: '#6E6E78', hint: 'خط در حال نوشتن همیشه وسط صفحه می‌ماند', keyHint: 'F9' },
 ];
 function extRow(x, sw) {
   const on = () => (x.key === 'extColor' ? settings.extColor !== false : !!settings[x.key]);
@@ -1447,10 +1487,10 @@ function extRow(x, sw) {
 const THEME_SWATCH = { light: ['#ffffff', '#1d1d1f'], dark: ['#1e1f22', '#dcdde1'], sepia: ['#f7f1e3', '#3b2f22'], nord: ['#2e3440', '#e5e9f0'], garden: ['#fbfdf9', '#1d2a20'] };
 const PAGE_WIDTHS = [[720, 'باریک'], [860, 'متوسط'], [1040, 'پهن']];
 const KEY_LIST = [
-  [['تب تازه', 'Ctrl+T'], ['پنجره‌ی جدید', 'Ctrl+N'], ['باز کردن', 'Ctrl+O'], ['باز کردن سریع', 'Ctrl+P'], ['باز کردن پوشه', 'Ctrl+Shift+O'], ['ذخیره', 'Ctrl+S'], ['ذخیره با نام', 'Ctrl+Shift+S'], ['ذخیره‌ی همه', 'Ctrl+Alt+S'],
+  [['سند تازه', 'Ctrl+T'], ['پنجره‌ی جدید', 'Ctrl+N'], ['باز کردن', 'Ctrl+O'], ['باز کردن سریع', 'Ctrl+P'], ['باز کردن پوشه', 'Ctrl+Shift+O'], ['ذخیره', 'Ctrl+S'], ['ذخیره با نام', 'Ctrl+Shift+S'], ['ذخیره‌ی همه', 'Ctrl+Alt+S'],
     ['بستن تب', 'Ctrl+W'], ['بازکردن تب بسته‌شده', 'Ctrl+Shift+T'], ['تب بعدی', 'Ctrl+Tab'], ['تاریخچه‌ی نسخه‌ها', 'Ctrl+Shift+H'], ['تنظیمات', 'Ctrl+,'], ['تمام‌صفحه', 'F11']],
   [['جستجو', 'Ctrl+F'], ['جایگزینی', 'Ctrl+H'], ['چسباندن متن ساده', 'Ctrl+Shift+V'], ['خط‌خورده', 'Alt+Shift+5'], ['منوی درج بلوک', '/'], ['باز کردن لینک', 'Ctrl+کلیک'], ['کد منبع', 'Ctrl+/'], ['نوار کناری', 'Ctrl+Shift+L'],
-    ['سرفصل‌ها', 'Ctrl+Shift+1'], ['حالت امن', 'F8'], ['حالت ماشین‌تحریر', 'F9'], ['بزرگ‌نمایی', 'Ctrl+='], ['کوچک‌نمایی', 'Ctrl+-'], ['اندازه‌ی واقعی', 'Ctrl+0']],
+    ['سرفصل‌ها', 'Ctrl+Shift+1'], ['حالت امن', 'F8'], ['بزرگ‌نمایی', 'Ctrl+='], ['کوچک‌نمایی', 'Ctrl+-'], ['اندازه‌ی واقعی', 'Ctrl+0']],
 ];
 let settingsOpen = null;
 async function openSettings(section = 'look') {
@@ -1491,6 +1531,26 @@ async function openSettings(section = 'look') {
     return sel;
   };
   const group = (...rows) => el('div', { class: 'grp' }, rows);
+  // "my defaults": changing one also applies it now; a small note shows Fedo's own value when they differ
+  const defHints = [];
+  const paintDefs = () => {
+    for (const f of defHints) f();
+    resetFedo.hidden = !settings.userDefaults;
+  };
+  const setDefaults = (patch) => {
+    const next = { ...docDefaults(), ...patch };
+    const own = Object.fromEntries(DOC_KEYS.filter((k) => next[k] !== FEDO_DOC[k]).map((k) => [k, next[k]]));
+    updateSettings({ ...patch, userDefaults: Object.keys(own).length ? own : null });
+    paintDefs();
+  };
+  const setDef = (key, stepBy, min, max) => (d) => setDefaults({ [key]: Math.round(Math.min(max, Math.max(min, docDefaults()[key] + d * stepBy)) * 100) / 100 });
+  const defRow = (text, control, key, fmt) => {
+    const hint = el('small', {});
+    const r = el('div', { class: 'row tw', 'data-s': text + ' پیش‌فرض' }, el('span', {}, text, hint), control);
+    defHints.push(() => { const v = docDefaults()[key]; hint.textContent = v !== FEDO_DOC[key] ? `مقدار اصلی برنامه: ${fmt(FEDO_DOC[key])}` : ''; hint.hidden = v === FEDO_DOC[key]; });
+    return r;
+  };
+  const resetFedo = el('button', { class: 'sv-link', onclick: () => { setDefaults({ ...FEDO_DOC }); built.set('font', secEl(SECTIONS.find((x) => x.id === 'font'))); show('font'); } }, 'برگشت به مقادیر اصلی');
   const label = (t) => el('div', { class: 'lbl' }, t);
 
   // --- sections ---
@@ -1533,7 +1593,6 @@ async function openSettings(section = 'look') {
     { id: 'look', name: 'ظاهر', icon: ICON.palette, color: '#2F7BF6', body: () => [
       label('تم'), themeGrid,
       label('پنجره'), group(
-        row('عرض صفحه', null, seg(PAGE_WIDTHS.map(([v, l]) => [String(v), l]), () => settings.pageWidth, (v) => updateSettings({ pageWidth: Number(v) }))),
         toggle('verticalTabs', 'تب‌های عمودی', 'تب‌ها در ستونی سمت چپ پنجره'),
         toggle('sidebar', 'نوار کناری', null, 'Ctrl+Shift+L')),
     ] },
@@ -1545,19 +1604,22 @@ async function openSettings(section = 'look') {
         row('جهت پیش‌فرض متن', null, seg([['rtl', 'راست‌به‌چپ'], ['ltr', 'چپ‌به‌راست']], () => settings.baseDir, (v) => updateSettings({ baseDir: v })))),
       label('ابزارها'), group(
         toggle('spellcheck', 'غلط‌یابی املایی'),
-        toggle('typewriter', 'حالت ماشین‌تحریر', 'خط در حال نوشتن وسط صفحه می‌ماند', 'F9'),
         row('حالت امن', 'فایل فقط خواندنی می‌شود، برای هر فایل جدا', el('span', { class: 'row-end' }, kbd('F8'),
           sw(lockNow, () => { const a = active(); if (a) setLocked(a, !a.locked, true); }, 'حالت امن')))),
     ] },
-    { id: 'font', name: 'فونت', icon: ICON.textSize, color: '#8E5BD9', body: () => [
+    { id: 'font', name: 'فونت', icon: ICON.textSize, color: '#8E5BD9', body: () => (defHints.length = 0, [
       group(
         row('فونت متن', null, fontSel('textFont')),
         row('فونت تیترها', null, fontSel('headFont', { id: '', name: 'مثل متن' })),
-        row('فونت منوها و رابط', null, fontSel('uiFont')),
-        row('اندازه‌ی متن', null, step(() => settings.fontSize, clampSet('fontSize', 1, 12, 32), (v) => fa(v))),
-        row('فاصله‌ی خطوط', null, step(() => settings.lineHeight, clampSet('lineHeight', 0.05, 1.2, 3), (v) => fa2(v)))),
+        row('فونت منوها و رابط', null, fontSel('uiFont'))),
+      el('div', { class: 'lbl lbl-act' }, el('span', {}, 'پیش‌فرض‌های من'), resetFedo),
+      group(
+        defRow('اندازه‌ی متن', step(() => docDefaults().fontSize, setDef('fontSize', 1, 12, 32), (v) => fa(v)), 'fontSize', (v) => fa(v)),
+        defRow('فاصله‌ی خطوط', step(() => docDefaults().lineHeight, setDef('lineHeight', 0.05, 1.2, 3), (v) => fa2(v)), 'lineHeight', (v) => fa2(v)),
+        defRow('عرض صفحه', seg(PAGE_WIDTHS.map(([v, l]) => [String(v), l]), () => docDefaults().pageWidth, (v) => setDefaults({ pageWidth: Number(v) })), 'pageWidth', (v) => (PAGE_WIDTHS.find(([w]) => w === v) || [0, fa(v)])[1])),
+      el('div', { class: 'lbl plain set-free' }, 'سندها با این مقادیر نمایش داده می‌شوند و «مقدار پیش‌فرض» در نوار پایین هم به همین‌ها برمی‌گردد.'),
       label('پیش‌نمایش'), preview,
-    ] },
+    ]) },
     { id: 'files', name: 'فایل و ذخیره', icon: ICON.save, color: '#2FA84F', body: () => [
       label('ذخیره'), group(
         toggle('autosave', 'ذخیره‌ی خودکار', 'فایل‌های ذخیره‌شده کمی بعد از هر تغییر ذخیره می‌شوند'),
@@ -1623,7 +1685,7 @@ async function openSettings(section = 'look') {
     content.replaceChildren(built.get(id));
     for (const n of built.get(id).querySelectorAll('[data-sh]')) { n.hidden = false; delete n.dataset.sh; }
     content.scrollTop = 0;
-    if (id === 'font') paintPreview();
+    if (id === 'font') { paintPreview(); paintDefs(); }
   };
   for (const sc of SECTIONS) {
     nav.append(el('button', { class: 'nv', 'data-id': sc.id, title: sc.name, onclick: () => show(sc.id) },
@@ -1695,10 +1757,9 @@ function openMainMenu(anchor) {
     { icon: ICON.window, label: 'پنجره‌ی جدید', key: 'Ctrl+N', run: () => api.newWindow() },
     'sep',
     { icon: ICON.sidebar, label: 'نوار کناری', key: 'Ctrl+Shift+L', switch: () => settings.sidebar && !sidebarAutoHidden, run: toggleSidebar },
-    { icon: ICON.vtabs, label: 'تب‌های عمودی', switch: () => !!settings.verticalTabs, run: () => updateSettings({ verticalTabs: !settings.verticalTabs }) },
+    vtabsSwitch(),
     { icon: ICON.code, label: 'کد منبع', key: 'Ctrl+/', switch: () => !!(active() && active().mode === 'source'), run: toggleSource },
     { icon: ICON.lock, label: 'حالت امن', key: 'F8', switch: () => !!(active() && active().locked), run: () => { const a = active(); if (a) setLocked(a, !a.locked); } },
-    { icon: ICON.keyboard, label: 'حالت ماشین‌تحریر', key: 'F9', switch: () => !!settings.typewriter, run: () => toggleSetting('typewriter') },
     { icon: ICON.tickSquare, label: 'غلط‌یابی املایی', switch: () => !!settings.spellcheck, run: () => toggleSetting('spellcheck') },
     { icon: ICON.pin, label: 'همیشه روی پنجره‌ها', switch: () => document.body.classList.contains('on-top'), run: toggleOnTop },
     { icon: ICON.zoom, label: 'بزرگ‌نمایی', stepper: { value: () => `${fa(Math.round((settings.zoom || 1) * 100))}٪`, up: () => zoomBy(1), down: () => zoomBy(-1) } },
@@ -1969,7 +2030,7 @@ const stepper = (label, get, change, fmt) => {
       el('button', { class: 'sp-btn', title: 'بیشتر', html: ICON.plus, onclick: () => { change(1); show(); } }), val,
       el('button', { class: 'sp-btn', title: 'کمتر', html: ICON.minus, onclick: () => { change(-1); show(); } })));
 };
-const resetButton = (run) => el('button', { class: 'btn sp-reset', onclick: run, html: `${RESET_ICON}<span>مقدار پیش‌فرض</span>` });
+const resetButton = (run, text) => el('button', { class: 'btn sp-reset', onclick: run, html: `${RESET_ICON}<span>${text || 'مقدار پیش‌فرض'}</span>` });
 
 function openSizePanel(anchor) {
   openPopover('size', anchor, (node) => {
@@ -1978,10 +2039,12 @@ function openSizePanel(anchor) {
       stepper('اندازه‌ی متن', () => settings.fontSize, num('fontSize', 1, 12, 32), (v) => fa(v)),
       stepper('فاصله‌ی خطوط', () => settings.lineHeight, num('lineHeight', 0.05, 1.2, 3), (v) => fa2(v)),
       stepper('عرض صفحه', () => settings.pageWidth, num('pageWidth', 40, 560, 1600), (v) => fa(v)),
-      el('div', { class: 'sp-foot' }, resetButton(() => {
-        updateSettings({ fontSize: DEFAULTS.fontSize, lineHeight: DEFAULTS.lineHeight, pageWidth: DEFAULTS.pageWidth });
-        closePopover();
-      })));
+      el('div', { class: 'sp-foot' },
+        el('button', { class: 'btn sp-reset', title: 'این اندازه‌ها از این به بعد مقدار پیش‌فرض می‌شوند', onclick: () => {
+          updateSettings({ userDefaults: Object.fromEntries(DOC_KEYS.map((k) => [k, settings[k]])) });
+          closePopover(); toast('پیش‌فرض شما ذخیره شد', 'ok');
+        } }, 'ذخیره به‌عنوان پیش‌فرض'),
+        resetButton(() => { updateSettings(docDefaults()); closePopover(); }, settings.userDefaults ? 'برگشت به پیش‌فرض من' : null)));
   });
 }
 function openZoomPanel(anchor) {
@@ -2250,7 +2313,6 @@ function onKey(e) {
   if (e.key === 'F8') { handled(); if (t) setLocked(t, !t.locked); return; }
   if (t && t.locked && isEditKey(e)) { handled(); showLockedToast(); return; }
   if (ctrl && !e.shiftKey && !e.altKey && e.code === 'KeyA' && t && !isTypingField()) { handled(); selectAllDoc(t); return; }
-  if (e.key === 'F9') { handled(); toggleSetting('typewriter'); return; }
   if (e.altKey && !ctrl && !e.shiftKey && code === 'KeyH' && t && t.mode === 'wysiwyg' && settings.extColor !== false) { handled(); applyLastColor(t); return; }
   if (e.key === 'F11') { handled(); api.fullscreen(); return; }
   if (e.key === 'F12' || (ctrl && e.shiftKey && code === 'KeyI')) { handled(); api.devtools(); return; }

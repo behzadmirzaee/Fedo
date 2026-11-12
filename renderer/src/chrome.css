@@ -332,6 +332,8 @@ body.vertical-tabs #tabstrip { display: none; }
 .fld.ops { padding-inline-end: 4px; }
 .fld:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--sel); }
 .fld input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; color: var(--fg); outline: none; }
+/* an empty field reads right-to-left, so its Persian placeholder sits on the right */
+.fld input:placeholder-shown { direction: rtl; text-align: right; }
 .fld .ic { display: grid; color: var(--muted); flex: none; }
 .fld .ic svg { width: 16px; height: 16px; }
 #findbar .count { color: var(--muted); font-size: 12px; white-space: nowrap; flex: none; }
@@ -396,7 +398,7 @@ body.compact #st-sel { display: none; }
 
 /* narrow sheet (small window or several panels open): the status bar keeps only what fits */
 @container sheet (max-width: 560px) { #st-sel, #st-saved { display: none; } }
-@container sheet (max-width: 460px) { #st-typewriter, #st-mode span:last-child, #st-size span:last-child { display: none; } }
+@container sheet (max-width: 460px) { #st-mode span:last-child, #st-size span:last-child { display: none; } }
 @container sheet (max-width: 380px) { #st-lock span { display: none; } }
 @container sheet (max-width: 300px) { #st-words { display: none; } }
 
@@ -481,7 +483,8 @@ body.compact #st-sel { display: none; }
 
 /* ---------- save window ---------- */
 .save-modal { width: min(560px, calc(100vw - 32px)); }
-.save-modal .m-body { gap: 20px; padding: 26px 28px 22px; }
+.save-modal .m-body { gap: 32px; padding: 26px 28px 26px; }
+.save-modal h3 { margin-bottom: -8px; }
 .save-modal h3 { font-size: 18px; }
 .save-modal > .row { padding-inline: 28px; }
 .sv-label { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 12px; white-space: nowrap; }
@@ -549,7 +552,37 @@ body.compact #st-sel { display: none; }
 /* ---------- built-in extension: text colour ---------- */
 .milkdown .ProseMirror .nv-color.has-bg { border-radius: 3px; padding-block: 1px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 body.no-ext-color .milkdown .ProseMirror .nv-color { color: inherit !important; background: none !important; }
-[data-theme='dark'] .milkdown .ProseMirror .nv-color.has-bg, [data-theme='nord'] .milkdown .ProseMirror .nv-color.has-bg { filter: saturate(0.9) brightness(0.92); }
+/* Dark themes: each palette colour has a dark twin. The file keeps the light hex (other apps and the HTML/PDF
+   exports see that); only the display here swaps it. A background from outside the palette gets dark text. */
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .ProseMirror .nv-color.has-bg { color: #1d1d1f; }
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .ProseMirror .nv-color.has-bg:is([data-bg="#FFF3B0" i], [data-bg="#FFE6CC" i], [data-bg="#D6F5DF" i], [data-bg="#DCEBFF" i], [data-bg="#FDE1EC" i], [data-bg="#ECECF0" i]) { color: inherit; }
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .ProseMirror .nv-color[data-bg="#FFF3B0" i] { background-color: #5C4B12 !important; }
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .ProseMirror .nv-color[data-bg="#FFE6CC" i] { background-color: #5E3A17 !important; }
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .ProseMirror .nv-color[data-bg="#D6F5DF" i] { background-color: #1E4A2E !important; }
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .ProseMirror .nv-color[data-bg="#DCEBFF" i] { background-color: #1B3A63 !important; }
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .ProseMirror .nv-color[data-bg="#FDE1EC" i] { background-color: #5A2440 !important; }
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .ProseMirror .nv-color[data-bg="#ECECF0" i] { background-color: #3A3A42 !important; }
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .ProseMirror .nv-color[data-c="#D93A3A" i] { color: #FF7B72 !important; }
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .ProseMirror .nv-color[data-c="#D9730D" i] { color: #FFA657 !important; }
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .ProseMirror .nv-color[data-c="#B7791F" i] { color: #D9A55B !important; }
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .ProseMirror .nv-color[data-c="#2F9E5A" i] { color: #56D37E !important; }
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .ProseMirror .nv-color[data-c="#2F6FDD" i] { color: #6CB0FF !important; }
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .ProseMirror .nv-color[data-c="#8E5BD9" i] { color: #C39BFF !important; }
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .ProseMirror .nv-color[data-c="#D6407F" i] { color: #FF7EB6 !important; }
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .ProseMirror .nv-color[data-c="#6E6E78" i] { color: #A3A3AE !important; }
+
+/* colour button in the selection toolbar, and its one-level panel */
+.milkdown .milkdown-toolbar .toolbar-item[data-toolbar-item='nv-color'].open { background: var(--crepe-color-selected); }
+body.no-ext-color .milkdown-toolbar [data-toolbar-item='nv-color'] { display: none; }
+.menu.color-panel { width: 290px; }
+
+/* code block copy button: «کپی شد» for two seconds after a click */
+.milkdown .milkdown-code-block .tools-button-group > button.copy-button.nv-copied { opacity: 1; font-size: 0; gap: 0; background: color-mix(in srgb, #1a7f3c 14%, transparent); color: #1a7f3c; }
+:is([data-theme='dark'], [data-theme='nord']) .milkdown .milkdown-code-block .tools-button-group > button.copy-button.nv-copied { color: #56d37e; }
+.milkdown .milkdown-code-block .copy-button.nv-copied > * { display: none; }
+.milkdown .milkdown-code-block .copy-button.nv-copied::before { content: ''; width: 14px; height: 14px; margin-inline-end: 6px; background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 12.5l4.5 4.5l8.5-9.5'/%3E%3C/svg%3E") center / contain no-repeat; }
+.milkdown .milkdown-code-block .copy-button.nv-copied::after { content: 'کپی شد'; font-size: 12px; font-weight: 600; }
 .cchip { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; font-size: 11px; font-weight: 800; border: 1px solid var(--line); background: var(--ctl-2); }
 .menu .mi .ic .cchip { width: 18px; height: 18px; }
 .mswatches.glyphs { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); justify-items: center; gap: 4px; padding: 4px 4px 8px; }
@@ -565,6 +598,8 @@ body.no-ext-color .milkdown .ProseMirror .nv-color { color: inherit !important; 
 .cc-row input[type='color'] { width: 44px; height: 28px; border: 0; padding: 0; background: none; cursor: pointer; }
 /* settings › extensions */
 .lbl.plain { font-weight: 400; }
+.lbl.lbl-act { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.lbl.lbl-act .sv-link[hidden] { display: none; }
 .ex { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
 .grp > :last-child .ex, .grp > .ex:last-child { border-bottom: 0; }
 .ex-wrap:not(:last-child) { border-bottom: 1px solid var(--line); }

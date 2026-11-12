@@ -92,7 +92,8 @@ export const textColorSchema = $markSchema('textColor', () => ({
       return { color: hex(c), bg: hex(b) };
     },
   }],
-  toDOM: (mark) => ['span', { 'data-nv-color': '', class: 'nv-color' + (mark.attrs.bg ? ' has-bg' : ''), style: styleOf(mark.attrs) }, 0],
+  // data-c / data-bg let dark themes show each palette colour's dark twin (the browser rewrites the style text)
+  toDOM: (mark) => ['span', { 'data-nv-color': '', class: 'nv-color' + (mark.attrs.bg ? ' has-bg' : ''), 'data-c': mark.attrs.color || undefined, 'data-bg': mark.attrs.bg || undefined, style: styleOf(mark.attrs) }, 0],
   parseMarkdown: {
     match: (node) => node.type === 'textColor',
     runner: (state, node, markType) => {

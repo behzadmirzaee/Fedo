@@ -226,6 +226,8 @@ function renderMermaid(content, apply) {
     .catch((e) => apply(`<pre class="nv-mmd-err">${String(e.message || e).replace(/</g, '&lt;')}</pre>`));
 }
 
+const COLOR_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><text x="12" y="15.5" text-anchor="middle" font-size="15" font-weight="800" fill="currentColor" font-family="Vazirmatn, sans-serif">آ</text><rect x="5" y="18.5" width="14" height="3" rx="1.5" fill="var(--nv-last-color, #D93A3A)"/></svg>';
+
 const FA = {
   placeholder: 'بنویسید… برای درج بلوک، / را بزنید',
   textGroup: {
@@ -292,6 +294,18 @@ export async function createEditor(root, markdownText, hooks) {
         },
       },
       [Crepe.Feature.Latex]: { katexOptions: { throwOnError: false } },
+      // selection toolbar: a colour button («آ», with the last colour as a bar under it) right after the text styles
+      [Crepe.Feature.Toolbar]: {
+        boldLabel: 'پررنگ', italicLabel: 'کج', strikethroughLabel: 'خط‌خورده', codeLabel: 'کد درون‌خطی', linkLabel: 'پیوند', latexLabel: 'فرمول',
+        buildToolbar: (b) => {
+          if (!hooks.colorMenu) return;
+          b.getGroup('formatting').addItem('nv-color', {
+            icon: COLOR_ICON, label: 'رنگ',
+            active: () => false,
+            onRun: () => hooks.colorMenu(root.querySelector('.milkdown-toolbar[data-show="true"] [data-toolbar-item="nv-color"]')),
+          });
+        },
+      },
     },
   });
   crepe.editor.use(wordUndo).use(dirPlugin).use(focusPlugin).use(autoPair).use(pairBackspace).use(pasteBehaviour).use(ltrIslands).use(pmSearchPlugin).use(noPointerScroll)
@@ -335,16 +349,6 @@ export function jumpTo(crepe, pos) {
   if (dom && dom.scrollIntoView) dom.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
-/** keep the caret line vertically centered (typewriter mode) */
-export function centerCaret(crepe, scroller) {
-  const view = getView(crepe);
-  try {
-    const c = view.coordsAtPos(view.state.selection.head);
-    const r = scroller.getBoundingClientRect();
-    const target = r.top + r.height / 2;
-    if (Math.abs(c.top - target) > 4) scroller.scrollBy({ top: c.top - target });
-  } catch {}
-}
 
 // ---------- source mode ----------
 export const readOnlyComp = new Compartment();

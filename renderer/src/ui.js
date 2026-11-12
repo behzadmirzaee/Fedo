@@ -2,7 +2,6 @@
 // Icons: Iconly "Light" outlines (24px grid, 1.5 stroke); a few simple glyphs are drawn by hand.
 const s = (d, cls) => `<svg${cls ? ` class="${cls}"` : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const p = (d, cls) => s(`<path d="${d}"/>`, cls);
-const SIDEBAR = 'M5.51 3C4.12 3 3 4.12 3 5.5V18.5C3 19.88 4.12 21 5.51 21H6.49C7.88 21 9 19.88 9 18.5V5.5C9 4.12 7.88 3 6.49 3H5.51ZM21 12L17.51 15.5M21 12L17.51 8.5M21 12H13';
 const LOCK_BODY = 'M15.68 21.25H8.04C5.95 21.25 4.25 19.55 4.25 17.46V13.17C4.25 11.07 5.95 9.38 8.04 9.38H15.68C17.78 9.38 19.48 11.07 19.48 13.17V17.46C19.48 19.55 17.78 21.25 15.68 21.25ZM11.86 14.2V16.42';
 export const ICON = {
   menu: p('M3 6.5C3 3.87 3.03 3 6.5 3C9.97 3 10 3.87 10 6.5C10 9.13 10.01 10 6.5 10C2.99 10 3 9.13 3 6.5ZM14 6.5C14 3.87 14.03 3 17.5 3C20.97 3 21 3.87 21 6.5C21 9.13 21.01 10 17.5 10C13.99 10 14 9.13 14 6.5ZM3 17.5C3 14.87 3.03 14 6.5 14C9.97 14 10 14.87 10 17.5C10 20.13 10.01 21 6.5 21C2.99 21 3 20.13 3 17.5ZM14 17.5C14 14.87 14.03 14 17.5 14C20.97 14 21 14.87 21 17.5C21 20.13 21.01 21 17.5 21C13.99 21 14 20.13 14 17.5Z'),
@@ -11,7 +10,8 @@ export const ICON = {
   plusSquare: p('M12 8.33v7.32M15.67 11.99H8.33M16.69 2H7.31C4.05 2 2 4.31 2 7.59V16.41C2 19.69 4.04 22 7.31 22H16.69C19.96 22 22 19.69 22 16.41V7.59C22 4.31 19.96 2 16.69 2Z'),
   x: p('M6.5 6.5l11 11M17.5 6.5l-11 11'),
   check: p('M5.5 12.5l4.5 4.5l8.5-9.5'),
-  sidebar: p(SIDEBAR, 'flip'),
+  // the sidebar sits on the right (RTL start): a panel drawn on the right, mirroring the vertical-tabs icon
+  sidebar: s('<rect x="3" y="3" width="18" height="18" rx="4.5"/><path d="M15 3v18M17.5 8h1M17.5 11.5h1M17.5 15h1"/>'),
   history: p('M21.25 12a9.25 9.25 0 1 1-18.5 0a9.25 9.25 0 0 1 18.5 0zM15.43 14.94l-3.77-2.25V7.85'),
   clock: p('M21.25 12a9.25 9.25 0 1 1-18.5 0a9.25 9.25 0 0 1 18.5 0zM15.43 14.94l-3.77-2.25V7.85'),
   code: p('M7.78 3H16.22C19.17 3 21 5.08 21 8.03V15.97C21 18.92 19.17 21 16.22 21H7.78C4.84 21 3 18.92 3 15.97V8.03C3 5.08 4.84 3 7.78 3ZM9.94 9.35L7.29 12L9.94 14.65M14.06 9.35L16.71 12L14.06 14.65'),
@@ -115,6 +115,7 @@ function aim(level, fn, item) {
 }
 let outsideHandler = null;
 let onMenuClose = null;
+export const menuOpen = () => openMenus.length > 0;
 export function closeMenu() {
   while (openMenus.length) openMenus.pop().remove();
   if (onMenuClose) { const f = onMenuClose; onMenuClose = null; f(); }
@@ -290,6 +291,7 @@ export function showMenu(items, x, y, onClose = null) {
     outsideHandler = (e) => { if (!openMenus.some((n) => n.contains(e.target))) closeMenu(); };
     document.addEventListener('mousedown', outsideHandler, true);
   }, 0);
+  return m;
 }
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openMenus.length) { e.stopPropagation(); closeMenu(); } }, true);
 

@@ -12,7 +12,7 @@ import {
   isInTable, selectedRect, addRowBefore, addRowAfter, addColumnBefore, addColumnAfter,
   deleteRow, deleteColumn, deleteTable, moveTableRow, moveTableColumn,
 } from '@milkdown/kit/prose/tables';
-import { showMenu, modal, toast, ICON, el } from './ui.js';
+import { showMenu, closeMenu, menuOpen, modal, toast, ICON, el } from './ui.js';
 import { TEXT_COLORS, BG_COLORS, setTextColorCommand, colorAt, styleOf } from './textcolor.js';
 
 const I = { ...ICON, del: ICON.trash, task: ICON.tickSquare, aL: ICON.alignL, aC: ICON.alignC, aR: ICON.alignR };
@@ -169,6 +169,48 @@ async function askCustomColor(crepe, cur, remember) {
   applyColor(crepe, attrs);
   remember(attrs);
 }
+/** the colour choices, all on one level: both palettes, last colour, custom, remove */
+function colorItems(crepe, st, color) {
+  const cur = colorAt(st);
+  const set = (attrs) => { if (color.guard()) return; applyColor(crepe, attrs); color.remember({ ...cur, ...attrs }); };
+  return [
+    { swatches: { label: 'رنگ متن', glyph: 'text', close: true, value: cur.color || 'none',
+      items: [{ id: 'none', name: 'بدون رنگ', none: true }, ...TEXT_COLORS.map((c) => ({ id: c.c, name: c.name, color: c.c }))],
+      pick: (id) => set({ color: id === 'none' ? null : id }) } },
+    { swatches: { label: 'رنگ پس‌زمینه', glyph: 'bg', close: true, value: cur.bg || 'none',
+      items: [{ id: 'none', name: 'بدون پس‌زمینه', none: true }, ...BG_COLORS.map((c) => ({ id: c.c, name: c.name, color: c.c }))],
+      pick: (id) => set({ bg: id === 'none' ? null : id }) } },
+    'sep',
+    { icon: colorChip(color.last), label: 'آخرین رنگ', key: 'Alt+H', run: () => set({ color: color.last.color || null, bg: color.last.bg || null }) },
+    { icon: I.palette, label: 'رنگ دلخواه…', run: () => { if (!color.guard()) askCustomColor(crepe, cur, color.remember); } },
+    { icon: I.x, label: 'حذف رنگ', disabled: !cur.color && !cur.bg, run: () => { if (!color.guard()) applyColor(crepe, { clear: true }); } },
+  ];
+}
+/**
+ * The colour panel of the selection toolbar: opens on hover (or click) over «آ», above the toolbar so the
+ * selected text stays visible, and closes when the pointer leaves both the button and the panel.
+ */
+let colorPanel = null;
+export function openColorPanel(crepe, anchor, color) {
+  if (!anchor || !color.enabled) return;
+  if (colorPanel && colorPanel.anchor === anchor && menuOpen()) { clearTimeout(colorPanel.t); return; }
+  const st = view(crepe).state;
+  if (st.selection.empty) return;
+  const r = anchor.getBoundingClientRect();
+  anchor.classList.add('open');
+  const m = showMenu(colorItems(crepe, st, color), r.right + 8, r.bottom + 8, () => { anchor.classList.remove('open'); colorPanel = null; });
+  m.classList.add('color-panel');
+  const h = m.getBoundingClientRect().height;
+  const bar = anchor.closest('.milkdown-toolbar');
+  const top = (bar ? bar.getBoundingClientRect().top : r.top) - h - 6;
+  if (top >= 10) m.style.top = top + 'px';
+  const p = { anchor, t: null };
+  colorPanel = p;
+  const later = () => { clearTimeout(p.t); p.t = setTimeout(() => { if (colorPanel === p && !document.querySelector('.overlay')) closeMenu(); }, 350); };
+  const stay = () => clearTimeout(p.t);
+  for (const n of [anchor, m]) { n.addEventListener('mouseleave', later); n.addEventListener('mouseenter', stay); }
+}
+
 export function openEditorMenu(crepe, x, y, { insertImage, edit, color }) {
   const v = view(crepe);
   const st = v.state;
@@ -229,22 +271,7 @@ export function openEditorMenu(crepe, x, y, { insertImage, edit, color }) {
       { html: I.task, title: 'فهرست کارها', run: () => makeTaskList(crepe) },
     ] },
     'sep',
-    color && color.enabled ? (() => {
-      const cur = colorAt(st);
-      const set = (attrs) => { if (color.guard()) return; applyColor(crepe, attrs); color.remember({ ...cur, ...attrs }); };
-      return { icon: colorChip(cur.color || cur.bg ? cur : { color: '#D93A3A' }), label: 'رنگ', disabled: !hasSel, sub: [
-        { swatches: { label: 'رنگ متن', glyph: 'text', close: true, value: cur.color || 'none',
-          items: [{ id: 'none', name: 'بدون رنگ', none: true }, ...TEXT_COLORS.map((c) => ({ id: c.c, name: c.name, color: c.c }))],
-          pick: (id) => set({ color: id === 'none' ? null : id }) } },
-        { swatches: { label: 'رنگ پس‌زمینه', glyph: 'bg', close: true, value: cur.bg || 'none',
-          items: [{ id: 'none', name: 'بدون پس‌زمینه', none: true }, ...BG_COLORS.map((c) => ({ id: c.c, name: c.name, color: c.c }))],
-          pick: (id) => set({ bg: id === 'none' ? null : id }) } },
-        'sep',
-        { icon: colorChip(color.last), label: 'آخرین رنگ', key: 'Alt+H', run: () => set({ color: color.last.color || null, bg: color.last.bg || null }) },
-        { icon: I.palette, label: 'رنگ دلخواه…', run: () => { if (!color.guard()) askCustomColor(crepe, cur, color.remember); } },
-        { icon: I.x, label: 'حذف رنگ', disabled: !cur.color && !cur.bg, run: () => { if (!color.guard()) applyColor(crepe, { clear: true }); } },
-      ] };
-    })() : null,
+    color && color.enabled ? { icon: colorChip((() => { const c = colorAt(st); return c.color || c.bg ? c : { color: '#D93A3A' }; })()), label: 'رنگ', disabled: !hasSel, sub: colorItems(crepe, st, color) } : null,
     { icon: I.strike, label: 'خط‌خورده', key: 'Alt+Shift+5', checked: markActive(st, 'strike_through'), run: run(crepe, toggleStrikethroughCommand) },
     { icon: I.textSize, label: 'پاراگراف', sub: [
       { label: 'متن ساده', key: 'Ctrl+Alt+0', run: run(crepe, turnIntoTextCommand) },
