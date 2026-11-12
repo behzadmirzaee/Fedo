@@ -2,6 +2,31 @@
 
 ویرایشگر Markdown دسکتاپ با ویرایش زنده، شبیه Typora، که از صفر ساخته شده است.
 
+![Fedo: نوشتن فارسی، بی‌دردسر](docs/screenshots/01-hero.png)
+
+**[دانلود آخرین نسخه برای ویندوز](https://github.com/behzadmirzaee/Fedo/releases/latest)**
+
+## نگاهی به Fedo
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/02-tabs.png" alt="همه‌ی سندها در یک پنجره"></td>
+<td width="50%"><img src="docs/screenshots/03-highlight.png" alt="هایلایت کردن متن‌ها"></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/04-find.png" alt="جستجوی دقیق برای متن فارسی"></td>
+<td width="50%"><img src="docs/screenshots/05-history.png" alt="تاریخچه‌ی نسخه‌ها"></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/06-themes.png" alt="پنج تم، از روشن تا تیره"></td>
+<td width="50%"><img src="docs/screenshots/07-settings.png" alt="تنظیمات"></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/08-always-on-top.png" alt="پنجره‌ی همیشه‌رو"></td>
+<td width="50%"><img src="docs/screenshots/09-autosave.png" alt="ذخیره‌ی خودکار"></td>
+</tr>
+</table>
+
 ## قابلیت‌ها
 
 - **تب‌ها:** هر فایلی که باز شود، حتی با دوبار کلیک از ویندوز، در یک تب همین پنجره باز می‌شود. می‌توانید تب‌ها را با کشیدن جابه‌جا کنید، با Ctrl+Tab بین‌شان بروید و با Ctrl+Shift+T تب بسته‌شده را برگردانید. برنامه موقع باز شدن، تب‌های قبلی را دوباره باز می‌کند.
