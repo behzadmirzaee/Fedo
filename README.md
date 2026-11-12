@@ -1,7 +1,6 @@
 # Fedo
 
-ویرایشگر Markdown دسکتاپ با ویرایش زنده، شبیه Typora، که از صفر ساخته شده است.
-
+ویرایشگر Markdown دسکتاپ
 ![Fedo: نوشتن فارسی، بی‌دردسر](docs/screenshots/01-hero.png)
 
 **[دانلود آخرین نسخه برای ویندوز](https://github.com/behzadmirzaee/Fedo/releases/latest)**
