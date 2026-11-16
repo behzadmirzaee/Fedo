@@ -104,6 +104,8 @@ function createWindow(opts = {}) {
     // caption buttons (− □ ✕, with snap layouts) over its right end.
     ...(process.platform === 'win32' ? { titleBarStyle: 'hidden', titleBarOverlay: { color: '#ECECF0', symbolColor: '#1D1D1F', height: TITLEBAR_H } } : {}),
     alwaysOnTop: !!opts.alwaysOnTop,
+    // a window torn off by dragging appears without taking focus, so the drag keeps going in the source window
+    show: !opts.inactive,
     icon: logoPath(readLogoSync()),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -118,6 +120,7 @@ function createWindow(opts = {}) {
   lastFocusedId = win.id;
   win.on('focus', () => { lastFocusedId = win.id; });
   if (opts.alwaysOnTop) win.setAlwaysOnTop(true, 'floating');
+  if (opts.inactive) win.showInactive();
 
   Menu.setApplicationMenu(null);
   const ses = win.webContents.session;
@@ -181,7 +184,7 @@ ipcMain.handle('app:ready', (e) => {
   if (st.role === 'main' && !startupTaken) { files = [...filesFromArgv(process.argv), ...pendingFirst.splice(0)]; startupTaken = true; }
   files.push(...st.pending.splice(0));
   const payload = st.payload; st.payload = null;
-  return { files, role: st.role, payload, alwaysOnTop: w.isAlwaysOnTop() };
+  return { files, role: st.role, payload, alwaysOnTop: w.isAlwaysOnTop(), dragging: !!(drag && drag.winId === w.id) };
 });
 
 // macOS "open with"
@@ -249,6 +252,112 @@ ipcMain.handle('win:to-main', (e, payload) => {
   main.win.focus();
   return true;
 });
+// hand tabs to a given window (a dragged window dropped on its tab bar); `at` is the drop point in that window
+ipcMain.handle('win:send-to', (e, targetId, payload, at) => {
+  const target = windows.get(targetId);
+  if (!target) return false;
+  target.win.webContents.send('receive-tab', payload, at || null);
+  target.win.focus();
+  return true;
+});
+ipcMain.handle('win:booted', (e) => { const st = stateOf(W(e)); if (st) st.booted = true; });
+
+// ---------- dragging a tab out of a window (Chrome-style) ----------
+// While the pointer is held, the dragged window follows it. Over another Fedo window's tab bar it is
+// offered to that window; released there, its tabs join that window and the dragged one closes.
+let drag = null; // { winId, offX, offY, spawned, payload, hoverId, accept }
+function windowAt(pt, exceptId) {
+  const hit = (st) => { const b = st.win.getContentBounds(); return pt.x >= b.x && pt.x < b.x + b.width && pt.y >= b.y && pt.y < b.y + b.height; };
+  const list = [...windows.values()].filter((st) => st.win.id !== exceptId && !st.win.isDestroyed() && !st.win.isMinimized() && st.win.isVisible());
+  return list.find((st) => st.win.id === lastFocusedId && hit(st)) || list.find(hit) || null;
+}
+function setHover(id, p) {
+  const st = windows.get(id);
+  if (st && !st.win.isDestroyed()) st.win.webContents.send('tab-drag-hover', p);
+}
+// The dragged window follows the pointer by itself (the cursor position is polled), because the window
+// that started the drag can lose the pointer as soon as a new window appears. Whichever window then sees the
+// button go up (the new window sits under the pointer) reports the end of the drag.
+function startDrag(d) {
+  stopDrag();
+  const { screen } = require('electron');
+  drag = d;
+  let last = null;
+  d.timer = setInterval(() => {
+    if (drag !== d) return;
+    const p = screen.getCursorScreenPoint();
+    if (last && last.x === p.x && last.y === p.y) return;
+    last = p;
+    dragMoveTo(p.x, p.y);
+  }, 16);
+}
+function stopDrag() {
+  if (drag && drag.timer) clearInterval(drag.timer);
+}
+function dragMoveTo(sx, sy) {
+  if (!drag) return;
+  const st = windows.get(drag.winId);
+  if (!st || st.win.isDestroyed()) { stopDrag(); drag = null; return; }
+  st.win.setPosition(Math.round(sx - drag.offX), Math.round(sy - drag.offY));
+  const target = windowAt({ x: sx, y: sy }, drag.winId);
+  const id = target ? target.win.id : null;
+  if (drag.hoverId && drag.hoverId !== id) { setHover(drag.hoverId, null); drag.accept = false; }
+  drag.hoverId = id;
+  if (target) { const b = target.win.getContentBounds(); setHover(id, { x: sx - b.x, y: sy - b.y }); }
+}
+ipcMain.handle('tab:drag-detach', (e, payload, o = {}) => {
+  const { screen } = require('electron');
+  const pt = { x: Math.round(o.x), y: Math.round(o.y) };
+  const width = 900, height = 680;
+  // put the new window's (only) tab under the pointer
+  const offX = o.vertical ? 126 : width - 276;
+  const offY = o.vertical ? 79 : Math.round(TITLEBAR_H / 2);
+  const area = screen.getDisplayNearestPoint(pt).workArea;
+  const x = Math.round(pt.x - offX), y = Math.max(area.y, Math.round(pt.y - offY));
+  const win = createWindow({ payload, x, y, width, height, inactive: true });
+  startDrag({ winId: win.id, offX, offY, spawned: true, payload, hoverId: null, accept: false });
+  return true;
+});
+ipcMain.on('tab:drag-self', (e, pt) => {
+  const w = W(e);
+  if (!w) return;
+  let offX = Math.round(pt.x), offY = Math.round(pt.y);
+  if (w.isMaximized()) {
+    const before = w.getBounds().width;
+    w.unmaximize();
+    offX = Math.round(offX * (w.getBounds().width / before));
+  }
+  startDrag({ winId: w.id, offX, offY, spawned: false, payload: null, hoverId: null, accept: false });
+});
+ipcMain.on('tab:drag-move', (_e, sx, sy) => dragMoveTo(sx, sy));
+ipcMain.on('tab:hover-accept', (e, ok) => {
+  const w = W(e);
+  if (drag && w && w.id === drag.hoverId) drag.accept = !!ok;
+});
+ipcMain.on('tab:drag-end', (_e, sx, sy) => {
+  const d = drag;
+  if (!d) return;
+  stopDrag();
+  drag = null;
+  for (const w of windows.values()) if (!w.win.isDestroyed()) w.win.webContents.send('tab-drag-done');
+  if (d.hoverId) setHover(d.hoverId, null);
+  const st = windows.get(d.winId);
+  if (!st || st.win.isDestroyed()) return;
+  const target = d.hoverId && d.accept ? windows.get(d.hoverId) : null;
+  if (!target) { st.win.focus(); return; }
+  const b = target.win.getContentBounds();
+  const at = { x: sx - b.x, y: sy - b.y };
+  if (d.spawned && !st.booted) {
+    // the new window has not finished opening its tab yet: give the tab straight to the target
+    target.win.webContents.send('receive-tab', d.payload, at);
+    st.forceClose = true;
+    st.win.destroy();
+  } else {
+    st.win.webContents.send('merge-into', { target: target.win.id, at });
+  }
+  target.win.focus();
+});
+
 ipcMain.handle('win:set-on-top', (e, on) => { const w = W(e); if (!w) return false; w.setAlwaysOnTop(!!on, 'floating'); return w.isAlwaysOnTop(); });
 ipcMain.handle('win:info', (e) => { const w = W(e); const st = stateOf(w); return { role: st ? st.role : 'main', alwaysOnTop: w ? w.isAlwaysOnTop() : false, count: windows.size }; });
 ipcMain.handle('file:pick-image', async (e, docPath) => {
@@ -303,6 +412,15 @@ ipcMain.handle('file:write', async (_e, p, content) => {
   await fsp.writeFile(p, content, 'utf8');
   const st = await fsp.stat(p);
   return { mtime: st.mtimeMs };
+});
+// rename a file in place; refuses to overwrite another file
+ipcMain.handle('file:rename', async (_e, from, to) => {
+  try {
+    const same = path.resolve(from).toLowerCase() === path.resolve(to).toLowerCase();
+    if (!same && fs.existsSync(to)) return { ok: false, exists: true };
+    await fsp.rename(from, to);
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
 });
 ipcMain.handle('file:stat', async (_e, p) => {
   try { const st = await fsp.stat(p); return { mtime: st.mtimeMs, exists: true }; } catch { return { exists: false }; }

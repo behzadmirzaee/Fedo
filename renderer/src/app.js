@@ -39,12 +39,16 @@ export const FONTS = [
 ].filter((f) => !f.optional || (window.__nvFonts || []).includes(f.id));
 const RECENT_MAX = 10;
 let systemFonts = null;
-async function loadSystemFonts() {
-  if (systemFonts) return systemFonts;
-  try {
-    const list = await window.queryLocalFonts();
-    systemFonts = [...new Set(list.map((f) => f.family))].sort((a, b) => a.localeCompare(b));
-  } catch { systemFonts = []; }
+/** the Windows font list; asked once and shared, since the first query can take a while */
+function loadSystemFonts() {
+  if (!systemFonts) {
+    systemFonts = (async () => {
+      try {
+        const list = await window.queryLocalFonts();
+        return [...new Set(list.map((f) => f.family))].sort((a, b) => a.localeCompare(b));
+      } catch { return []; }
+    })();
+  }
   return systemFonts;
 }
 const fontName = (id) => (FONTS.find((f) => f.id === id) || { name: id }).name;
@@ -91,6 +95,7 @@ function buildLayout() {
       el('button', { class: 'icon-btn', id: 'btn-newtab', title: 'سند تازه (Ctrl+T)', html: ICON.plus, onclick: () => newTab() })),
     el('div', { class: 'grow' }),
     el('div', { class: 'cap' },
+      el('button', { class: 'icon-btn', id: 'btn-pin', title: 'پنجره‌ی همیشه‌رو', 'aria-label': 'پنجره‌ی همیشه‌رو', 'aria-pressed': 'false', html: ICON.pin, onclick: () => togglePin() }),
       el('button', { class: 'icon-btn', id: 'btn-history', title: 'تاریخچه‌ی نسخه‌ها (Ctrl+Shift+H)', html: ICON.history, onclick: () => historyPanel.toggle() }),
       el('button', { class: 'icon-btn', id: 'btn-find', title: 'جستجو و جایگزینی (Ctrl+F)', html: ICON.search, onclick: () => ($('#findbar').hidden ? openFind(false) : closeFind()) }),
       el('button', { class: 'icon-btn', id: 'btn-copyall', title: 'کپی کل سند', html: ICON.copy, onclick: () => copyWholeDoc() })));
@@ -180,18 +185,46 @@ function untitledName() {
 }
 function tabTitle(t) {
   if (t.path) return basename(t.path);
+  if (t.title) return t.title;
   return t.untitledN === 1 ? 'بدون عنوان' : `بدون عنوان ${fa(t.untitledN)}`;
 }
+/** each tab can have its own direction; without one it follows the setting */
+const tabDir = (t) => t.dir || settings.baseDir;
+function applyTabDir(t) {
+  const d = tabDir(t);
+  t.wys.setAttribute('dir', d);
+  t.src.setAttribute('dir', d);
+}
+function setTabDir(t, dir) {
+  t.dir = dir || null;
+  applyTabDir(t);
+  saveTabMeta(t);
+  saveSessionSoon();
+}
+/** title and direction of an unsaved document live next to its draft, so they come back after a restart */
+function saveTabMeta(t) {
+  if (t.path || !t.draftId) return;
+  const meta = { ...(settings.draftMeta || {}) };
+  if (t.title || t.dir) meta[t.draftId] = { title: t.title || null, dir: t.dir || null };
+  else delete meta[t.draftId];
+  settings.draftMeta = meta; persistSettings();
+}
+function dropTabMeta(id) {
+  if (!id || !settings.draftMeta || !settings.draftMeta[id]) return;
+  const meta = { ...settings.draftMeta };
+  delete meta[id];
+  settings.draftMeta = meta; persistSettings();
+}
 
-async function newTab({ path = null, content = '', activate = true, mode = 'wysiwyg', mtime = 0, index, draftId } = {}) {
+async function newTab({ path = null, content = '', activate = true, mode = 'wysiwyg', mtime = 0, index, draftId, dir = null, title = null } = {}) {
   const id = ++seq;
-  const wys = el('div', { class: 'wysiwyg', dir: settings.baseDir });
-  const src = el('div', { class: 'source', dir: settings.baseDir });
+  const wys = el('div', { class: 'wysiwyg', dir: dir || settings.baseDir });
+  const src = el('div', { class: 'source', dir: dir || settings.baseDir });
   const pane = el('div', { class: 'pane' }, wys, src);
   $('#editors').append(pane);
   const t = {
     id, path, pane, wys, src, mode: 'wysiwyg', md: content, baseline: content, diskContent: content,
-    dirty: false, crepe: null, cm: null, mtime, untitledN: path ? 0 : untitledName(),
+    dirty: false, crepe: null, cm: null, mtime, untitledN: path ? 0 : untitledName(), dir: dir || null, title: path ? null : title || null,
     lastSnap: content, lastSnapTime: Date.now(), saveTimer: null,
     draftId: path ? null : draftId || 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
   };
@@ -367,7 +400,7 @@ function scheduleDraft(t) {
 }
 function dropDraft(t) {
   clearTimeout(t.draftTimer);
-  if (t.draftId) api.draftDelete(t.draftId);
+  if (t.draftId) { api.draftDelete(t.draftId); dropTabMeta(t.draftId); }
   t.draftId = null;
 }
 
@@ -475,59 +508,219 @@ function groupMenuAt(g, isNew) {
 function tabNode(t, vertical) {
   const g = t.groupId ? groups.get(t.groupId) : null;
   const close = el('button', { class: 't-close', title: 'بستن (Ctrl+W)', html: `<span class="x">${ICON.x}</span>`, draggable: 'false' });
-  close.addEventListener('mousedown', (e) => e.stopPropagation());
+  close.addEventListener('pointerdown', (e) => e.stopPropagation());
   close.addEventListener('click', (e) => { e.stopPropagation(); closeTab(t); });
   const node = el('div', {
     class: 'tab' + (t.id === activeId ? ' active' : '') + (t.dirty ? ' dirty' : '') + (g ? ' grouped' : ''),
-    title: t.path || tabTitle(t), draggable: 'true', 'data-id': t.id, style: g ? `--g:${colorOf(g)}` : null,
+    title: t.path || tabTitle(t), 'data-id': t.id, style: g ? `--g:${colorOf(g)}` : null,
   }, t.locked ? el('span', { class: 't-lock', title: 'حالت امن', html: ICON.lock }) : null,
     el('span', { class: 't-title', dir: bidi(tabTitle(t)) }, tabTitle(t)),
     t.mode === 'source' ? el('span', { class: 't-ind' }, 'کد') : null, close);
-  node.addEventListener('mousedown', (e) => { if (e.button === 0 && t.id !== activeId) activateTab(t.id); });
+  node.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || node.classList.contains('renaming')) return;
+    if (t.id !== activeId) activateTab(t.id);
+    tabDragStart(e, t, node, vertical);
+  });
+  node.addEventListener('dblclick', (e) => { if (!e.target.closest('.t-close')) startRename(t); });
   node.addEventListener('auxclick', (e) => { if (e.button === 1) closeTab(t); });
-  node.addEventListener('contextmenu', (e) => { e.preventDefault(); tabMenu(t, e.clientX, e.clientY); });
-  node.addEventListener('dragstart', (e) => {
-    e.dataTransfer.setData('text/nv-tab', String(t.id));
-    e.dataTransfer.effectAllowed = 'move';
-    dragState = { id: t.id, dropped: false };
-  });
-  // dropped outside the window → the tab becomes its own window (like Chrome)
-  node.addEventListener('dragend', (e) => {
-    const ds = dragState; dragState = null;
-    if (!ds || ds.dropped) return;
-    const out = e.clientX < 0 || e.clientY < 0 || e.clientX > innerWidth || e.clientY > innerHeight;
-    if (out) detachTabs([t], false, { x: e.screenX, y: e.screenY });
-  });
-  node.addEventListener('dragover', (e) => {
-    if (!e.dataTransfer.types.includes('text/nv-tab')) return;
-    e.preventDefault();
-    const r = node.getBoundingClientRect();
-    const after = vertical ? e.clientY > r.top + r.height / 2 : (e.clientX < r.left + r.width / 2) === (getComputedStyle(node.parentNode).direction === 'rtl');
-    node.classList.toggle('drag-over', !after);
-    node.classList.toggle('drag-over-after', after);
-  });
-  node.addEventListener('dragleave', () => node.classList.remove('drag-over', 'drag-over-after'));
-  node.addEventListener('drop', (e) => {
-    const from = Number(e.dataTransfer.getData('text/nv-tab'));
-    if (!from) return;
-    e.preventDefault();
-    if (dragState) dragState.dropped = true;
-    const after = node.classList.contains('drag-over-after');
-    node.classList.remove('drag-over', 'drag-over-after');
-    if (from === t.id) return;
-    const fi = tabs.findIndex((x) => x.id === from);
-    const [moved] = tabs.splice(fi, 1);
-    let ti = tabs.findIndex((x) => x.id === t.id);
-    if (after) ti++;
-    tabs.splice(ti, 0, moved);
-    moved.groupId = t.groupId; // dropping onto a grouped tab joins its group
-    normalizeGroups();
-    renderTabs();
-    saveSession();
-  });
+  node.addEventListener('contextmenu', (e) => { e.preventDefault(); if (!node.classList.contains('renaming')) tabMenu(t, e.clientX, e.clientY); });
   return node;
 }
+
+// ---------- renaming a tab: in place, like a file name in Explorer ----------
+const tabNodeOf = (t) => document.querySelector(`${vertTabsOn() ? '#vtabs-list' : '#tabs'} .tab[data-id="${t.id}"]`);
+function startRename(t) {
+  if (!t) return;
+  if (t.groupId && groups.get(t.groupId)?.collapsed) { groups.get(t.groupId).collapsed = false; renderTabs(); }
+  const node = tabNodeOf(t);
+  if (!node || node.classList.contains('renaming')) return;
+  const ext = t.path ? (basename(t.path).match(/\.[^.]+$/) || [''])[0] : '';
+  const current = t.path ? basename(t.path).slice(0, basename(t.path).length - ext.length) : (t.title || '');
+  const inp = el('input', { class: 't-rename', type: 'text', dir: 'auto', spellcheck: 'false', 'aria-label': 'نام تب', placeholder: t.path ? '' : tabTitle(t) });
+  inp.value = current;
+  node.classList.add('renaming');
+  node.replaceChildren(inp);
+  let done = false;
+  const finish = (ok) => {
+    if (done) return;
+    done = true;
+    if (ok) commitRename(t, inp.value, ext); else renderTabs();
+    focusEditor(t);
+  };
+  inp.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  inp.addEventListener('blur', () => finish(true));
+  for (const ev of ['pointerdown', 'mousedown', 'click', 'dblclick']) inp.addEventListener(ev, (e) => e.stopPropagation());
+  requestAnimationFrame(() => { inp.focus(); inp.select(); });
+}
+async function commitRename(t, value, ext) {
+  const name = cleanName(value || '');
+  if (!t.path) {
+    const next = name || null;
+    if (next !== (t.title || null)) { t.title = next; saveTabMeta(t); }
+    renderTabs(); updateTitle();
+    return;
+  }
+  // a saved file: the file itself gets the new name (its extension stays unless one was typed)
+  if (!name) { renderTabs(); return; }
+  const newBase = /\.[a-z0-9]{1,8}$/i.test(name) ? name : name + ext;
+  const old = t.path;
+  if (newBase === basename(old)) { renderTabs(); return; }
+  const sep = old.includes('\\') ? '\\' : '/';
+  const target = dirname(old).replace(/[\\/]+$/, '') + sep + newBase;
+  const r = await api.renameFile(old, target).catch((e) => ({ ok: false, error: String(e && e.message || e) }));
+  if (!r || !r.ok) {
+    toast(r && r.exists ? `فایلی با نام «${newBase}» از قبل در همین پوشه هست` : 'تغییر نام فایل ممکن نشد' + (r && r.error ? ': ' + r.error : ''), 'err');
+    renderTabs();
+    return;
+  }
+  api.unwatch(old);
+  t.path = target;
+  api.watch(target);
+  api.historyMove(old, target).catch(() => {});
+  const pos = settings.positions && settings.positions[posKey(old)];
+  if (pos) { settings.positions[posKey(target)] = pos; delete settings.positions[posKey(old)]; }
+  settings.recent = (settings.recent || []).map((x) => (samePath(x.path, old) ? { ...x, path: target } : x));
+  persistSettings();
+  renderTabs(); updateTitle(); saveSessionSoon();
+  if (settings.sidebar) renderTree(true);
+  toast('نام فایل عوض شد', 'ok');
+}
+
+// ---------- dragging tabs: reorder in the bar, tear off into a window, drop onto another window ----------
 let dragState = null;
+/** where a dragged tab would land among the tabs of this window, for a point in window coordinates */
+function dropSlot(x, y) {
+  const vertical = vertTabsOn();
+  const nodes = [...document.querySelectorAll(vertical ? '#vtabs-list .tab' : '#tabs .tab')];
+  if (!nodes.length) return { index: tabs.length };
+  const rtl = getComputedStyle($(vertical ? '#vtabs-list' : '#tabs')).direction === 'rtl';
+  for (const n of nodes) {
+    const r = n.getBoundingClientRect();
+    const before = vertical ? y < r.top + r.height / 2 : rtl ? x > r.left + r.width / 2 : x < r.left + r.width / 2;
+    if (before) return { index: tabs.findIndex((t) => t.id === Number(n.dataset.id)), node: n, after: false };
+  }
+  const last = nodes[nodes.length - 1];
+  return { index: tabs.findIndex((t) => t.id === Number(last.dataset.id)) + 1, node: last, after: true };
+}
+function clearDropMarks() {
+  document.querySelectorAll('.tab.drag-over, .tab.drag-over-after, .tgroup.drag-over, .vgroup.drag-over').forEach((n) => n.classList.remove('drag-over', 'drag-over-after'));
+}
+function markSlot(slot) {
+  clearDropMarks();
+  if (slot && slot.node) slot.node.classList.add(slot.after ? 'drag-over-after' : 'drag-over');
+}
+/** the tab bar's area: leaving it (into the page, or out of the window) tears the tab off */
+function outsideStrip(e) {
+  if (e.clientX < 0 || e.clientY < 0 || e.clientX > innerWidth || e.clientY > innerHeight) return true;
+  if (vertTabsOn()) {
+    const r = $('#vtabs').getBoundingClientRect();
+    return e.clientX < r.left - 8 || e.clientX > r.right + 8;
+  }
+  return e.clientY > $('#topbar').getBoundingClientRect().bottom + 6;
+}
+function tabDragStart(e, t, node, vertical) {
+  dragState = { t, node, vertical, x0: e.clientX, y0: e.clientY, started: false, mode: 'reorder', pointerId: e.pointerId };
+}
+async function tearOff(e) {
+  const ds = dragState;
+  ds.mode = 'window';
+  clearDropMarks();
+  if (tabs.length > 1) {
+    // the tab becomes its own window right away, and that window follows the pointer
+    const t = ds.t;
+    const vertical = vertTabsOn();
+    windowDrag = true;
+    await api.dragDetach([tabPayload(t)], { x: e.screenX, y: e.screenY, vertical });
+    await closeTab(t, { skipPrompt: true, moved: true });
+  } else {
+    // the only tab: the whole window moves with it
+    windowDrag = true;
+    api.dragSelf({ x: e.clientX, y: e.clientY });
+  }
+}
+// A window is following the pointer (this one, or one torn off from here). Whichever window gets the
+// pointer events reports where the button went up; the main process moves the window in between.
+let windowDrag = false;
+function windowDragEvent(e) {
+  if (!windowDrag || (dragState && dragState.started)) return;
+  if (e.type === 'pointermove' && e.buttons) { api.dragMove(e.screenX, e.screenY); return; }
+  windowDrag = false;
+  api.dragEnd(e.screenX, e.screenY);
+}
+window.addEventListener('pointermove', windowDragEvent, true);
+window.addEventListener('pointerup', windowDragEvent, true);
+window.addEventListener('pointermove', (e) => {
+  const ds = dragState;
+  if (!ds || e.pointerId !== ds.pointerId) return;
+  if (!ds.started) {
+    if (Math.hypot(e.clientX - ds.x0, e.clientY - ds.y0) < 6) return;
+    ds.started = true;
+    // the pointer stays with this window even outside it, so a torn-off window can follow it
+    try { $('#app').setPointerCapture(ds.pointerId); } catch {}
+    ds.node = tabNodeOf(ds.t) || ds.node;
+    ds.node.classList.add('dragging');
+    document.body.classList.add('tab-dragging');
+  }
+  ds.sx = e.screenX; ds.sy = e.screenY;
+  if (ds.mode === 'window') { api.dragMove(e.screenX, e.screenY); return; }
+  if (ds.mode === 'tearing') return;
+  if (outsideStrip(e)) { ds.mode = 'tearing'; tearOff(e); return; }
+  const chip = document.elementFromPoint(e.clientX, e.clientY)?.closest('.tgroup, .vgroup');
+  if (chip) { clearDropMarks(); chip.classList.add('drag-over'); ds.chip = chip; return; }
+  ds.chip = null;
+  markSlot(dropSlot(e.clientX, e.clientY));
+});
+async function endTabDrag(e) {
+  const ds = dragState;
+  if (!ds || e.pointerId !== ds.pointerId) return;
+  dragState = null;
+  try { $('#app').releasePointerCapture(e.pointerId); } catch {}
+  document.body.classList.remove('tab-dragging');
+  ds.node.classList.remove('dragging');
+  clearDropMarks();
+  if (!ds.started) return;
+  if (ds.mode === 'window' || ds.mode === 'tearing') {
+    // the pointer went to the torn-off window: that window reports the end of the drag
+    if (e.type !== 'pointerup') return;
+    windowDrag = false;
+    api.dragEnd(e.screenX, e.screenY);
+    return;
+  }
+  const t = ds.t;
+  if (ds.chip) { setGroup(t, ds.chip.dataset.gid); return; }
+  const slot = dropSlot(e.clientX, e.clientY);
+  const target = slot.node ? tabs.find((x) => x.id === Number(slot.node.dataset.id)) : null;
+  const from = tabs.indexOf(t);
+  let to = slot.index;
+  if (to > from) to--;
+  if (to === from && (!target || target.groupId === t.groupId)) return;
+  tabs.splice(from, 1);
+  tabs.splice(Math.max(0, Math.min(to, tabs.length)), 0, t);
+  if (target && target !== t) t.groupId = target.groupId; // dropping next to a grouped tab joins its group
+  normalizeGroups();
+  renderTabs();
+  saveSession();
+}
+window.addEventListener('pointerup', endTabDrag);
+window.addEventListener('pointercancel', endTabDrag);
+// when the torn-off window takes the pointer over, this window just tidies up
+document.addEventListener('lostpointercapture', (e) => { if (dragState && dragState.started && dragState.mode !== 'reorder') endTabDrag(e); }, true);
+// another window's tab is being dragged over this one: show where it would land
+function onDragHover(p) {
+  const on = !!p;
+  let inStrip = false;
+  if (on) {
+    if (vertTabsOn()) { const r = $('#vtabs').getBoundingClientRect(); inStrip = p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom; }
+    else inStrip = p.y >= 0 && p.y <= $('#topbar').getBoundingClientRect().bottom;
+  }
+  document.body.classList.toggle('tab-drop', inStrip);
+  if (inStrip) markSlot(dropSlot(p.x, p.y)); else clearDropMarks();
+  return inStrip;
+}
 function groupChip(g, vertical) {
   const count = tabs.filter((t) => t.groupId === g.id).length;
   const chip = el('div', { class: (vertical ? 'vgroup' : 'tgroup') + (g.collapsed ? ' collapsed' : ''), style: `--g:${colorOf(g)}`, title: g.collapsed ? 'باز کردن گروه' : 'جمع کردن گروه', 'data-gid': g.id },
@@ -536,17 +729,6 @@ function groupChip(g, vertical) {
     (g.collapsed || vertical) ? el('span', { class: 'g-count' }, fa(count)) : null);
   chip.addEventListener('click', () => toggleGroup(g));
   chip.addEventListener('contextmenu', (e) => { e.preventDefault(); groupMenu(g, e.clientX, e.clientY); });
-  chip.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/nv-tab')) { e.preventDefault(); chip.classList.add('drag-over'); } });
-  chip.addEventListener('dragleave', () => chip.classList.remove('drag-over'));
-  chip.addEventListener('drop', (e) => {
-    const from = Number(e.dataTransfer.getData('text/nv-tab'));
-    chip.classList.remove('drag-over');
-    if (!from) return;
-    e.preventDefault();
-    if (dragState) dragState.dropped = true;
-    const t = tabs.find((x) => x.id === from);
-    if (t) setGroup(t, g.id);
-  });
   return chip;
 }
 function renderTabs() {
@@ -659,14 +841,23 @@ function tabMenu(t, x, y) {
   showMenu([
     { icon: ICON.plusSquare, label: 'سند تازه', key: 'Ctrl+T', run: () => newTab() },
     'sep',
+    { icon: ICON.edit, label: 'تغییر نام', key: 'F2', run: () => startRename(t) },
+    { icon: ICON.direction, label: 'جهت سند', sub: [
+      { label: 'راست‌به‌چپ', checked: tabDir(t) === 'rtl', run: () => setTabDir(t, 'rtl') },
+      { label: 'چپ‌به‌راست', checked: tabDir(t) === 'ltr', run: () => setTabDir(t, 'ltr') },
+      'sep',
+      { label: 'پیش‌فرض تنظیمات', disabled: !t.dir, run: () => setTabDir(t, null) },
+    ] },
+    'sep',
     { icon: ICON.group, label: 'افزودن به گروه تازه', run: () => addToNewGroup(t) },
     others.length ? { icon: '', label: 'افزودن به گروه', sub: others.map((g) => ({ label: g.name || 'گروه بی‌نام', icon: `<span class="gdot" style="--g:${colorOf(g)}"></span>`, run: () => setGroup(t, g.id) })) } : null,
     t.groupId ? { icon: '', label: 'خارج کردن از گروه', run: () => setGroup(t, null) } : null,
     t.groupId ? { icon: '', label: 'ویرایش گروه…', run: () => groupMenuAt(groups.get(t.groupId)) } : null,
     'sep',
-    { icon: ICON.window, label: 'انتقال به پنجره‌ی جدید', run: () => detachTabs([t], false) },
-    { icon: ICON.pin, label: 'پنجره‌ی همیشه‌رو', run: () => detachTabs([t], true) },
-    winRole !== 'main' ? { icon: '', label: 'برگرداندن به پنجره‌ی اصلی', run: () => sendTabsToMain([t]) } : null,
+    { icon: ICON.window, label: 'انتقال به پنجره‌ی جدید', disabled: tabs.length < 2, run: () => detachTabs([t], false) },
+    onTop() ? { icon: ICON.pinOff, label: 'برگرداندن پنجره‌ی همیشه‌رو', run: unpinWindow }
+      : { icon: ICON.pin, label: 'پنجره‌ی همیشه‌رو', run: () => pinTab(t) },
+    winRole !== 'main' && !onTop() ? { icon: '', label: 'برگرداندن به پنجره‌ی اصلی', run: () => sendTabsToMain([t]) } : null,
     'sep',
     { icon: ICON.x, label: 'بستن', key: 'Ctrl+W', run: () => closeTab(t) },
     { icon: '', label: 'بستن بقیه‌ی تب‌ها', disabled: tabs.length < 2, run: async () => { for (const o of tabs.filter((o) => o !== t)) if (!(await closeTab(o))) break; } },
@@ -716,7 +907,7 @@ function applyLastColor(t) {
 async function copyWholeDoc() {
   const t = active();
   if (!t) return;
-  const md = t.mode === 'source' && t.cm ? t.cm.state.doc.toString() : t.md;
+  const md = plainForClipboard(t.mode === 'source' && t.cm ? t.cm.state.doc.toString() : t.md);
   if (!md.trim()) { toast('سند خالی است'); return; }
   try {
     const html = t.mode === 'source' ? null : getEditorHTML(t.crepe);
@@ -738,7 +929,7 @@ let winRole = 'main';
 function tabPayload(t) {
   const content = t.mode === 'source' && t.cm ? t.cm.state.doc.toString() : t.md;
   const g = t.groupId ? groups.get(t.groupId) : null;
-  return { path: t.path, content, dirty: t.dirty, mode: t.mode, locked: !!t.locked, group: g ? { name: g.name, color: g.color } : null };
+  return { path: t.path, content, dirty: t.dirty, mode: t.mode, locked: !!t.locked, group: g ? { name: g.name, color: g.color } : null, title: t.title || null, dir: t.dir || null };
 }
 async function detachTabs(list, alwaysOnTop, at) {
   if (!list.length) return;
@@ -747,26 +938,48 @@ async function detachTabs(list, alwaysOnTop, at) {
   for (const t of list) await closeTab(t, { skipPrompt: true, moved: true });
   if (winRole !== 'main' && tabs.length === 1 && !tabs[0].path && !tabs[0].md.trim()) api.closeNow();
 }
+/** this whole window was dropped onto another window's tab bar: hand every tab over and close */
+async function mergeInto(m) {
+  const list = [...tabs];
+  const ok = await api.sendTo(m.target, list.map(tabPayload), m.at);
+  if (!ok) { toast('پنجره‌ی مقصد پیدا نشد'); return; }
+  for (const t of list) { dropDraft(t); if (t.path) api.unwatch(t.path); }
+  tabs.length = 0;
+  await api.closeNow();
+}
 async function sendTabsToMain(list) {
   const ok = await api.toMain(list.map(tabPayload));
   if (!ok) { toast('پنجره‌ی اصلی پیدا نشد'); return; }
   for (const t of list) await closeTab(t, { skipPrompt: true, moved: true });
   if (!tabs.length || (tabs.length === 1 && !tabs[0].path && !tabs[0].md.trim())) api.closeNow();
 }
-async function receiveTabs(payloads) {
+/** tabs handed over by another window; `at` (window coordinates) is where they were dropped on the tab bar */
+async function receiveTabs(payloads, at) {
   const gmap = new Map();
+  let slot = at ? dropSlot(at.x, at.y).index : null;
+  clearDropMarks();
+  document.body.classList.remove('tab-drop');
   for (const p of payloads || []) {
     let t;
     if (p.path) {
       t = await openPath(p.path);
       if (t && p.dirty && p.content !== t.md) setContent(t, p.content);
     } else {
-      t = await newTab({ content: p.content });
+      t = await newTab({ content: p.content, title: p.title, dir: p.dir });
       t.baseline = '';
       t.dirty = !!p.content.trim();
       contentChanged(t, t.md);
+      saveTabMeta(t);
     }
     if (!t) continue;
+    if (p.dir && t.dir !== p.dir) { t.dir = p.dir; applyTabDir(t); }
+    if (slot != null) {
+      const i = tabs.indexOf(t);
+      tabs.splice(i, 1);
+      if (i < slot) slot--;
+      tabs.splice(Math.min(slot, tabs.length), 0, t);
+      slot++;
+    }
     if (p.mode === 'source') setMode(t, 'source');
     if (p.locked) setLocked(t, true, true);
     if (p.group) {
@@ -778,11 +991,36 @@ async function receiveTabs(payloads) {
   }
   renderTabs();
 }
-async function toggleOnTop() {
-  const on = await api.setOnTop(!document.body.classList.contains('on-top'));
-  document.body.classList.toggle('on-top', on);
-  toast(on ? 'این پنجره همیشه روی بقیه می‌ماند' : 'همیشه‌رو خاموش شد');
+// ---------- always on top ----------
+const onTop = () => document.body.classList.contains('on-top');
+function paintPin() {
+  const b = $('#btn-pin');
+  if (!b) return;
+  const on = onTop();
+  b.classList.toggle('on', on);
+  b.setAttribute('aria-pressed', String(on));
+  b.title = on ? 'برگرداندن پنجره‌ی همیشه‌رو' : 'پنجره‌ی همیشه‌رو';
+  b.setAttribute('aria-label', b.title);
 }
+async function setWindowOnTop(on) {
+  const r = await api.setOnTop(on);
+  document.body.classList.toggle('on-top', !!r);
+  paintPin();
+  return r;
+}
+/** a tab in a window that stays above the others: with one tab, this window itself; otherwise a small window of its own */
+async function pinTab(t = active()) {
+  if (!t) return;
+  if (tabs.length > 1) await detachTabs([t], true);
+  else if (await setWindowOnTop(true)) toast('این پنجره همیشه روی بقیه می‌ماند', 'ok');
+}
+/** undo «always on top»: the tabs go back to the main window; the main window itself just stops floating */
+async function unpinWindow() {
+  if (winRole !== 'main' && (await api.winInfo()).count > 1) { await sendTabsToMain([...tabs]); return; }
+  await setWindowOnTop(false);
+  toast('همیشه‌رو خاموش شد');
+}
+function togglePin() { return onTop() ? unpinWindow() : pinTab(); }
 
 // ======================================================================
 // files
@@ -810,16 +1048,19 @@ async function openDialog() {
 }
 function suggestedName(t) {
   if (t.path) return t.path;
+  if (t.title) return t.title.replace(/[\\/:*?"<>|#]+/g, '').trim().slice(0, 60) + '.md';
   const first = (t.md.match(/^#{1,6}\s+(.+)$/m) || t.md.match(/^\s*(\S.{0,60})/m) || [])[1] || 'بدون عنوان';
   return first.replace(/[\\/:*?"<>|#]+/g, '').trim().slice(0, 60) + '.md';
 }
 export const DEFAULT_NAME_PRESETS = ['note', 'prompt', 'report', 'meeting', 'idea'];
 const SAVE_FORMATS = [
-  { ext: 'md', label: 'Markdown', sub: '.md' },
-  { ext: 'txt', label: 'متن ساده', sub: '.txt' },
-  { ext: 'html', label: 'صفحه‌ی وب', sub: '.html' },
-  { ext: 'pdf', label: 'PDF', sub: '.pdf' },
+  { ext: 'md', label: 'Markdown', sub: '.md', tag: 'MD', color: '#0066DD' },
+  { ext: 'txt', label: 'متن ساده', sub: '.txt', tag: 'TXT', color: '#6E6E78' },
+  { ext: 'html', label: 'صفحه‌ی وب', sub: '.html', tag: 'HTML', color: '#D9730D' },
+  { ext: 'pdf', label: 'PDF', sub: '.pdf', tag: 'PDF', color: '#D93A3A' },
 ];
+/** a small file sheet with the format written on it, tinted in the format's colour */
+const fileGlyph = (f) => `<svg class="ft" viewBox="0 0 30 36" aria-hidden="true"><path d="M4 1.5h14.5l9 9V31a3.5 3.5 0 0 1-3.5 3.5H4A3.5 3.5 0 0 1 .5 31V5A3.5 3.5 0 0 1 4 1.5z" fill="${f.color}" fill-opacity=".1" stroke="${f.color}" stroke-width="1.3"/><path d="M18.5 1.5V7a3.5 3.5 0 0 0 3.5 3.5h5.5" fill="none" stroke="${f.color}" stroke-width="1.3"/><text x="14" y="27" text-anchor="middle" font-size="7.5" font-weight="700" fill="${f.color}" font-family="Segoe UI, system-ui, sans-serif">${f.tag}</text></svg>`;
 /** Jalali date + time with Latin digits, safe for file names: 1405-08-18_14-30 */
 function timeStamp(d = new Date()) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US-u-ca-persian-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d).map((x) => [x.type, x.value]));
@@ -876,7 +1117,7 @@ function saveModal(t, as) {
     renderChips();
 
     const folderTxt = el('span', { class: 'sv-path', dir: 'ltr', title: folder }, folder || 'انتخاب نشده');
-    const folderRow = el('div', { class: 'sv-folder' }, el('span', { class: 'ic', html: ICON.folder }), folderTxt,
+    const folderRow = el('div', { class: 'sv-folder', dir: 'ltr' }, el('span', { class: 'ic', html: ICON.folder }), folderTxt,
       el('button', { class: 'hb', onclick: async () => { const d = await api.openFolderDialog(); if (d) { folder = d; folderTxt.textContent = d; folderTxt.title = d; paint(); } } }, 'تغییر…'));
 
     const fmts = el('div', { class: 'sv-formats', role: 'group', 'aria-label': 'قالب‌های فایل' });
@@ -884,7 +1125,7 @@ function saveModal(t, as) {
       fmts.append(el('button', { class: 'sv-fmt', role: 'checkbox', 'data-ext': f.ext, onclick: () => {
         if (picked.has(f.ext)) { if (picked.size > 1) picked.delete(f.ext); else { toast('دست‌کم یک قالب لازم است', 'info'); return; } } else picked.add(f.ext);
         paint();
-      } }, el('span', { class: 'ck', html: ICON.check }), el('b', {}, f.label), el('small', { dir: 'ltr' }, f.sub)));
+      } }, el('span', { class: 'ck', html: ICON.check }), el('span', { class: 'ft-w', html: fileGlyph(f) }), el('span', { class: 'nm' }, el('b', {}, f.label), el('small', { dir: 'ltr' }, f.sub))));
     }
     const layout = { v: settings.pdfLayout || 'continuous' };
     const pdfSeg = el('div', { class: 'sg' });
@@ -981,7 +1222,7 @@ async function exportTo(t, list) {
   const made = [];
   for (const { kind, path: p } of list) {
     try {
-      const out = await exportDocument({ kind, layout: settings.pdfLayout || 'continuous', html: getEditorHTML(t.crepe), title: basename(p).replace(/\.[^.]+$/, ''), baseDir: settings.baseDir, docPath: p, directPath: p });
+      const out = await exportDocument({ kind, layout: settings.pdfLayout || 'continuous', html: getEditorHTML(t.crepe), title: basename(p).replace(/\.[^.]+$/, ''), baseDir: tabDir(t), docPath: p, directPath: p });
       if (out) made.push(out);
     } catch (e) { toast(`ساخت ${kind.toUpperCase()} ممکن نشد: ` + (e.message || e), 6000, null, 'err'); }
   }
@@ -1375,7 +1616,7 @@ function syncTitleBar() {
 }
 function applyAll() {
   applyTheme();
-  for (const t of tabs) { t.wys.setAttribute('dir', settings.baseDir); t.src.setAttribute('dir', settings.baseDir); }
+  for (const t of tabs) applyTabDir(t);
   document.documentElement.setAttribute('spellcheck', settings.spellcheck ? 'true' : 'false');
   for (const t of tabs) applySpell(t);
   api.setSpellcheck(!!settings.spellcheck);
@@ -1463,14 +1704,14 @@ function updateStatusLine() {
 const EXTENSIONS = [
   { key: 'extColor', name: 'رنگ متن و پس‌زمینه', builtin: true, icon: ICON.palette, color: '#D6407F',
     hint: 'رنگ در فایل با تگ HTML ذخیره می‌شود و در خروجی HTML و PDF می‌ماند', details: true },
-  { key: 'spellcheck', name: 'غلط‌یابی املایی', icon: ICON.tickSquare, color: '#2FA84F', hint: 'خط زیر کلمه‌های نادرست و پیشنهاد در راست‌کلیک' },
+  { key: 'spellcheck', name: 'غلط‌یابی املایی', tag: 'فقط انگلیسی', icon: ICON.tickSquare, color: '#2FA84F', hint: 'خط زیر کلمه‌های نادرست و پیشنهاد در راست‌کلیک' },
 ];
 function extRow(x, sw) {
   const on = () => (x.key === 'extColor' ? settings.extColor !== false : !!settings[x.key]);
   const toggleBtn = sw(on, () => updateSettings({ [x.key]: !on() }), x.name);
   const row = el('div', { class: 'ex', 'data-s': x.name + ' ' + x.hint + ' افزونه' },
     el('span', { class: 'sq', style: `background:${x.color}`, html: x.icon }),
-    el('span', { class: 'nm' }, el('b', {}, x.name, x.builtin ? el('span', { class: 'pill' }, 'پیش‌فرض') : null), el('small', {}, x.hint)));
+    el('span', { class: 'nm' }, el('b', {}, x.name, x.builtin ? el('span', { class: 'pill' }, 'پیش‌فرض') : null, x.tag ? el('span', { class: 'pill' }, x.tag) : null), el('small', {}, x.hint)));
   if (!x.details) { if (x.keyHint) row.append(kbd(x.keyHint)); row.append(toggleBtn); return row; }
   const sw2 = (list, text) => el('span', { class: 'ex-sw' }, list.map((c) => el('span', { class: 'sw' + (text ? '' : ' bg'), title: c.name, style: text ? `color:${c.c}` : `background:${c.c}` }, text ? 'آ' : '')));
   const details = el('div', { class: 'xd', hidden: true },
@@ -1488,7 +1729,7 @@ const THEME_SWATCH = { light: ['#ffffff', '#1d1d1f'], dark: ['#1e1f22', '#dcdde1
 const PAGE_WIDTHS = [[720, 'باریک'], [860, 'متوسط'], [1040, 'پهن']];
 const KEY_LIST = [
   [['سند تازه', 'Ctrl+T'], ['پنجره‌ی جدید', 'Ctrl+N'], ['باز کردن', 'Ctrl+O'], ['باز کردن سریع', 'Ctrl+P'], ['باز کردن پوشه', 'Ctrl+Shift+O'], ['ذخیره', 'Ctrl+S'], ['ذخیره با نام', 'Ctrl+Shift+S'], ['ذخیره‌ی همه', 'Ctrl+Alt+S'],
-    ['بستن تب', 'Ctrl+W'], ['بازکردن تب بسته‌شده', 'Ctrl+Shift+T'], ['تب بعدی', 'Ctrl+Tab'], ['تاریخچه‌ی نسخه‌ها', 'Ctrl+Shift+H'], ['تنظیمات', 'Ctrl+,'], ['تمام‌صفحه', 'F11']],
+    ['بستن تب', 'Ctrl+W'], ['بازکردن تب بسته‌شده', 'Ctrl+Shift+T'], ['تغییر نام تب', 'F2'], ['تب بعدی', 'Ctrl+Tab'], ['تاریخچه‌ی نسخه‌ها', 'Ctrl+Shift+H'], ['تنظیمات', 'Ctrl+,'], ['تمام‌صفحه', 'F11']],
   [['جستجو', 'Ctrl+F'], ['جایگزینی', 'Ctrl+H'], ['چسباندن متن ساده', 'Ctrl+Shift+V'], ['خط‌خورده', 'Alt+Shift+5'], ['منوی درج بلوک', '/'], ['باز کردن لینک', 'Ctrl+کلیک'], ['کد منبع', 'Ctrl+/'], ['نوار کناری', 'Ctrl+Shift+L'],
     ['سرفصل‌ها', 'Ctrl+Shift+1'], ['حالت امن', 'F8'], ['بزرگ‌نمایی', 'Ctrl+='], ['کوچک‌نمایی', 'Ctrl+-'], ['اندازه‌ی واقعی', 'Ctrl+0']],
 ];
@@ -1496,20 +1737,25 @@ let settingsOpen = null;
 async function openSettings(section = 'look') {
   if (typeof section !== 'string') section = 'look';
   if (settingsOpen) { settingsOpen(section); return; }
-  customThemes = await api.customThemes();
-  const sys = await loadSystemFonts();
+  // open at once: the Windows font list (slow the first time) and custom themes fill in when they arrive
+  const sysP = loadSystemFonts();
+  api.customThemes().then((list) => { if (JSON.stringify(list) !== JSON.stringify(customThemes)) { customThemes = list; paintThemes(); } }).catch(() => {});
 
   // --- small controls ---
-  const row = (label, hint, control, tall) => el('div', { class: 'row' + (hint || tall ? ' tw' : ''), 'data-s': label + ' ' + (hint || '') },
-    el('span', {}, label, hint ? el('small', {}, hint) : null), control);
+  // a label may carry a small tag after it: 'غلط‌یابی املایی|فقط انگلیسی'
+  const row = (label, hint, control, tall) => {
+    const [text, tag] = String(label).split('|');
+    return el('div', { class: 'row' + (hint || tall ? ' tw' : ''), 'data-s': text + ' ' + (tag || '') + ' ' + (hint || '') },
+      el('span', {}, text, tag ? el('span', { class: 'pill' }, tag) : null, hint ? el('small', {}, hint) : null), control);
+  };
   const sw = (get, set, label) => {
     const b = el('button', { class: 'tg big' + (get() ? ' on' : ''), role: 'switch', 'aria-checked': String(!!get()), 'aria-label': label });
     b.addEventListener('click', async () => { await set(!get()); const on = !!get(); b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
     return b;
   };
-  const toggle = (key, label, hint, key2) => row(label, hint, key2
-    ? el('span', { class: 'row-end' }, kbd(key2), sw(() => settings[key], () => updateSettings({ [key]: !settings[key] }), label))
-    : sw(() => settings[key] !== false && !!settings[key], () => updateSettings({ [key]: !settings[key] }), label));
+  const toggle = (key, label, hint, key2) => { const name = String(label).split('|')[0]; return row(label, hint, key2
+    ? el('span', { class: 'row-end' }, kbd(key2), sw(() => settings[key], () => updateSettings({ [key]: !settings[key] }), name))
+    : sw(() => settings[key] !== false && !!settings[key], () => updateSettings({ [key]: !settings[key] }), name)); };
   const seg = (opts, get, set) => {
     const box = el('div', { class: 'sg' });
     const paint = () => box.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === String(get())));
@@ -1524,9 +1770,18 @@ async function openSettings(section = 'look') {
   };
   const clampSet = (key, stepBy, min, max) => (d) => updateSettings({ [key]: Math.round(Math.min(max, Math.max(min, settings[key] + d * stepBy)) * 100) / 100 });
   const fontSel = (key, first) => {
+    const own = [first || FONTS[0], ...FONTS.slice(1)];
     const sel = el('select', { class: 'set-select', 'aria-label': 'فونت' },
-      el('optgroup', { label: 'فونت‌های برنامه' }, [first || FONTS[0], ...FONTS.slice(1)].map((f) => el('option', { value: f.id, selected: f.id === settings[key] }, f.name))),
-      sys.length ? el('optgroup', { label: 'فونت‌های ویندوز' }, sys.map((f) => el('option', { value: f, selected: f === settings[key] }, f))) : null);
+      el('optgroup', { label: 'فونت‌های برنامه' }, own.map((f) => el('option', { value: f.id, selected: f.id === settings[key] }, f.name))));
+    // a Windows font that is already chosen shows right away; the full list follows
+    if (settings[key] && !own.some((f) => f.id === settings[key])) sel.append(el('option', { value: settings[key], selected: true }, settings[key]));
+    sysP.then((sys) => {
+      if (!sys.length) return;
+      const cur = sel.value;
+      sel.querySelectorAll(':scope > option').forEach((o) => o.remove());
+      sel.append(el('optgroup', { label: 'فونت‌های ویندوز' }, sys.map((f) => el('option', { value: f }, f))));
+      sel.value = cur;
+    });
     sel.addEventListener('change', () => { updateSettings({ [key]: sel.value }); paintPreview(); });
     return sel;
   };
@@ -1603,7 +1858,7 @@ async function openSettings(section = 'look') {
         toggle('plainAfterPaste', 'تایپ معمولی بعد از چسباندن', 'سبک متن چسبانده‌شده به نوشته‌ی بعدی نمی‌رسد'),
         row('جهت پیش‌فرض متن', null, seg([['rtl', 'راست‌به‌چپ'], ['ltr', 'چپ‌به‌راست']], () => settings.baseDir, (v) => updateSettings({ baseDir: v })))),
       label('ابزارها'), group(
-        toggle('spellcheck', 'غلط‌یابی املایی'),
+        toggle('spellcheck', 'غلط‌یابی املایی|فقط انگلیسی'),
         row('حالت امن', 'فایل فقط خواندنی می‌شود، برای هر فایل جدا', el('span', { class: 'row-end' }, kbd('F8'),
           sw(lockNow, () => { const a = active(); if (a) setLocked(a, !a.locked, true); }, 'حالت امن')))),
     ] },
@@ -1761,7 +2016,7 @@ function openMainMenu(anchor) {
     { icon: ICON.code, label: 'کد منبع', key: 'Ctrl+/', switch: () => !!(active() && active().mode === 'source'), run: toggleSource },
     { icon: ICON.lock, label: 'حالت امن', key: 'F8', switch: () => !!(active() && active().locked), run: () => { const a = active(); if (a) setLocked(a, !a.locked); } },
     { icon: ICON.tickSquare, label: 'غلط‌یابی املایی', switch: () => !!settings.spellcheck, run: () => toggleSetting('spellcheck') },
-    { icon: ICON.pin, label: 'همیشه روی پنجره‌ها', switch: () => document.body.classList.contains('on-top'), run: toggleOnTop },
+    { icon: ICON.pin, label: 'همیشه روی پنجره‌ها', switch: () => onTop(), run: () => setWindowOnTop(!onTop()) },
     { icon: ICON.zoom, label: 'بزرگ‌نمایی', stepper: { value: () => `${fa(Math.round((settings.zoom || 1) * 100))}٪`, up: () => zoomBy(1), down: () => zoomBy(-1) } },
     'sep',
     { icon: ICON.palette, label: 'ظاهر', sub: [
@@ -1968,7 +2223,7 @@ async function doExport(kind) {
   if (t.mode === 'source') setMode(t, 'wysiwyg');
   const name = (t.path ? basename(t.path) : suggestedName(t)).replace(/\.[^.]+$/, '');
   try {
-    const out = await exportDocument({ kind, layout, html: getEditorHTML(t.crepe), title: name, baseDir: settings.baseDir, docPath: t.path });
+    const out = await exportDocument({ kind, layout, html: getEditorHTML(t.crepe), title: name, baseDir: tabDir(t), docPath: t.path });
     if (out) toast('خروجی ساخته شد: ' + basename(out), 8000, [
       { label: 'باز کردن فایل', run: () => api.openExternal(out) },
       { label: 'نمایش در پوشه', run: () => api.reveal(out) },
@@ -2229,6 +2484,34 @@ document.addEventListener('copy', (e) => {
   e.clipboardData.setData('text/html', getEditorHTML(t.crepe));
   toast('کل متن کپی شد', 'ok');
 }, true);
+/**
+ * Markdown keeps an empty line typed with Enter as «<br />». That is right inside a .md file, but
+ * pasted into Telegram or any chat it shows up as literal text: the copied plain text gets real line breaks.
+ */
+export function plainForClipboard(md) {
+  const BR = /^[ \t]*<br\s*\/?>[ \t]*$/i;
+  const parts = String(md).split(/(\n{2,})/); // blocks, with the blank lines between them kept as they are
+  let out = '';
+  let sep = '';
+  let extra = 0; // empty paragraphs between two blocks: one more blank line each
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2) { sep = parts[i]; continue; }
+    const block = parts[i];
+    if (BR.test(block)) { extra++; continue; }
+    if (out) out += sep + '\n'.repeat(extra);
+    extra = 0;
+    out += block.replace(/[ \t]*<br\s*\/?>[ \t]*/gi, '\n');
+  }
+  return out;
+}
+for (const ev of ['copy', 'cut']) {
+  document.addEventListener(ev, (e) => {
+    if (!e.clipboardData || !e.target || !e.target.closest || !e.target.closest('.milkdown')) return;
+    if (e.target.closest('.cm-editor')) return; // code blocks copy their own text as it is
+    const text = e.clipboardData.getData('text/plain');
+    if (text && /<br\s*\/?>/i.test(text)) e.clipboardData.setData('text/plain', plainForClipboard(text));
+  });
+}
 function isTypingField() {
   const a = document.activeElement;
   return !!(a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT')) || !!document.querySelector('.overlay');
@@ -2294,7 +2577,7 @@ let sessionT = null;
 function saveSessionSoon() { clearTimeout(sessionT); sessionT = setTimeout(saveSession, 800); }
 function saveSession() {
   if (winRole !== 'main') return Promise.resolve();
-  const list = tabs.filter((t) => t.path).map((t) => ({ path: t.path, mode: t.mode, group: t.groupId || null }));
+  const list = tabs.filter((t) => t.path).map((t) => ({ path: t.path, mode: t.mode, group: t.groupId || null, dir: t.dir || null }));
   const used = new Set(list.map((x) => x.group).filter(Boolean));
   const a = active();
   return api.setSession({ tabs: list, active: a && a.path ? a.path : null, groups: [...groups.values()].filter((g) => used.has(g.id)) });
@@ -2315,6 +2598,7 @@ function onKey(e) {
   if (ctrl && !e.shiftKey && !e.altKey && e.code === 'KeyA' && t && !isTypingField()) { handled(); selectAllDoc(t); return; }
   if (e.altKey && !ctrl && !e.shiftKey && code === 'KeyH' && t && t.mode === 'wysiwyg' && settings.extColor !== false) { handled(); applyLastColor(t); return; }
   if (e.key === 'F11') { handled(); api.fullscreen(); return; }
+  if (e.key === 'F2' && !ctrl && !e.altKey && t && !isTypingField()) { handled(); startRename(t); return; }
   if (e.key === 'F12' || (ctrl && e.shiftKey && code === 'KeyI')) { handled(); api.devtools(); return; }
   if (t && t.mode === 'wysiwyg' && t.wys.contains(document.activeElement) && !document.activeElement.closest('.cm-editor')) {
     if (handleTableKey(t.crepe, e)) { handled(); return; }
@@ -2429,9 +2713,14 @@ export async function start() {
   const startupFiles = Array.isArray(rd) ? rd : rd.files;
   winRole = (rd && rd.role) || 'main';
   if (rd && rd.alwaysOnTop) { document.body.classList.add('on-top'); }
+  paintPin();
   api.info().then((i) => { appInfo = i; }).catch(() => {});
   if (api.onUpdateState) { api.onUpdateState((u) => onUpdateState(u)); api.updateState().then((u) => onUpdateState(u, true)).catch(() => {}); }
-  api.onReceiveTab((p) => receiveTabs(p));
+  api.onReceiveTab((p, at) => receiveTabs(p, at));
+  api.onDragHover((p) => onDragHover(p));
+  api.onMergeInto((m) => mergeInto(m));
+  api.onDragDone(() => { windowDrag = false; document.body.classList.remove('tab-drop'); clearDropMarks(); });
+  if (rd && rd.dragging) windowDrag = true;
   api.onSetRole((r) => { winRole = r; saveSession(); });
   if (winRole !== 'main') {
     await receiveTabs(rd.payload || []);
@@ -2441,7 +2730,7 @@ export async function start() {
       for (const g of s.groups || []) groups.set(g.id, { ...g });
       for (const st of s.tabs) {
         const ex = await api.stat(st.path);
-        if (ex.exists) await openPath(st.path, { activate: false }).then((t) => { if (!t) return; if (st.mode === 'source') setMode(t, 'source'); if (st.group && groups.has(st.group)) t.groupId = st.group; });
+        if (ex.exists) await openPath(st.path, { activate: false }).then((t) => { if (!t) return; if (st.mode === 'source') setMode(t, 'source'); if (st.group && groups.has(st.group)) t.groupId = st.group; if (st.dir) { t.dir = st.dir; applyTabDir(t); } });
       }
       renderTabs();
       const a = tabs.find((t) => samePath(t.path, s.active));
@@ -2451,9 +2740,16 @@ export async function start() {
   const drafts = winRole === 'main' ? await api.draftList() : [];
   for (const d of drafts) {
     if (!d.content.trim()) { api.draftDelete(d.id); continue; }
-    const t = await newTab({ content: d.content, draftId: d.id, activate: false });
+    const meta = (settings.draftMeta || {})[d.id] || {};
+    const t = await newTab({ content: d.content, draftId: d.id, activate: false, dir: meta.dir, title: meta.title });
     t.baseline = '';
     t.dirty = true;
+  }
+  if (winRole === 'main' && settings.draftMeta) {
+    // forget titles and directions of drafts that no longer exist
+    const keep = new Set(drafts.map((d) => d.id));
+    const meta = Object.fromEntries(Object.entries(settings.draftMeta).filter(([id]) => keep.has(id)));
+    if (Object.keys(meta).length !== Object.keys(settings.draftMeta).length) { settings.draftMeta = meta; persistSettings(); }
   }
   if (drafts.length) { renderTabs(); toast(`${fa(drafts.length)} پیش‌نویس ذخیره‌نشده بازیابی شد`); }
   for (const f of startupFiles || []) await openPath(f);
@@ -2465,6 +2761,9 @@ export async function start() {
   if (!settings.welcomed) { settings.welcomed = true; persistSettings(); }
   if (!settings.logoChosen && winRole === 'main') setTimeout(() => openLogoPicker(true), 400);
   applyAll();
+  api.booted();
+  // warm up what Settings needs, so its first opening is instant
+  (window.requestIdleCallback || setTimeout)(() => loadSystemFonts(), { timeout: 3000 });
 }
 
 const WELCOME = `# به Fedo خوش آمدید

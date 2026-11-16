@@ -642,3 +642,63 @@ body.no-ext-color .milkdown-toolbar [data-toolbar-item='nv-color'] { display: no
 .up-acts .hb:disabled { opacity: 0.6; cursor: default; }
 .up-bar { width: 150px; height: 6px; border-radius: 999px; background: var(--ctl); overflow: hidden; }
 .up-bar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.3s; }
+
+/* ---------- insert-block menu («/»): the same popover as the app's own menus ---------- */
+.milkdown .milkdown-slash-menu {
+  font-family: var(--font-ui); font-size: 13px; color: var(--fg); direction: rtl; width: 264px;
+  background: var(--pop); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--sh-pop); padding: 8px; user-select: none;
+}
+.milkdown .milkdown-slash-menu ul { margin: 0; padding: 0; }
+.milkdown .milkdown-slash-menu .tab-group { border: 0; padding: 0; margin-bottom: 6px; }
+.milkdown .milkdown-slash-menu .tab-group ul { display: flex; gap: 0; padding: 3px; background: var(--ctl); border-radius: 999px; }
+.milkdown .milkdown-slash-menu .tab-group ul li { flex: 1; height: 26px; padding: 0 8px; border-radius: 999px; display: grid; place-items: center; font-size: 12.5px; font-weight: 500; line-height: 1; color: var(--muted); white-space: nowrap; transition: background-color 0.12s; }
+.milkdown .milkdown-slash-menu .tab-group ul li:hover { background: transparent; color: var(--fg); }
+.milkdown .milkdown-slash-menu .tab-group ul li.selected { background: var(--ctl-2); color: var(--fg); box-shadow: var(--sh); font-weight: 600; }
+.milkdown .milkdown-slash-menu .menu-groups { padding: 0; max-height: min(380px, 52vh); scrollbar-width: none; }
+.milkdown .milkdown-slash-menu .menu-groups::-webkit-scrollbar { width: 0; }
+.milkdown .milkdown-slash-menu .menu-groups .menu-group h6 { font-size: 11.5px; font-weight: 700; line-height: 1.4; color: var(--muted); padding: 8px 10px 4px; margin: 0; text-transform: none; }
+.milkdown .milkdown-slash-menu .menu-groups .menu-group + .menu-group::before { background: var(--line); margin: 5px 10px; }
+.milkdown .milkdown-slash-menu .menu-groups .menu-group li { min-width: 0; height: 34px; padding: 0 10px; gap: 10px; border-radius: 9px; white-space: nowrap; }
+.milkdown .milkdown-slash-menu .menu-groups .menu-group li.hover { background: var(--sel); }
+.milkdown .milkdown-slash-menu .menu-groups .menu-group li.active { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.milkdown .milkdown-slash-menu .menu-groups .menu-group li > span:not(.milkdown-icon) { font-size: 13px; font-weight: 500; line-height: 1; }
+.milkdown .milkdown-slash-menu .menu-groups .menu-group li .milkdown-icon { display: grid; place-items: center; width: 18px; height: 18px; color: var(--muted); flex: none; }
+.milkdown .milkdown-slash-menu .menu-groups .menu-group li.hover .milkdown-icon { color: var(--accent); }
+.milkdown .milkdown-slash-menu .menu-groups .menu-group li svg { width: 18px; height: 18px; fill: none; color: inherit; }
+
+/* ---------- top bar: always-on-top pin ---------- */
+#btn-pin.on { background: var(--accent); color: var(--accent-fg); }
+#btn-pin.on:hover { background: color-mix(in srgb, var(--accent) 88%, #000); }
+
+/* ---------- renaming a tab in place ---------- */
+.tab.renaming { background: var(--ctl-2); box-shadow: 0 0 0 2px var(--accent); padding-inline: 4px; cursor: text; }
+.tab.renaming::before, .tab.renaming::after { display: none; }
+.tab .t-rename { flex: 1; min-width: 120px; max-width: 220px; width: 160px; height: 26px; border: 0; border-radius: 999px; padding-inline: 10px; font: 600 13px var(--font-ui); color: var(--fg); background: var(--sel); outline: none; }
+#vtabs-list .tab .t-rename { max-width: none; width: 100%; }
+
+/* ---------- dragging tabs (in the bar, out to a window, between windows) ---------- */
+.tab.dragging { opacity: 0.45; }
+body.tab-dragging, body.tab-dragging * { cursor: grabbing !important; }
+body.tab-drop #tabstrip, body.tab-drop #vtabs { background: var(--sel); box-shadow: 0 0 0 2px var(--accent); }
+
+/* ---------- save window: folder reads left-to-right, outputs sit on the left, modern format cards ---------- */
+.sv-folder { direction: ltr; padding-inline: 12px 6px; }
+.sv-folder .sv-path { text-align: left; font: 500 13px 'Segoe UI', 'Vazirmatn', system-ui, sans-serif; }
+.sv-folder .hb { direction: rtl; }
+.sv-outs { justify-content: flex-end; }
+.sv-formats { gap: 10px; }
+.sv-fmt { height: 96px; border-radius: 14px; background: var(--sheet); border: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); padding: 12px 12px 10px; align-items: flex-start; justify-content: space-between; gap: 0; text-align: start; transition: box-shadow 0.15s, border-color 0.15s, transform 0.15s; }
+.sv-fmt:hover { border-color: color-mix(in srgb, var(--fg) 12%, transparent); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08); transform: translateY(-1px); }
+.sv-fmt.on { border-color: var(--accent); background: var(--sheet); box-shadow: 0 0 0 3px var(--sel); }
+.sv-fmt .ft { width: 30px; height: 36px; display: block; }
+.sv-fmt .nm { display: flex; flex-direction: column; line-height: 1.35; }
+.sv-fmt .nm b { font-weight: 600; font-size: 13px; }
+.sv-fmt.on .nm b { font-weight: 700; }
+.sv-fmt .nm small { font: 500 11.5px 'Segoe UI', system-ui, sans-serif; color: var(--muted); direction: ltr; text-align: start; }
+.sv-fmt .ck { top: 10px; inset-inline-end: 10px; width: 20px; height: 20px; border-radius: 999px; transition: background-color 0.15s, border-color 0.15s; }
+@media (max-width: 560px) { .sv-fmt { height: 84px; } }
+.sv-fmt .ft-w { display: grid; line-height: 0; }
+/* insertion mark on the side the tab will land (the bar runs right to left) */
+#tabs .tab.drag-over { box-shadow: inset -3px 0 0 var(--accent); }
+#tabs .tab.drag-over-after { box-shadow: inset 3px 0 0 var(--accent); }
+.sv-out b { unicode-bidi: isolate; }

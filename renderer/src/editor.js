@@ -4,6 +4,7 @@ import { autoPair, pairBackspace, pasteBehaviour, ltrIslands } from './typing.js
 import { pmSearchPlugin, cmSearchExtension } from './search.js';
 import { tableCellSchema, tableHeaderSchema } from '@milkdown/kit/preset/gfm';
 import { textColorPlugins } from './textcolor.js';
+import { ICON } from './ui.js';
 
 // Table cells with no alignment follow their text direction (right for Persian) instead of
 // being forced to "left"; an alignment picked by the user is kept and written to the file.
@@ -228,14 +229,15 @@ function renderMermaid(content, apply) {
 
 const COLOR_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><text x="12" y="15.5" text-anchor="middle" font-size="15" font-weight="800" fill="currentColor" font-family="Vazirmatn, sans-serif">آ</text><rect x="5" y="18.5" width="14" height="3" rx="1.5" fill="var(--nv-last-color, #D93A3A)"/></svg>';
 
+// the slash menu («/») uses the same Iconly Light outlines as the rest of the app
 const FA = {
   placeholder: 'بنویسید… برای درج بلوک، / را بزنید',
   textGroup: {
-    label: 'متن', text: { label: 'متن ساده' }, h1: { label: 'تیتر ۱' }, h2: { label: 'تیتر ۲' }, h3: { label: 'تیتر ۳' },
-    h4: { label: 'تیتر ۴' }, h5: { label: 'تیتر ۵' }, h6: { label: 'تیتر ۶' }, quote: { label: 'نقل‌قول' }, divider: { label: 'خط جداکننده' },
+    label: 'متن', text: { label: 'متن ساده', icon: ICON.paragraph }, h1: { label: 'تیتر ۱', icon: ICON.h1 }, h2: { label: 'تیتر ۲', icon: ICON.h2 }, h3: { label: 'تیتر ۳', icon: ICON.h3 },
+    h4: { label: 'تیتر ۴', icon: ICON.h4 }, h5: { label: 'تیتر ۵', icon: ICON.h5 }, h6: { label: 'تیتر ۶', icon: ICON.h6 }, quote: { label: 'نقل‌قول', icon: ICON.quote }, divider: { label: 'خط جداکننده', icon: ICON.hr },
   },
-  listGroup: { label: 'فهرست', bulletList: { label: 'فهرست نقطه‌ای' }, orderedList: { label: 'فهرست شماره‌دار' }, taskList: { label: 'فهرست کارها' } },
-  advancedGroup: { label: 'پیشرفته', image: { label: 'تصویر' }, codeBlock: { label: 'بلوک کد' }, table: { label: 'جدول' }, math: { label: 'فرمول ریاضی' } },
+  listGroup: { label: 'فهرست', bulletList: { label: 'فهرست نقطه‌ای', icon: ICON.ul }, orderedList: { label: 'فهرست شماره‌دار', icon: ICON.ol }, taskList: { label: 'فهرست کارها', icon: ICON.tickSquare } },
+  advancedGroup: { label: 'پیشرفته', image: { label: 'تصویر', icon: ICON.image }, codeBlock: { label: 'بلوک کد', icon: ICON.code }, table: { label: 'جدول', icon: ICON.table }, math: { label: 'فرمول ریاضی', icon: ICON.formula } },
 };
 
 /**
