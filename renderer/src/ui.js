@@ -202,6 +202,13 @@ function buildMenu(items, level, detached = false) {
       m.append(el('div', { class: 'mh' }, w.label), row);
       continue;
     }
+    if (it.panel) {
+      // a custom panel (e.g. the emoji picker) filling the whole menu
+      m.classList.add('panel-menu');
+      if (it.className) m.classList.add(it.className);
+      m.append(it.panel());
+      continue;
+    }
     if (it.grid) {
       const g = el('div', { class: 'mgrid' });
       for (const b of it.grid) {

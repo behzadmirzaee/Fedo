@@ -11,6 +11,7 @@ import { openEditorMenu, handleTableKey } from './context.js';
 import { typingOpts } from './typing.js';
 import { applyColor, openColorPanel } from './context.js';
 import { TEXT_COLORS, BG_COLORS } from './textcolor.js';
+import { DEFAULT_PINS } from './emoji.js';
 const LOGOS = Object.entries(import.meta.glob('../logos/*.png', { eager: true, query: '?url', import: 'default' }))
   .map(([k, url]) => ({ id: k.match(/(\w+)\.png$/)[1], url })).sort((a, b) => a.id.localeCompare(b.id));
 import { buildRegex, pmEngine, cmEngine, pmCollectEdits, pmApplyEdits, PRESETS } from './search.js';
@@ -247,7 +248,7 @@ async function newTab({ path = null, content = '', activate = true, mode = 'wysi
       ], e.clientX, e.clientY);
       return;
     }
-    openEditorMenu(t.crepe, e.clientX, e.clientY, { insertImage: () => insertImageFromDisk(t), edit: (op) => api.edit(op), color: colorTools(t) });
+    openEditorMenu(t.crepe, e.clientX, e.clientY, { insertImage: () => insertImageFromDisk(t), edit: (op) => api.edit(op), color: colorTools(t), emoji: emojiTools() });
   });
   // block paste / drop into a locked document
   for (const ev of ['paste', 'drop', 'cut']) {
@@ -883,6 +884,16 @@ function stripMenu(x, y) {
   ], x, y);
 }
 
+// ---------- emoji in the right-click menu: pinned ones on top, the last used ones remembered ----------
+function emojiTools() {
+  return {
+    pins: () => settings.emojiPins || DEFAULT_PINS,
+    recent: () => settings.emojiRecent || [],
+    setPins: (list) => { settings.emojiPins = list; persistSettings(); },
+    used: (e) => { settings.emojiRecent = [e, ...(settings.emojiRecent || []).filter((x) => x !== e)].slice(0, 16); persistSettings(); },
+  };
+}
+
 // ---------- built-in extension: text colour ----------
 function colorTools(t) {
   return {
@@ -910,7 +921,7 @@ async function copyWholeDoc() {
   const md = plainForClipboard(t.mode === 'source' && t.cm ? t.cm.state.doc.toString() : t.md);
   if (!md.trim()) { toast('سند خالی است'); return; }
   try {
-    const html = t.mode === 'source' ? null : getEditorHTML(t.crepe);
+    const html = t.mode === 'source' ? null : htmlForClipboard(getEditorHTML(t.crepe));
     if (html && window.ClipboardItem) {
       await navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob([md], { type: 'text/plain' }), 'text/html': new Blob([html], { type: 'text/html' }) })]);
     } else await navigator.clipboard.writeText(md);
@@ -1059,8 +1070,10 @@ const SAVE_FORMATS = [
   { ext: 'html', label: 'صفحه‌ی وب', sub: '.html', tag: 'HTML', color: '#D9730D' },
   { ext: 'pdf', label: 'PDF', sub: '.pdf', tag: 'PDF', color: '#D93A3A' },
 ];
-/** a small file sheet with the format written on it, tinted in the format's colour */
-const fileGlyph = (f) => `<svg class="ft" viewBox="0 0 30 36" aria-hidden="true"><path d="M4 1.5h14.5l9 9V31a3.5 3.5 0 0 1-3.5 3.5H4A3.5 3.5 0 0 1 .5 31V5A3.5 3.5 0 0 1 4 1.5z" fill="${f.color}" fill-opacity=".1" stroke="${f.color}" stroke-width="1.3"/><path d="M18.5 1.5V7a3.5 3.5 0 0 0 3.5 3.5h5.5" fill="none" stroke="${f.color}" stroke-width="1.3"/><text x="14" y="27" text-anchor="middle" font-size="7.5" font-weight="700" fill="${f.color}" font-family="Segoe UI, system-ui, sans-serif">${f.tag}</text></svg>`;
+/** a small white file sheet outlined in the format's colour, with the format written on it */
+const fileGlyph = (f) => el('span', { class: 'fg', 'aria-hidden': 'true' },
+  el('span', { html: `<svg class="ft" viewBox="0 0 30 36"><path d="M4 1.5h14.5l9 9V31a3.5 3.5 0 0 1-3.5 3.5H4A3.5 3.5 0 0 1 .5 31V5A3.5 3.5 0 0 1 4 1.5z" fill="#fff" stroke="${f.color}" stroke-width="1.3"/><path d="M18.5 1.5V7a3.5 3.5 0 0 0 3.5 3.5h5.5" fill="none" stroke="${f.color}" stroke-width="1.3"/></svg>` }),
+  el('span', { class: 'tag', style: `color:${f.color}` }, f.tag));
 /** Jalali date + time with Latin digits, safe for file names: 1405-08-18_14-30 */
 function timeStamp(d = new Date()) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US-u-ca-persian-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d).map((x) => [x.type, x.value]));
@@ -1102,17 +1115,37 @@ function saveModal(t, as) {
     inp.placeholder = 'File name';
     const tail = el('span', { class: 'sv-tail', dir: 'ltr' });
     const nameBox = el('label', { class: 'sv-field', for: 'sv-name' }, inp, tail);
+    // «تاریخ و ساعت» on the right, the ready-made names in the middle (filling toward the left, up to three
+    // lines), the edit button always at the top left
     const chips = el('div', { class: 'sv-chips' });
+    const names = el('div', { class: 'sv-names' });
     const stampBtn = el('button', { class: 'sv-chip sv-stamp', title: 'تاریخ و ساعت به آخر نام اضافه می‌شود تا نام تکراری نشود', 'aria-pressed': 'false',
       onclick: () => { stamp = !stamp; paint(); inp.focus(); } }, el('span', { class: 'ic', html: ICON.clock }), el('span', {}, 'تاریخ و ساعت'));
+    const editBtn = el('button', { class: 'sv-chip icon sv-edit', title: 'ویرایش نام‌های آماده', 'aria-label': 'ویرایش نام‌های آماده', html: ICON.edit,
+      onclick: async () => { ov.style.visibility = 'hidden'; await editNamePresets(); ov.style.visibility = ''; renderChips(); inp.focus(); } });
+    chips.append(stampBtn, names, editBtn);
+    let showAll = false;
     const renderChips = () => {
-      chips.innerHTML = '';
-      for (const n of settings.namePresets || DEFAULT_NAME_PRESETS) {
-        chips.append(el('button', { class: 'sv-chip', dir: 'auto', onclick: () => { inp.value = n; inp.focus(); paint(); } }, n));
-      }
-      chips.append(el('button', { class: 'sv-chip icon', title: 'ویرایش نام‌های آماده', 'aria-label': 'ویرایش نام‌های آماده', html: ICON.edit,
-        onclick: async () => { ov.style.visibility = 'hidden'; await editNamePresets(); ov.style.visibility = ''; renderChips(); inp.focus(); } }));
-      chips.append(el('span', { class: 'grow' }), stampBtn);
+      names.innerHTML = '';
+      const list = settings.namePresets || DEFAULT_NAME_PRESETS;
+      const btns = list.map((n) => el('button', { class: 'sv-chip', dir: 'auto', onclick: () => { inp.value = n; inp.focus(); paint(); } }, n));
+      names.append(...btns);
+      if (showAll) return;
+      requestAnimationFrame(() => {
+        const rows = () => new Set(btns.filter((b) => !b.hidden).map((b) => b.offsetTop).concat(more.isConnected ? [more.offsetTop] : [])).size;
+        const more = el('button', { class: 'sv-chip sv-more', onclick: () => { showAll = true; renderChips(); } });
+        if (rows() <= 3) return;
+        const tops = [...new Set(btns.map((b) => b.offsetTop))].sort((a, b) => a - b);
+        btns.forEach((b) => { if (b.offsetTop > tops[2]) b.hidden = true; });
+        names.append(more);
+        const hiddenCount = () => btns.filter((b) => b.hidden).length;
+        more.textContent = `${fa(hiddenCount())} نام دیگر`;
+        for (let i = btns.length - 1; i >= 0 && rows() > 3; i--) {
+          if (btns[i].hidden) continue;
+          btns[i].hidden = true;
+          more.textContent = `${fa(hiddenCount())} نام دیگر`;
+        }
+      });
     };
     renderChips();
 
@@ -1125,7 +1158,7 @@ function saveModal(t, as) {
       fmts.append(el('button', { class: 'sv-fmt', role: 'checkbox', 'data-ext': f.ext, onclick: () => {
         if (picked.has(f.ext)) { if (picked.size > 1) picked.delete(f.ext); else { toast('دست‌کم یک قالب لازم است', 'info'); return; } } else picked.add(f.ext);
         paint();
-      } }, el('span', { class: 'ck', html: ICON.check }), el('span', { class: 'ft-w', html: fileGlyph(f) }), el('span', { class: 'nm' }, el('b', {}, f.label), el('small', { dir: 'ltr' }, f.sub))));
+      }, title: f.sub }, el('span', { class: 'ck', html: ICON.check }), fileGlyph(f), el('span', { class: 'nm' }, f.label)));
     }
     const layout = { v: settings.pdfLayout || 'continuous' };
     const pdfSeg = el('div', { class: 'sg' });
@@ -1150,8 +1183,9 @@ function saveModal(t, as) {
       const n = picked.size;
       const docKind = order().find((x) => SAVE_KINDS.has(x));
       okBtn.textContent = n > 1 ? `ذخیره‌ی ${fa(n)} فایل` : docKind ? 'ذخیره' : 'ساخت خروجی';
-      summary.textContent = !docKind ? 'فقط خروجی ساخته می‌شود؛ خود سند همین‌جا باز می‌ماند.'
-        : n > 1 ? `سند به‌صورت ${docKind === 'md' ? 'Markdown' : 'متن ساده'} ذخیره می‌شود و ${plural(n - 1, 'یک فایل دیگر', 'فایل دیگر')} کنارش ساخته می‌شود.` : '';
+      summary.textContent = !docKind ? 'فقط خروجی؛ سند همین‌جا باز می‌ماند'
+        : n > 1 ? `${docKind === 'md' ? 'Markdown' : 'متن ساده'}، به‌همراه ${fa(n - 1)} فایل دیگر` : '';
+      summary.title = summary.textContent;
       okBtn.disabled = !cleanName(inp.value) || !folder;
     }
     const done = (v) => { ov.remove(); document.removeEventListener('keydown', onKey, true); resolve(v); };
@@ -2481,7 +2515,7 @@ document.addEventListener('copy', (e) => {
   if (!all) return;
   e.preventDefault();
   e.clipboardData.setData('text/plain', v.state.doc.textBetween(0, v.state.doc.content.size, '\n\n', ' '));
-  e.clipboardData.setData('text/html', getEditorHTML(t.crepe));
+  e.clipboardData.setData('text/html', htmlForClipboard(getEditorHTML(t.crepe)));
   toast('کل متن کپی شد', 'ok');
 }, true);
 /**
@@ -2504,12 +2538,21 @@ export function plainForClipboard(md) {
   }
   return out;
 }
+/**
+ * An empty paragraph (an extra Enter) is copied as «<p></p>», which Telegram and many other apps drop:
+ * give it a line break so the blank line survives the paste.
+ */
+export function htmlForClipboard(html) {
+  return String(html).replace(/<p(\s[^>]*)?>\s*<\/p>/gi, (_m, attrs) => `<p${attrs || ''}><br></p>`);
+}
 for (const ev of ['copy', 'cut']) {
   document.addEventListener(ev, (e) => {
     if (!e.clipboardData || !e.target || !e.target.closest || !e.target.closest('.milkdown')) return;
     if (e.target.closest('.cm-editor')) return; // code blocks copy their own text as it is
     const text = e.clipboardData.getData('text/plain');
+    const html = e.clipboardData.getData('text/html');
     if (text && /<br\s*\/?>/i.test(text)) e.clipboardData.setData('text/plain', plainForClipboard(text));
+    if (html && /<p(\s[^>]*)?>\s*<\/p>/i.test(html)) e.clipboardData.setData('text/html', htmlForClipboard(html));
   });
 }
 function isTypingField() {

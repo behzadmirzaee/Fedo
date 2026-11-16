@@ -702,3 +702,73 @@ body.tab-drop #tabstrip, body.tab-drop #vtabs { background: var(--sel); box-shad
 #tabs .tab.drag-over { box-shadow: inset -3px 0 0 var(--accent); }
 #tabs .tab.drag-over-after { box-shadow: inset 3px 0 0 var(--accent); }
 .sv-out b { unicode-bidi: isolate; }
+
+/* ---------- save window, round 7: wider, big format tiles, name chips with the edit button at the top left ---------- */
+.save-modal { width: min(620px, calc(100vw - 32px)); }
+.sv-chips { flex-wrap: nowrap; align-items: flex-start; gap: 10px; }
+.sv-chips .sv-stamp, .sv-chips .sv-edit { flex: none; }
+.sv-chips .sv-edit { color: var(--muted); }
+.sv-names { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.sv-names .sv-chip[hidden] { display: none; }
+.sv-names .sv-more { color: var(--accent); font-weight: 600; }
+.sv-formats { gap: 10px; }
+.sv-fmt { height: 116px; border-radius: 16px; background: var(--panel); border: 1.5px solid transparent; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; box-shadow: none; transform: none; text-align: center; transition: background-color 0.15s, border-color 0.15s; }
+.sv-fmt:hover { background: color-mix(in srgb, var(--fg) 7%, var(--panel)); border-color: transparent; box-shadow: none; transform: none; }
+.sv-fmt.on { background: var(--sel); border-color: var(--accent); box-shadow: none; }
+.sv-fmt .nm { font-weight: 500; line-height: 1.3; }
+.sv-fmt.on .nm { font-weight: 700; }
+.sv-fmt .fg { position: relative; width: 40px; height: 48px; display: block; }
+.sv-fmt .fg > span:first-child { display: block; line-height: 0; }
+.sv-fmt .fg .ft { width: 40px; height: 48px; display: block; }
+.sv-fmt .fg .tag { position: absolute; inset-inline: 0; bottom: 9px; text-align: center; direction: ltr; font: 800 9.5px/1 'Segoe UI', system-ui, sans-serif; letter-spacing: 0.2px; }
+.sv-fmt .ck { top: 8px; inset-inline-end: 8px; width: 20px; height: 20px; border-radius: 999px; border: 0; background: var(--accent); color: var(--accent-fg); opacity: 0; transform: scale(0.6); transition: opacity 0.15s, transform 0.15s; }
+.sv-fmt.on .ck { opacity: 1; transform: none; }
+.save-modal .sv-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.5; }
+@media (max-width: 620px) { .sv-fmt { height: 96px; } }
+.tab .t-rename:placeholder-shown { direction: rtl; text-align: right; }
+.tab .t-rename::placeholder { color: var(--muted); opacity: 1; }
+
+/* ---------- emoji picker (right-click › اموجی) ---------- */
+.menu.emoji-menu { width: 316px; min-width: 0; overflow: hidden; max-height: none; }
+.emoji-panel { display: flex; flex-direction: column; }
+.emoji-panel .ep-search { height: 34px; border-radius: 10px; background: var(--ctl); display: flex; align-items: center; gap: 8px; padding-inline: 10px 6px; margin: 2px 2px 8px; }
+.emoji-panel .ep-search .ic { display: grid; color: var(--muted); }
+.emoji-panel .ep-search svg { width: 16px; height: 16px; }
+.emoji-panel .ep-search input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; color: var(--fg); outline: none; padding: 0; height: auto; box-shadow: none; }
+.emoji-panel .ep-search input::placeholder { color: var(--muted); }
+.emoji-panel .ep-clear { width: 22px; height: 22px; border-radius: 999px; display: grid; place-items: center; color: var(--muted); }
+.emoji-panel .ep-clear:hover { background: var(--ctl); }
+.emoji-panel .ep-clear svg { width: 12px; height: 12px; }
+.emoji-panel .ep-clear[hidden] { display: none; }
+.emoji-panel .ep-h { display: flex; align-items: center; gap: 6px; padding: 6px 6px 4px; }
+.emoji-panel .ep-h .ic { display: grid; }
+.emoji-panel .ep-h svg { width: 13px; height: 13px; }
+.emoji-panel .ep-grid { display: grid; grid-template-columns: repeat(8, 36px); gap: 2px; padding-inline: 2px; }
+.emoji-panel .eb { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; font: 21px/1 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif; transition: background-color 0.1s; }
+.emoji-panel .eb:hover, .emoji-panel .eb:focus-visible { background: var(--sel); outline: none; }
+.emoji-panel .sep { margin: 8px 6px 4px; }
+.emoji-panel .ep-cats { display: flex; justify-content: space-between; padding: 0 2px 6px; border-bottom: 1px solid var(--line); }
+.emoji-panel .ep-cat { width: 32px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: var(--muted); }
+.emoji-panel .ep-cat:hover { color: var(--fg); }
+.emoji-panel .ep-cat.on { background: var(--ctl); color: var(--fg); }
+.emoji-panel .ep-cat svg { width: 16px; height: 16px; }
+.emoji-panel .ep-list { height: 200px; overflow-y: auto; scrollbar-width: thin; position: relative; padding-top: 2px; }
+.emoji-panel .ep-note, .emoji-panel .ep-empty { color: var(--muted); padding: 12px 8px; text-align: center; white-space: normal; line-height: 1.8; }
+.emoji-panel .ep-empty { padding: 22px 10px; }
+.emoji-panel .ep-rows { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
+.emoji-panel .ep-row { height: 36px; border-radius: 9px; display: flex; align-items: center; gap: 10px; padding-inline: 8px; text-align: start; flex: none; }
+.emoji-panel .ep-row.hv { background: var(--sel); }
+.emoji-panel .ep-re { width: 24px; text-align: center; font: 20px/1 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif; }
+.emoji-panel .ep-rn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.emoji-panel .ep-row small { color: var(--muted); font-size: 11.5px; }
+.emoji-panel .ep-foot { height: 40px; border-top: 1px solid var(--line); margin-top: 6px; display: flex; align-items: center; gap: 10px; padding-inline: 6px; }
+.emoji-panel .ep-foot.empty::after { content: 'روی یک اموجی بروید · راست‌کلیک برای پین'; color: var(--muted); font-size: 11.5px; }
+.emoji-panel .ep-pe { font: 26px/1 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif; }
+.emoji-panel .ep-pn { display: flex; flex-direction: column; line-height: 1.4; min-width: 0; }
+.emoji-panel .ep-pn b { font-weight: 600; }
+.emoji-panel .ep-pn small { color: var(--muted); font: 500 11px 'Segoe UI', system-ui, sans-serif; text-align: right; }
+.emoji-panel .ep-pn small:empty { display: none; }
+.emoji-panel .ep-search:focus-within { background: var(--ctl-2); box-shadow: 0 0 0 2px var(--accent); }
+.emoji-panel .ep-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+.emoji-panel .eb { width: auto; }
+.emoji-panel .ep-list { overflow-x: hidden; scrollbar-gutter: stable; margin-inline-end: -6px; padding-inline-end: 0; }

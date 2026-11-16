@@ -13,6 +13,7 @@ import {
   deleteRow, deleteColumn, deleteTable, moveTableRow, moveTableColumn,
 } from '@milkdown/kit/prose/tables';
 import { showMenu, closeMenu, menuOpen, modal, toast, ICON, el } from './ui.js';
+import { emojiPanel, SMILE_ICON } from './emoji.js';
 import { TEXT_COLORS, BG_COLORS, setTextColorCommand, colorAt, styleOf } from './textcolor.js';
 
 const I = { ...ICON, del: ICON.trash, task: ICON.tickSquare, aL: ICON.alignL, aC: ICON.alignC, aR: ICON.alignR };
@@ -211,7 +212,7 @@ export function openColorPanel(crepe, anchor, color) {
   for (const n of [anchor, m]) { n.addEventListener('mouseleave', later); n.addEventListener('mouseenter', stay); }
 }
 
-export function openEditorMenu(crepe, x, y, { insertImage, edit, color }) {
+export function openEditorMenu(crepe, x, y, { insertImage, edit, color, emoji }) {
   const v = view(crepe);
   const st = v.state;
   const inTable = isInTable(st);
@@ -271,6 +272,17 @@ export function openEditorMenu(crepe, x, y, { insertImage, edit, color }) {
       { html: I.task, title: 'فهرست کارها', run: () => makeTaskList(crepe) },
     ] },
     'sep',
+    emoji ? { icon: SMILE_ICON, label: 'اموجی', sub: [{ className: 'emoji-menu', panel: () => emojiPanel({
+      pins: emoji.pins(), recent: emoji.recent(), setPins: emoji.setPins,
+      insert: (e) => {
+        closeMenu();
+        const v2 = view(crepe);
+        const { to } = v2.state.selection;
+        v2.dispatch(v2.state.tr.insertText(e, to).scrollIntoView());
+        v2.focus();
+        emoji.used(e);
+      },
+    }) }] } : null,
     color && color.enabled ? { icon: colorChip((() => { const c = colorAt(st); return c.color || c.bg ? c : { color: '#D93A3A' }; })()), label: 'رنگ', disabled: !hasSel, sub: colorItems(crepe, st, color) } : null,
     { icon: I.strike, label: 'خط‌خورده', key: 'Alt+Shift+5', checked: markActive(st, 'strike_through'), run: run(crepe, toggleStrikethroughCommand) },
     { icon: I.textSize, label: 'پاراگراف', sub: [
