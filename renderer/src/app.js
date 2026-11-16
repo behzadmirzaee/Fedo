@@ -40,15 +40,21 @@ export const FONTS = [
 ].filter((f) => !f.optional || (window.__nvFonts || []).includes(f.id));
 const RECENT_MAX = 10;
 let systemFonts = null;
-/** the Windows font list; asked once and shared, since the first query can take a while */
+/**
+ * The Windows font list; asked once and shared, since the first query can take a while.
+ * Chromium only answers it during a click or key press, so a refused (empty) answer is not kept:
+ * the next call, from a click, asks again.
+ */
 function loadSystemFonts() {
   if (!systemFonts) {
-    systemFonts = (async () => {
+    const p = (async () => {
       try {
         const list = await window.queryLocalFonts();
         return [...new Set(list.map((f) => f.family))].sort((a, b) => a.localeCompare(b));
       } catch { return []; }
     })();
+    systemFonts = p;
+    p.then((list) => { if (!list.length && systemFonts === p) systemFonts = null; });
   }
   return systemFonts;
 }
@@ -2806,7 +2812,10 @@ export async function start() {
   applyAll();
   api.booted();
   // warm up what Settings needs, so its first opening is instant
-  (window.requestIdleCallback || setTimeout)(() => loadSystemFonts(), { timeout: 3000 });
+  // (the font list needs a click or key press: ask with the first one, long before Settings opens)
+  const warm = () => { document.removeEventListener('pointerdown', warm, true); document.removeEventListener('keydown', warm, true); loadSystemFonts(); };
+  document.addEventListener('pointerdown', warm, true);
+  document.addEventListener('keydown', warm, true);
 }
 
 const WELCOME = `# به Fedo خوش آمدید
