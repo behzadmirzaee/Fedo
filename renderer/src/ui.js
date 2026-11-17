@@ -316,7 +316,7 @@ export function modal({ title, text, buttons, input, body, bodyAfter }) {
     const inp = input != null ? el('input', { type: 'text', value: input, dir: 'auto' }) : null;
     const done = (v) => { ov.remove(); document.removeEventListener('keydown', onKey, true); resolve(v); };
     const row = el('div', { class: 'row' }, buttons.map((b) =>
-      el('button', { class: 'btn' + (b.primary ? ' primary' : '') + (b.danger ? ' danger' : ''), onclick: () => done(inp && b.primary ? inp.value : b.value) }, b.label)));
+      el('button', { class: 'btn' + (b.primary ? ' primary' : '') + (b.danger ? ' danger' : '') + (b.aside ? ' aside' : ''), onclick: () => done(inp && b.primary ? inp.value : b.value) }, b.label)));
     const box = el('div', { class: 'modal', dir: 'rtl' },
       el('div', { class: 'm-body' }, el('h3', {}, title), text ? el('p', {}, text) : null, bodyAfter ? inp : (body || null), bodyAfter ? (body || null) : inp), row);
     const ov = el('div', { class: 'overlay' }, box);

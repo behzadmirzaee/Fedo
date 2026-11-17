@@ -15,7 +15,7 @@ import { DEFAULT_PINS } from './emoji.js';
 import MT_THEMES_RAW from './mt-themes.json';
 const LOGOS = Object.entries(import.meta.glob('../logos/*.png', { eager: true, query: '?url', import: 'default' }))
   .map(([k, url]) => ({ id: k.match(/(\w+)\.png$/)[1], url })).sort((a, b) => a.id.localeCompare(b.id))
-  .map((l) => ({ ...l, fun: l.id.startsWith('m'), name: l.id.startsWith('m') ? `آیکن بامزه‌ی ${fa(Number(l.id.slice(1)))}` : `آیکن ${fa(Number(l.id))}` }));
+  .map((l) => ({ ...l, fun: l.id.startsWith('m'), name: l.id.startsWith('m') ? `آیکن دنیای موازی ${fa(Number(l.id.slice(1)))}` : `آیکن ${fa(Number(l.id))}` }));
 import { buildRegex, pmEngine, cmEngine, pmCollectEdits, pmApplyEdits, PRESETS } from './search.js';
 import { readOnlyComp } from './editor.js';
 import { EditorState as CMState } from '@codemirror/state';
@@ -831,7 +831,7 @@ async function closeTab(t, { skipPrompt = false, moved = false } = {}) {
     const r = await modal({
       title: `تغییرات «${tabTitle(t)}» ذخیره شود؟`,
       text: 'اگر ذخیره نکنید، تغییرات از دست می‌رود.',
-      buttons: [{ label: 'ذخیره نکن', value: 'discard', danger: true }, { label: 'انصراف', value: null }, { label: 'ذخیره', value: 'save', primary: true }],
+      buttons: [{ label: 'ذخیره نکن', value: 'discard', danger: true, aside: true }, { label: 'انصراف', value: null }, { label: 'ذخیره', value: 'save', primary: true }],
     });
     if (!r) return false;
     if (r === 'save' && !(await save(t))) return false;
@@ -1825,7 +1825,7 @@ async function installUpdate() {
     const r = await modal({
       title: 'پیش از نصب، تغییرات ذخیره شوند؟',
       text: `${dirty.length === 1 ? `«${tabTitle(dirty[0])}»` : `${fa(dirty.length)} سند`} تغییرات ذخیره‌نشده دارد. برنامه برای نصب بسته و دوباره باز می‌شود.`,
-      buttons: [{ label: 'انصراف', value: null }, { label: 'نصب بدون ذخیره', value: 'drop', danger: true }, { label: 'ذخیره و نصب', value: 'save', primary: true }],
+      buttons: [{ label: 'انصراف', value: null }, { label: 'نصب بدون ذخیره', value: 'drop', danger: true, aside: true }, { label: 'ذخیره و نصب', value: 'save', primary: true }],
     });
     if (!r) return;
     if (r === 'save' && !(await saveAll())) return;
@@ -1983,19 +1983,17 @@ async function openSettings(section = 'look') {
         el('span', { class: 'th-n' }, `${fa(MORE_THEMES.length)} تم دیگر`)));
     }
     for (const th of customThemes) tile(th, null);
-    themeGrid.append(el('button', { class: 'th', title: 'فایل‌های CSS تم خودتان را در این پوشه بگذارید', onclick: () => api.openThemesFolder() },
-      el('span', { class: 'tp add', html: ICON.folder }), el('span', { class: 'th-n' }, 'پوشه‌ی تم‌ها')));
   };
   paintThemes();
   // two groups: the official icons and the fun ones
   const logoGrid = el('div', { class: 'set-free logo-groups' });
   const paintLogos = () => {
     logoGrid.innerHTML = '';
-    for (const [label, fun] of [['رسمی', false], ['بامزه', true]]) {
+    for (const [label, fun] of [['رسمی', false], ['دنیای موازی', true]]) {
       const grid = el('div', { class: 'ic-grid' });
       for (const l of LOGOS.filter((x) => x.fun === fun)) {
         const on = settings.logo === l.id;
-        grid.append(el('button', { class: 'logo-tile' + (on ? ' on' : ''), title: l.name, 'aria-label': l.name, 'aria-pressed': String(on), onclick: () => { updateSettings({ logo: l.id, logoChosen: true }); paintLogos(); } },
+        grid.append(el('button', { class: 'logo-tile' + (on ? ' on' : ''), 'aria-label': l.name, 'aria-pressed': String(on), onclick: () => { updateSettings({ logo: l.id, logoChosen: true }); paintLogos(); } },
           el('img', { src: l.url, alt: '' }), on ? el('span', { class: 'bd', html: ICON.check }) : null));
       }
       if (grid.childNodes.length) logoGrid.append(el('div', { class: 'lbl' }, label), grid);
@@ -2670,9 +2668,9 @@ function openLogoPicker(firstRun = false) {
     updateSettings({ logo: id });
   };
   for (const fun of [false, true]) {
-    if (fun) grid.append(el('div', { class: 'logo-sep' }, 'بامزه'));
+    if (fun) grid.append(el('div', { class: 'logo-sep' }, 'دنیای موازی'));
     for (const l of LOGOS.filter((x) => x.fun === fun)) {
-      const b = el('button', { class: 'logo-opt' + (settings.logo === l.id ? ' on' : ''), 'data-id': l.id, title: l.name }, el('img', { src: l.url, alt: l.name }));
+      const b = el('button', { class: 'logo-opt' + (settings.logo === l.id ? ' on' : ''), 'data-id': l.id, 'aria-label': l.name }, el('img', { src: l.url, alt: '' }));
       b.addEventListener('click', () => pick(l.id));
       grid.append(b);
     }
@@ -2682,7 +2680,7 @@ function openLogoPicker(firstRun = false) {
     text: firstRun ? 'این آیکن روی پنجره و نوار وظیفه دیده می‌شود. بعداً هم از «تنظیمات»، بخش «آیکن برنامه» قابل تغییر است.' : 'آیکن پنجره و نوار وظیفه همان لحظه عوض می‌شود.',
     body: grid,
     buttons: [{ label: firstRun ? 'شروع' : 'بستن', value: true, primary: true }],
-  }).then(() => { if (!settings.logoChosen || !settings.memeLogosSeen) updateSettings({ logoChosen: true, memeLogosSeen: true }); });
+  }).then(() => { if (!settings.logoChosen || !settings.memeLogosOffered) updateSettings({ logoChosen: true, memeLogosOffered: true }); });
 }
 /**
  * Once, for people who had Fedo before the fun icons arrived (version 2.7): offer them. A new install
@@ -2694,7 +2692,7 @@ function openMemeLogos() {
   const grid = el('div', { class: 'meme-grid' });
   const useBtn = el('button', { class: 'btn primary', disabled: true }, 'استفاده از این لوگو');
   for (const l of LOGOS.filter((x) => x.fun)) {
-    const b = el('button', { class: 'meme-opt', title: l.name, 'aria-label': l.name, 'aria-pressed': 'false' }, el('img', { src: l.url, alt: '' }), el('span', { class: 'bd', html: ICON.check }));
+    const b = el('button', { class: 'meme-opt', 'aria-label': l.name, 'aria-pressed': 'false' }, el('img', { src: l.url, alt: '' }), el('span', { class: 'bd', html: ICON.check }));
     b.addEventListener('click', () => {
       chosen = l.id;
       grid.querySelectorAll('.meme-opt').forEach((n) => { const on = n === b; n.classList.toggle('on', on); n.setAttribute('aria-pressed', String(on)); });
@@ -2705,7 +2703,7 @@ function openMemeLogos() {
   const close = (apply) => {
     ov.remove();
     document.removeEventListener('keydown', onKey, true);
-    updateSettings(apply && chosen ? { logo: chosen, memeLogosSeen: true } : { memeLogosSeen: true });
+    updateSettings(apply && chosen ? { logo: chosen, memeLogosOffered: true } : { memeLogosOffered: true });
     if (apply && chosen) toast('آیکن Fedo عوض شد', 'ok');
   };
   const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(false); } };
@@ -2959,7 +2957,7 @@ api.onRequestClose(async () => {
     const r = await modal({
       title: dirty.length === 1 ? `«${tabTitle(dirty[0])}» ذخیره نشده` : `${fa(dirty.length)} سند ذخیره نشده`,
       text: 'قبل از بستن برنامه ذخیره شوند؟',
-      buttons: [{ label: 'بستن بدون ذخیره', value: 'discard', danger: true }, { label: 'انصراف', value: null }, { label: dirty.length > 1 ? 'ذخیره‌ی همه' : 'ذخیره', value: 'save', primary: true }],
+      buttons: [{ label: 'بستن بدون ذخیره', value: 'discard', danger: true, aside: true }, { label: 'انصراف', value: null }, { label: dirty.length > 1 ? 'ذخیره‌ی همه' : 'ذخیره', value: 'save', primary: true }],
     });
     if (!r) return;
     if (r === 'save' && !(await saveAll())) return;
@@ -3032,8 +3030,9 @@ export async function start() {
   if (!tabs.length) await newTab({ content: settings.welcomed ? '' : WELCOME });
   else if (!activeId) activateTab(tabs[0].id);
   if (!settings.welcomed) { settings.welcomed = true; persistSettings(); }
+  if (settings.logo && !LOGOS.some((l) => l.id === settings.logo)) updateSettings({ logo: '08' }); // an icon that was removed
   if (!settings.logoChosen && winRole === 'main') setTimeout(() => openLogoPicker(true), 400);
-  else if (!settings.memeLogosSeen && winRole === 'main' && LOGOS.some((l) => l.fun)) setTimeout(() => openMemeLogos(), 900);
+  else if (!settings.memeLogosOffered && winRole === 'main' && LOGOS.some((l) => l.fun)) setTimeout(() => openMemeLogos(), 900);
   applyAll();
   api.booted();
   // warm up what Settings needs, so its first opening is instant
