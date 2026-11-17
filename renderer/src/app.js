@@ -12,13 +12,15 @@ import { typingOpts } from './typing.js';
 import { applyColor, openColorPanel } from './context.js';
 import { TEXT_COLORS, BG_COLORS } from './textcolor.js';
 import { DEFAULT_PINS } from './emoji.js';
+import MT_THEMES_RAW from './mt-themes.json';
 const LOGOS = Object.entries(import.meta.glob('../logos/*.png', { eager: true, query: '?url', import: 'default' }))
-  .map(([k, url]) => ({ id: k.match(/(\w+)\.png$/)[1], url })).sort((a, b) => a.id.localeCompare(b.id));
+  .map(([k, url]) => ({ id: k.match(/(\w+)\.png$/)[1], url })).sort((a, b) => a.id.localeCompare(b.id))
+  .map((l) => ({ ...l, fun: l.id.startsWith('m'), name: l.id.startsWith('m') ? `آیکن بامزه‌ی ${fa(Number(l.id.slice(1)))}` : `آیکن ${fa(Number(l.id))}` }));
 import { buildRegex, pmEngine, cmEngine, pmCollectEdits, pmApplyEdits, PRESETS } from './search.js';
 import { readOnlyComp } from './editor.js';
 import { EditorState as CMState } from '@codemirror/state';
 import { exportDocument } from './export.js';
-import { el, ICON, showMenu, modal, toast, kbd, fa, basename, dirname, relTime } from './ui.js';
+import { el, ICON, showMenu, closeMenu, modal, toast, kbd, fa, basename, dirname, relTime } from './ui.js';
 
 const api = window.api;
 const $ = (s) => document.querySelector(s);
@@ -30,6 +32,23 @@ export const THEMES = [
   { id: 'nord', name: 'نورد', dark: true },
   { id: 'garden', name: 'باغ' },
 ];
+// 187 extra themes (from Monkeytype), offered behind «تم‌های بیشتر»; their id in settings is «mt:<id>»
+export const MORE_THEMES = MT_THEMES_RAW.map(([id, name, dark, bg, main, sub, subAlt, text, error]) => ({ id: 'mt:' + id, name, dark: !!dark, bg, main, sub, subAlt, text, error }));
+const lum = (hex) => {
+  const v = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+};
+/** the app's colour variables from a theme's ten Monkeytype colours */
+function moreThemeCss(t) {
+  const mix = (a, pct, b) => `color-mix(in srgb, ${a} ${pct}%, ${b})`;
+  return `:root {
+  --bg: ${t.bg}; --fg: ${t.text}; --muted: ${mix(t.sub, 70, t.text)};
+  --border: ${mix(t.text, 14, t.bg)}; --panel: ${t.subAlt}; --panel-2: ${mix(t.text, 8, t.bg)}; --hover: ${mix(t.text, 10, t.bg)};
+  --accent: ${t.main}; --accent-fg: ${lum(t.main) > 0.45 ? '#141414' : '#ffffff'}; --link: ${t.main};
+  --selection: ${mix(t.main, 30, t.bg)}; --code-bg: ${t.subAlt}; --quote: ${t.sub}; --danger: ${t.error};
+  color-scheme: ${t.dark ? 'dark' : 'light'};
+}`;
+}
 export const FONTS = [
   { id: '', name: 'پیش‌فرض تم' },
   { id: 'Vazirmatn', name: 'وزیرمتن' },
@@ -97,6 +116,7 @@ function buildLayout() {
   const topbar = el('div', { id: 'topbar' },
     el('div', { class: 'cap' },
       el('button', { class: 'icon-btn', id: 'btn-menu', title: 'منوی اصلی', html: ICON.menu, onclick: (e) => openMainMenu(e.currentTarget) })),
+    el('button', { id: 'upd-pill', hidden: true, onclick: (e) => openUpdatePop(e.currentTarget) }),
     el('div', { class: 'cap tabstrip', id: 'tabstrip' },
       el('div', { id: 'tabs' }),
       el('button', { class: 'icon-btn', id: 'btn-newtab', title: 'سند تازه (Ctrl+T)', html: ICON.plus, onclick: () => newTab() })),
@@ -1610,10 +1630,11 @@ function applyTheme() {
   const id = settings.theme;
   let style = $('#custom-theme');
   const custom = customThemes.find((x) => x.id === id);
-  if (custom) {
+  const more = !custom && String(id).startsWith('mt:') ? MORE_THEMES.find((x) => x.id === id) : null;
+  if (custom || more) {
     if (!style) { style = el('style', { id: 'custom-theme' }); document.head.append(style); }
-    style.textContent = custom.css;
-    document.documentElement.dataset.theme = 'light';
+    style.textContent = custom ? custom.css : moreThemeCss(more);
+    document.documentElement.dataset.theme = more && more.dark ? 'dark' : 'light';
     document.documentElement.dataset.custom = '1';
   } else {
     if (style) style.remove();
@@ -1697,7 +1718,7 @@ const updReady = () => upd.status === 'available' || upd.status === 'downloading
 function onUpdateState(next, initial = false) {
   const prev = upd;
   upd = next;
-  $('#btn-menu').classList.toggle('has-update', updReady());
+  paintUpdatePill();
   updListeners.forEach((f) => f());
   if (initial || prev.status === next.status) return;
   if (next.status === 'available' && prev.status !== 'downloading') {
@@ -1711,6 +1732,92 @@ function onUpdateState(next, initial = false) {
     toast('دانلود نسخه‌ی تازه کامل نشد', 6000, [{ label: 'دوباره', run: () => api.updateDownload() }], 'err');
   }
 }
+// ---------- the update pill next to the menu: quiet, but it stays until the update is done ----------
+const mb = (b) => fa((b / 1048576).toFixed(b >= 10485760 ? 0 : 1)).replace('.', '٫');
+function updEta() {
+  if (!upd.speed || !upd.total) return '';
+  const s = Math.max(1, Math.round((upd.total - upd.transferred) / upd.speed));
+  return s < 60 ? 'کمتر از یک دقیقه' : `حدود ${fa(Math.round(s / 60))} دقیقه`;
+}
+const ringSvg = (pct) => {
+  const c = 2 * Math.PI * 8;
+  return `<svg class="ring" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" stroke-opacity=".2" stroke-width="2.5"/><circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${(c * pct) / 100} ${c}" transform="rotate(-90 11 11)"/></svg>`;
+};
+function updPillState() {
+  if (upd.status === 'available') return 'avail';
+  if (upd.status === 'downloading') return 'down';
+  if (upd.status === 'downloaded') return 'ready';
+  if (upd.status === 'error' && upd.failedDownload && upd.version) return 'fail';
+  return null;
+}
+function paintUpdatePill() {
+  const b = $('#upd-pill');
+  if (!b) return;
+  const st = updPillState();
+  b.hidden = !st;
+  if (!st) return;
+  b.className = 'upd-pill ' + st;
+  const v = faVer(upd.version);
+  if (st === 'avail') {
+    b.innerHTML = `<span class="ic">${ICON.download}</span><span class="lb">به‌روزرسانی</span>`;
+    b.title = `Fedo ${v} آماده است`;
+  } else if (st === 'down') {
+    b.innerHTML = `${ringSvg(upd.percent || 0)}<span class="pc">${fa(upd.percent || 0)}٪</span>`;
+    b.title = `در حال دانلود Fedo ${v}`;
+  } else if (st === 'ready') {
+    b.innerHTML = `<span class="ic">${ICON.check}</span><span class="lb">نصب</span>`;
+    b.title = `Fedo ${v} آماده‌ی نصب است`;
+  } else {
+    b.innerHTML = `<span class="ic">${ICON.refresh || ICON.download}</span><span class="lb">ادامه‌ی دانلود</span>`;
+    b.title = 'دانلود کامل نشد';
+  }
+  b.setAttribute('aria-label', b.title);
+}
+/** the small panel under the pill; it follows the download live */
+function openUpdatePop(anchor) {
+  if (upd.manual && upd.status === 'available') { api.updateDownload(); return; }
+  const panel = () => {
+    const root = el('div', { class: 'upd-pop' });
+    const paint = () => {
+      if (!root.isConnected && root.dataset.done) { updListeners.delete(paint); return; }
+      root.dataset.done = '1';
+      root.innerHTML = '';
+      const v = faVer(upd.version);
+      const st = updPillState();
+      if (st === 'avail') {
+        root.append(el('b', {}, `نسخه‌ی ${v} آماده است`),
+          el('p', {}, 'دانلود در پس‌زمینه انجام می‌شود و درصدش همین‌جا کنار منو دیده می‌شود.'),
+          el('div', { class: 'upd-acts' },
+            el('button', { class: 'btn', onclick: () => api.updateOpenPage('notes') }, 'تغییرات این نسخه'),
+            el('button', { class: 'btn primary', onclick: () => api.updateDownload() }, 'دانلود و نصب')));
+      } else if (st === 'down') {
+        const total = upd.total ? `${mb(upd.transferred || 0)} از ${mb(upd.total)} مگابایت` : 'در حال آماده‌سازی…';
+        const slow = upd.speed && upd.speed < 100 * 1024;
+        root.append(el('div', { class: 'upd-h' }, el('b', {}, `در حال دانلود Fedo ${v}`), el('span', { class: 'pc' }, `${fa(upd.percent || 0)}٪`)),
+          el('div', { class: 'upd-track' }, el('div', { class: 'upd-fill', style: `width:${upd.percent || 0}%` })),
+          el('div', { class: 'upd-meta' }, el('span', {}, total), el('span', {}, updEta())));
+        if (upd.speed) root.append(el('div', { class: 'upd-meta' }, el('span', {}, `سرعت: ${fa(Math.round(upd.speed / 1024))} کیلوبایت در ثانیه`)));
+        if (slow) root.append(el('p', { class: 'upd-note' }, 'اینترنت کند است؛ دانلود ادامه دارد و می‌توانید کارتان را بکنید.'));
+      } else if (st === 'ready') {
+        root.append(el('b', {}, `Fedo ${v} آماده‌ی نصب است`),
+          el('p', {}, 'برای نصب، برنامه بسته و دوباره باز می‌شود. می‌توانید بگذارید هنگام بستن برنامه نصب شود.'),
+          el('div', { class: 'upd-acts' },
+            el('button', { class: 'btn', onclick: () => closeMenu() }, 'هنگام بستن'),
+            el('button', { class: 'btn primary', onclick: () => { closeMenu(); installUpdate(); } }, 'الان نصب کن')));
+      } else if (st === 'fail') {
+        root.append(el('b', {}, 'دانلود کامل نشد'),
+          el('p', {}, 'اتصال قطع شد. با «ادامه» دوباره تلاش می‌کنیم.'),
+          el('div', { class: 'upd-acts' }, el('button', { class: 'btn primary', onclick: () => api.updateDownload() }, 'ادامه')));
+      } else { closeMenu(); }
+    };
+    updListeners.add(paint);
+    paint();
+    return root;
+  };
+  const r = anchor.getBoundingClientRect();
+  showMenu([{ panel, className: 'upd-menu' }], r.right, r.bottom + 8);
+}
+
 /** unsaved work is saved (or explicitly dropped) before the installer closes the app */
 async function installUpdate() {
   const dirty = tabs.filter((t) => t.dirty);
@@ -1864,18 +1971,34 @@ async function openSettings(section = 'look') {
       el('span', { class: 'tp', style: sw2 ? `background:${sw2[0]};color:${sw2[1]}` : null }, el('i', { style: 'width:60%;opacity:.75' }), el('i', { style: 'width:90%' }), el('i', { style: 'width:75%' })),
       el('span', { class: 'th-n' }, th.name)));
     for (const th of THEMES) tile(th, THEME_SWATCH[th.id]);
+    // sixth tile: the chosen extra theme, or the way into all of them
+    const more = MORE_THEMES.find((x) => x.id === settings.theme);
+    if (more) {
+      themeGrid.append(el('button', { class: 'th on', title: 'تم‌های بیشتر', onclick: () => openThemeGallery(paintThemes) },
+        el('span', { class: 'tp', style: `background:${more.bg};color:${more.text}` }, el('i', { style: 'width:60%;opacity:.75' }), el('i', { style: 'width:90%' }), el('i', { style: 'width:75%' })),
+        el('span', { class: 'th-n', dir: 'ltr' }, more.name)));
+    } else {
+      themeGrid.append(el('button', { class: 'th more', title: 'تم‌های بیشتر', onclick: () => openThemeGallery(paintThemes) },
+        el('span', { class: 'tp' }, ['#bd93f9', '#e2b714', '#ff7a90'].map((c) => el('span', { class: 'sw', style: `background:${c}` }))),
+        el('span', { class: 'th-n' }, `${fa(MORE_THEMES.length)} تم دیگر`)));
+    }
     for (const th of customThemes) tile(th, null);
     themeGrid.append(el('button', { class: 'th', title: 'فایل‌های CSS تم خودتان را در این پوشه بگذارید', onclick: () => api.openThemesFolder() },
       el('span', { class: 'tp add', html: ICON.folder }), el('span', { class: 'th-n' }, 'پوشه‌ی تم‌ها')));
   };
   paintThemes();
-  const logoGrid = el('div', { class: 'ic-grid set-free' });
+  // two groups: the official icons and the fun ones
+  const logoGrid = el('div', { class: 'set-free logo-groups' });
   const paintLogos = () => {
     logoGrid.innerHTML = '';
-    for (const l of LOGOS) {
-      const on = settings.logo === l.id;
-      logoGrid.append(el('button', { class: 'logo-tile' + (on ? ' on' : ''), title: `آیکن ${fa(Number(l.id))}`, 'aria-pressed': String(on), onclick: () => { updateSettings({ logo: l.id, logoChosen: true }); paintLogos(); } },
-        el('img', { src: l.url, alt: '' }), on ? el('span', { class: 'bd', html: ICON.check }) : null));
+    for (const [label, fun] of [['رسمی', false], ['بامزه', true]]) {
+      const grid = el('div', { class: 'ic-grid' });
+      for (const l of LOGOS.filter((x) => x.fun === fun)) {
+        const on = settings.logo === l.id;
+        grid.append(el('button', { class: 'logo-tile' + (on ? ' on' : ''), title: l.name, 'aria-label': l.name, 'aria-pressed': String(on), onclick: () => { updateSettings({ logo: l.id, logoChosen: true }); paintLogos(); } },
+          el('img', { src: l.url, alt: '' }), on ? el('span', { class: 'bd', html: ICON.check }) : null));
+      }
+      if (grid.childNodes.length) logoGrid.append(el('div', { class: 'lbl' }, label), grid);
     }
   };
   paintLogos();
@@ -1963,7 +2086,8 @@ async function openSettings(section = 'look') {
       const link = (label, hint, text, which) => row(label, hint, el('button', { class: 'sv-link', onclick: () => api.updateOpenPage(which) }, text));
       return [card, label('بررسی و نصب'), auto, label('GitHub'), group(
         link('همه‌ی نسخه‌ها و یادداشت‌های انتشار', null, 'باز کردن در مرورگر', 'all'),
-        link('دانلود دستی', 'اگر دانلود داخل برنامه انجام نشد', 'صفحه‌ی دانلود', 'all'))];
+        link('دانلود دستی', 'اگر دانلود داخل برنامه انجام نشد', 'صفحه‌ی دانلود', 'all')),
+        el('p', { class: 'set-license set-free', dir: 'ltr' }, 'Licensed under ', el('b', {}, 'Doneshe'), ' technology.')];
     } },
   ];
 
@@ -2063,6 +2187,9 @@ function openMainMenu(anchor) {
       { header: 'تم' },
       ...THEMES.map((th) => ({ label: th.name, checked: settings.theme === th.id, run: () => updateSettings({ theme: th.id }) })),
       ...customThemes.map((th) => ({ label: th.name, checked: settings.theme === th.id, run: () => updateSettings({ theme: th.id }) })),
+      ...MORE_THEMES.filter((th) => th.id === settings.theme).map((th) => ({ label: th.name, checked: true, run: () => {} })),
+      'sep',
+      { label: 'تم‌های بیشتر…', run: () => openThemeGallery() },
       'sep',
       { label: 'فونت متن', sub: [...fontItems('textFont'), ...fontNow('textFont')] },
       { label: 'فونت تیترها', sub: [{ label: 'مثل متن', checked: !settings.headFont, run: () => updateSettings({ headFont: '' }) }, ...fontItems('headFont').slice(1), ...fontNow('headFont')] },
@@ -2491,23 +2618,111 @@ function applySpell(t) {
   if (t.cm) t.cm.contentDOM.setAttribute('spellcheck', v);
 }
 
+/** all the extra themes: search, light / dark, and a preview of each in its own colours; a click applies it */
+function openThemeGallery(onChange) {
+  let filter = 'all';
+  const q = el('input', { type: 'text', placeholder: 'جستجوی تم', 'aria-label': 'جستجوی تم', spellcheck: 'false', dir: 'auto' });
+  const seg = el('div', { class: 'tg-seg', role: 'radiogroup', 'aria-label': 'روشن یا تیره' });
+  const grid = el('div', { class: 'tg-grid' });
+  const count = el('span', { class: 'tg-count' });
+  const paintSeg = () => {
+    seg.innerHTML = '';
+    for (const [k, label] of [['all', 'همه'], ['light', 'روشن'], ['dark', 'تیره']]) {
+      seg.append(el('button', { class: filter === k ? 'on' : '', role: 'radio', 'aria-checked': String(filter === k), onclick: () => { filter = k; paintSeg(); paint(); } }, label));
+    }
+  };
+  const paint = () => {
+    const nq = q.value.trim().toLowerCase();
+    const list = MORE_THEMES.filter((t) => (filter === 'all' || (filter === 'dark') === t.dark) && (!nq || t.name.toLowerCase().includes(nq)));
+    count.textContent = `${fa(list.length)} تم`;
+    grid.innerHTML = '';
+    if (!list.length) { grid.append(el('div', { class: 'tg-empty' }, 'تمی با این نام پیدا نشد')); return; }
+    for (const t of list) {
+      const on = settings.theme === t.id;
+      grid.append(el('button', { class: 'tg-card' + (on ? ' on' : ''), title: t.name, 'aria-pressed': String(on), onclick: () => { updateSettings({ theme: t.id }); paint(); onChange && onChange(); } },
+        el('span', { class: 'tg-pv', style: `background:${t.bg}` },
+          el('i', { style: `width:55%;background:${t.text}` }), el('i', { style: `width:85%;background:${t.sub}` }), el('b', { style: `background:${t.main}` })),
+        el('span', { class: 'tg-n', dir: 'ltr' }, t.name)));
+    }
+  };
+  q.addEventListener('input', paint);
+  paintSeg(); paint();
+  // Escape closes only the gallery, not the Settings window under it (window capture runs before document's)
+  const close = () => { ov.remove(); window.removeEventListener('keydown', onKey, true); };
+  const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); close(); } };
+  const box = el('div', { class: 'modal theme-gallery', dir: 'rtl', role: 'dialog', 'aria-label': 'تم‌های بیشتر' },
+    el('div', { class: 'tg-head' }, el('h3', {}, 'تم‌های بیشتر'), count, el('button', { class: 'tg-x', title: 'بستن', 'aria-label': 'بستن', html: ICON.x, onclick: close })),
+    el('div', { class: 'tg-tools' }, el('label', { class: 'tg-search' }, el('span', { class: 'ic', html: ICON.search }), q), seg),
+    grid);
+  const ov = el('div', { class: 'overlay' }, box);
+  ov.addEventListener('mousedown', (e) => { if (e.target === ov) close(); });
+  window.addEventListener('keydown', onKey, true);
+  document.body.append(ov);
+  q.focus();
+  const cur = grid.querySelector('.tg-card.on');
+  if (cur) cur.scrollIntoView({ block: 'center' });
+}
+
 function openLogoPicker(firstRun = false) {
   const grid = el('div', { class: 'logo-grid' });
   const pick = (id) => {
     grid.querySelectorAll('.logo-opt').forEach((n) => n.classList.toggle('on', n.dataset.id === id));
     updateSettings({ logo: id });
   };
-  for (const l of LOGOS) {
-    const b = el('button', { class: 'logo-opt' + (settings.logo === l.id ? ' on' : ''), 'data-id': l.id, title: `آیکن ${fa(Number(l.id))}` }, el('img', { src: l.url, alt: `آیکن ${fa(Number(l.id))}` }));
-    b.addEventListener('click', () => pick(l.id));
-    grid.append(b);
+  for (const fun of [false, true]) {
+    if (fun) grid.append(el('div', { class: 'logo-sep' }, 'بامزه'));
+    for (const l of LOGOS.filter((x) => x.fun === fun)) {
+      const b = el('button', { class: 'logo-opt' + (settings.logo === l.id ? ' on' : ''), 'data-id': l.id, title: l.name }, el('img', { src: l.url, alt: l.name }));
+      b.addEventListener('click', () => pick(l.id));
+      grid.append(b);
+    }
   }
   modal({
     title: firstRun ? 'به Fedo خوش آمدید! یک آیکن انتخاب کنید' : 'آیکن برنامه',
     text: firstRun ? 'این آیکن روی پنجره و نوار وظیفه دیده می‌شود. بعداً هم از «تنظیمات»، بخش «آیکن برنامه» قابل تغییر است.' : 'آیکن پنجره و نوار وظیفه همان لحظه عوض می‌شود.',
     body: grid,
     buttons: [{ label: firstRun ? 'شروع' : 'بستن', value: true, primary: true }],
-  }).then(() => { if (!settings.logoChosen) updateSettings({ logoChosen: true }); });
+  }).then(() => { if (!settings.logoChosen || !settings.memeLogosSeen) updateSettings({ logoChosen: true, memeLogosSeen: true }); });
+}
+/**
+ * Once, for people who had Fedo before the fun icons arrived (version 2.7): offer them. A new install
+ * sees every icon in its first-run picker instead, and later versions never show this again.
+ */
+function openMemeLogos() {
+  let chosen = null;
+  const current = LOGOS.find((l) => l.id === settings.logo) || LOGOS.find((l) => l.id === '08');
+  const grid = el('div', { class: 'meme-grid' });
+  const useBtn = el('button', { class: 'btn primary', disabled: true }, 'استفاده از این لوگو');
+  for (const l of LOGOS.filter((x) => x.fun)) {
+    const b = el('button', { class: 'meme-opt', title: l.name, 'aria-label': l.name, 'aria-pressed': 'false' }, el('img', { src: l.url, alt: '' }), el('span', { class: 'bd', html: ICON.check }));
+    b.addEventListener('click', () => {
+      chosen = l.id;
+      grid.querySelectorAll('.meme-opt').forEach((n) => { const on = n === b; n.classList.toggle('on', on); n.setAttribute('aria-pressed', String(on)); });
+      useBtn.disabled = false;
+    });
+    grid.append(b);
+  }
+  const close = (apply) => {
+    ov.remove();
+    document.removeEventListener('keydown', onKey, true);
+    updateSettings(apply && chosen ? { logo: chosen, memeLogosSeen: true } : { memeLogosSeen: true });
+    if (apply && chosen) toast('آیکن Fedo عوض شد', 'ok');
+  };
+  const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(false); } };
+  useBtn.addEventListener('click', () => close(true));
+  const box = el('div', { class: 'modal meme-modal', dir: 'rtl', role: 'dialog', 'aria-label': 'لوگوهای بامزه' },
+    el('div', { class: 'mm-body' },
+      el('div', { class: 'mm-head' },
+        el('div', { class: 'mm-t' }, el('h3', {}, 'چند لوگوی بامزه رسید'), el('p', {}, 'اگر حال‌وهوای تازه می‌خواهید، یکی را برای آیکن Fedo انتخاب کنید.')),
+        current ? el('div', { class: 'mm-cur' }, el('img', { src: current.url, alt: 'لوگوی فعلی' }), el('span', {}, 'لوگوی فعلی')) : null),
+      grid),
+    el('div', { class: 'mm-foot' },
+      el('span', { class: 'mm-hint' }, 'بعداً هم از تنظیمات › آیکن برنامه عوض می‌شود'),
+      el('button', { class: 'btn', onclick: () => close(false) }, 'لوگوی فعلی بماند'),
+      useBtn));
+  const ov = el('div', { class: 'overlay' }, box);
+  document.addEventListener('keydown', onKey, true);
+  document.body.append(ov);
 }
 
 document.addEventListener('copy', (e) => {
@@ -2529,18 +2744,27 @@ document.addEventListener('copy', (e) => {
  * pasted into Telegram or any chat it shows up as literal text: the copied plain text gets real line breaks.
  */
 export function plainForClipboard(md) {
+  // code blocks are copied exactly; everything else loses Markdown's escapes
+  return String(md).split(/(^```[^\n]*\n[\s\S]*?^```[ \t]*$)/m).map((part, i) => (i % 2 ? part : plainText(part))).join('');
+}
+function plainText(md) {
   const BR = /^[ \t]*<br\s*\/?>[ \t]*$/i;
-  const parts = String(md).split(/(\n{2,})/); // blocks, with the blank lines between them kept as they are
+  const parts = md.split(/(\n{2,})/); // blocks, with the blank lines between them kept as they are
   let out = '';
   let sep = '';
   let extra = 0; // empty paragraphs between two blocks: one more blank line each
   for (let i = 0; i < parts.length; i++) {
     if (i % 2) { sep = parts[i]; continue; }
     const block = parts[i];
-    if (BR.test(block)) { extra++; continue; }
+    if (BR.test(block) || /^[ \t]*\\[ \t]*$/.test(block)) { extra++; continue; }
     if (out) out += sep + '\n'.repeat(extra);
     extra = 0;
-    out += block.replace(/[ \t]*<br\s*\/?>[ \t]*/gi, '\n');
+    out += block
+      .replace(/[ \t]*<br\s*\/?>[ \t]*/gi, '\n')
+      // a line break inside a paragraph is written «\» at the end of the line (or alone on a line)
+      .replace(/(^|[^\\])\\[ \t]*$/gm, '$1')
+      // escaped punctuation: «\*» → «*», «\\» → «\»
+      .replace(/\\([\\`*_{}\[\]()#+\-.!|<>~"'=:;,?@$%&^/])/g, '$1');
   }
   return out;
 }
@@ -2809,6 +3033,7 @@ export async function start() {
   else if (!activeId) activateTab(tabs[0].id);
   if (!settings.welcomed) { settings.welcomed = true; persistSettings(); }
   if (!settings.logoChosen && winRole === 'main') setTimeout(() => openLogoPicker(true), 400);
+  else if (!settings.memeLogosSeen && winRole === 'main' && LOGOS.some((l) => l.fun)) setTimeout(() => openMemeLogos(), 900);
   applyAll();
   api.booted();
   // warm up what Settings needs, so its first opening is instant

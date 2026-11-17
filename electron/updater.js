@@ -51,9 +51,9 @@ function setupUpdater() {
   updater.on('checking-for-update', () => set({ status: 'checking', error: null }));
   updater.on('update-available', (i) => set({ status: state.status === 'downloading' ? 'downloading' : 'available', version: i.version, checkedAt: Date.now(), url: `${RELEASES}/tag/v${i.version}` }));
   updater.on('update-not-available', () => set({ status: 'none', checkedAt: Date.now() }));
-  updater.on('download-progress', (p) => set({ status: 'downloading', percent: Math.round(p.percent || 0) }));
+  updater.on('download-progress', (p) => set({ status: 'downloading', percent: Math.round(p.percent || 0), transferred: p.transferred || 0, total: p.total || 0, speed: p.bytesPerSecond || 0 }));
   updater.on('update-downloaded', (i) => set({ status: 'downloaded', version: i.version, percent: 100 }));
-  updater.on('error', (e) => set({ status: 'error', error: String((e && e.message) || e).split('\n')[0].slice(0, 200), checkedAt: Date.now() }));
+  updater.on('error', (e) => set({ status: 'error', failedDownload: state.status === 'downloading' || state.failedDownload, error: String((e && e.message) || e).split('\n')[0].slice(0, 200), checkedAt: Date.now() }));
 }
 
 async function check() {
@@ -81,8 +81,8 @@ ipcMain.handle('update:download', async () => {
   if (!installed()) { shell.openExternal(state.url || RELEASES); return state; }
   setupUpdater();
   if (state.status !== 'available' && state.status !== 'error') return state;
-  set({ status: 'downloading', percent: 0, error: null });
-  try { await updater.downloadUpdate(); } catch (e) { set({ status: 'error', error: String((e && e.message) || e).split('\n')[0] }); }
+  set({ status: 'downloading', percent: 0, transferred: 0, total: 0, speed: 0, error: null, failedDownload: false });
+  try { await updater.downloadUpdate(); } catch (e) { set({ status: 'error', failedDownload: true, error: String((e && e.message) || e).split('\n')[0] }); }
   return state;
 });
 // the renderer has already saved or confirmed unsaved work before asking for this
