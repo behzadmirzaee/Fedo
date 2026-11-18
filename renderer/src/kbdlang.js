@@ -5,7 +5,8 @@
 // Where the language comes from:
 // - on Windows, the main process hears every switch (Alt+Shift, Win+Space, the taskbar button) from
 //   Windows itself and sends it here (`onKbdLang`);
-// - at start, the layout Chromium reports (later reads of it can be out of date, so it is read only once);
+// - at start on Windows, the main process asks Windows for the window's layout; elsewhere, the layout
+//   Chromium reports;
 // - a typed letter, which tells the language for certain.
 
 const RTL = /[֐-ࣿיִ-﷿ﹰ-﻿]/;
@@ -21,7 +22,9 @@ function setLang(lang) {
 export function installKeyboardLang(api) {
   let heard = false; // once Windows has told us, the start-up guess must not overwrite it
   if (api && api.onKbdLang) api.onKbdLang((lang) => { heard = true; setLang(lang); });
-  if (navigator.keyboard && navigator.keyboard.getLayoutMap) {
+  // on Windows Chromium's answer is the layout the app started with, not the one in use: Windows itself
+  // tells us (see electron/main.js), so it is asked only elsewhere
+  if (!/Windows/.test(navigator.userAgent) && navigator.keyboard && navigator.keyboard.getLayoutMap) {
     navigator.keyboard.getLayoutMap().then((map) => {
       if (heard) return;
       const k = map.get('KeyA') || '';

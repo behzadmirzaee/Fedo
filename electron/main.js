@@ -105,8 +105,9 @@ function createWindow(opts = {}) {
     // caption buttons (− □ ✕, with snap layouts) over its right end.
     ...(process.platform === 'win32' ? { titleBarStyle: 'hidden', titleBarOverlay: { color: '#ECECF0', symbolColor: '#1D1D1F', height: TITLEBAR_H } } : {}),
     alwaysOnTop: !!opts.alwaysOnTop,
-    // a window torn off by dragging appears without taking focus, so the drag keeps going in the source window
-    show: !opts.inactive,
+    // hidden until the page has its theme on (see 'win:painted'), so it never flashes the default look;
+    // a window torn off by dragging appears at once, without taking focus, so the drag keeps going
+    show: false,
     icon: logoPath(readLogoSync()),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -122,6 +123,16 @@ function createWindow(opts = {}) {
   win.on('focus', () => { lastFocusedId = win.id; });
   if (opts.alwaysOnTop) win.setAlwaysOnTop(true, 'floating');
   if (opts.inactive) win.showInactive();
+  else {
+    let shown = false;
+    st.reveal = () => {
+      if (shown || win.isDestroyed()) return;
+      shown = true;
+      if (opts.maximize) win.maximize(); else win.show();
+    };
+    // in case the page never says it is ready (an error while starting): show it anyway
+    win.once('ready-to-show', () => setTimeout(st.reveal, 2500));
+  }
 
   Menu.setApplicationMenu(null);
   const ses = win.webContents.session;
@@ -171,11 +182,32 @@ function createWindow(opts = {}) {
   // whose low word is its language id.
   if (process.platform === 'win32') {
     const RTL_LANGS = new Set([0x01, 0x0d, 0x20, 0x29, 0x63, 0x8c, 0x92]); // Arabic, Hebrew, Urdu, Persian, Pashto, Dari, Kurdish
+    const tell = (langId) => {
+      st.kbdAt = Date.now();
+      st.kbdLang = RTL_LANGS.has(langId & 0x3ff) ? 'fa' : 'en';
+      if (!win.isDestroyed()) win.webContents.send('kbd-lang', st.kbdLang);
+    };
     win.hookWindowMessage(0x0051, (_wParam, lParam) => {
-      try {
-        const lang = lParam.readUInt16LE(0) & 0x3ff;
-        if (!win.isDestroyed()) win.webContents.send('kbd-lang', RTL_LANGS.has(lang) ? 'fa' : 'en');
-      } catch { /* an unexpected message shape: ignore */ }
+      try { tell(lParam.readUInt16LE(0)); } catch { /* an unexpected message shape: ignore */ }
+    });
+    // At start no switch happens, and Windows may have set the layout before the page could listen, so
+    // ask Windows once which layout this window's thread has, and repeat what is known once the page is up.
+    win.webContents.on('did-finish-load', () => {
+      if (st.kbdLang) win.webContents.send('kbd-lang', st.kbdLang);
+      const hwnd = win.getNativeWindowHandle();
+      const h = hwnd.length >= 8 ? hwnd.readBigUInt64LE(0) : BigInt(hwnd.readUInt32LE(0));
+      const ps = 'Add-Type -TypeDefinition \'using System;using System.Runtime.InteropServices;public static class FedoKbd{'
+        + '[DllImport("user32.dll")]public static extern IntPtr GetKeyboardLayout(uint t);'
+        + '[DllImport("user32.dll")]public static extern uint GetWindowThreadProcessId(IntPtr h,IntPtr p);}\';'
+        + `[FedoKbd]::GetKeyboardLayout([FedoKbd]::GetWindowThreadProcessId([IntPtr]${h},[IntPtr]::Zero)).ToInt64() -band 0xFFFF`;
+      const asked = Date.now();
+      // sent encoded, so no quoting of the script can go wrong on its way to PowerShell
+      const enc = Buffer.from(ps, 'utf16le').toString('base64');
+      require('child_process').execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', enc], { windowsHide: true, timeout: 10000 }, (err, out) => {
+        const id = parseInt(String(out || '').trim(), 10);
+        // a switch heard while PowerShell was answering is newer: keep it
+        if (!err && id > 0 && !(st.kbdAt > asked)) tell(id);
+      });
     });
   }
   // Windows is shutting down or restarting: every window is closing, none of them "by hand"
@@ -290,13 +322,11 @@ async function restoreWindows() {
   // unsaved documents another window will take back; the main window takes the rest
   const claimed = others.flatMap((e) => e.tabs.filter((t) => t.draft).map((t) => t.draft));
   const open = (e, payload) => {
-    const w = createWindow({ payload, alwaysOnTop: !!e.alwaysOnTop, ...placeFor(e) });
-    if (e.maximized) w.maximize();
-    return w;
+    return createWindow({ payload, alwaysOnTop: !!e.alwaysOnTop, maximize: !!e.maximized, ...placeFor(e) });
   };
   const mainWin = open(main, { restore: main, claimed });
   for (const e of others) open(e, { restore: e });
-  if (others.length) mainWin.focus();
+  if (others.length) mainWin.once('show', () => setTimeout(() => !mainWin.isDestroyed() && mainWin.focus(), 300));
 }
 
 // ---------- IPC: windows ----------
@@ -359,6 +389,7 @@ ipcMain.handle('win:send-to', (e, targetId, payload, at) => {
   target.win.focus();
   return true;
 });
+ipcMain.handle('win:painted', (e) => { const st = stateOf(W(e)); if (st && st.reveal) st.reveal(); });
 ipcMain.handle('win:booted', (e) => { const st = stateOf(W(e)); if (st) st.booted = true; });
 
 // ---------- dragging a tab out of a window (Chrome-style) ----------

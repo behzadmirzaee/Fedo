@@ -36,10 +36,16 @@ export const THEMES = [
   { id: 'garden', name: 'باغ' },
 ];
 // 187 extra themes (from Monkeytype), offered behind «تم‌های بیشتر»; their id in settings is «mt:<id>»
+// each theme's readable colours are worked out the first time they are needed, not at start-up;
+// the gallery and settings preview show the colours the theme will really use
 export const MORE_THEMES = MT_THEMES_RAW.map(([id, name, dark, bg, main, sub, subAlt, text, error]) => {
-  const pal = themePalette({ dark: !!dark, bg, main, sub, subAlt, text, error });
-  // the gallery and settings preview show the readable colours the theme will really use
-  return { id: 'mt:' + id, name, dark: pal.dark, bg: pal.bg, main: pal.accent, sub: pal.muted, subAlt: pal.panel, text: pal.fg, error: pal.danger, pal };
+  let pal = null;
+  const P = () => (pal ||= themePalette({ dark: !!dark, bg, main, sub, subAlt, text, error }));
+  return {
+    id: 'mt:' + id, name,
+    get pal() { return P(); }, get dark() { return P().dark; }, get bg() { return P().bg; }, get main() { return P().accent; },
+    get sub() { return P().muted; }, get subAlt() { return P().panel; }, get text() { return P().fg; }, get error() { return P().danger; },
+  };
 });
 /** the app's colour variables from a theme's Monkeytype colours, every pair checked for contrast (contrast.js) */
 function moreThemeCss(t) {
@@ -3186,6 +3192,8 @@ export async function start() {
   settings.recent = (settings.recent || []).map((r) => (typeof r === 'string' ? { path: r, time: 0 } : r)).slice(0, RECENT_MAX);
   customThemes = await api.customThemes();
   applyTheme();
+  // the window is shown only now, once its theme is on (two frames: styles applied and painted)
+  requestAnimationFrame(() => requestAnimationFrame(() => api.painted && api.painted()));
   document.addEventListener('keydown', onKey, true);
   installKeyboardLang(api);
   setupFindInputs();

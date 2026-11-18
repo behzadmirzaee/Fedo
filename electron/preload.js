@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('api', {
   onReceiveTab: on('receive-tab'),
   sendTo: inv('win:send-to'),
   booted: inv('win:booted'),
+  painted: inv('win:painted'),
   // dragging a tab out of a window, and a window over another window's tab bar
   dragDetach: inv('tab:drag-detach'),
   dragSelf: (pt) => ipcRenderer.send('tab:drag-self', pt),
