@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld('api', {
   onDragDone: on('tab-drag-done'),
   renameFile: inv('file:rename'),
   onSetRole: on('set-role'),
+  onStripMenu: on('strip-menu'),
+  onKbdLang: on('kbd-lang'),
   setTitle: inv('win:set-title'),
   setTitleBar: inv('win:set-titlebar'),
   devtools: inv('win:devtools'),

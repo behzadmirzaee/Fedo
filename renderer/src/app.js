@@ -13,6 +13,9 @@ import { applyColor, openColorPanel } from './context.js';
 import { TEXT_COLORS, BG_COLORS } from './textcolor.js';
 import { DEFAULT_PINS } from './emoji.js';
 import MT_THEMES_RAW from './mt-themes.json';
+import { themePalette, ensure, mix } from './contrast.js';
+import { installSelectionBar } from './selbar.js';
+import { installKeyboardLang } from './kbdlang.js';
 const LOGOS = Object.entries(import.meta.glob('../logos/*.png', { eager: true, query: '?url', import: 'default' }))
   .map(([k, url]) => ({ id: k.match(/(\w+)\.png$/)[1], url })).sort((a, b) => a.id.localeCompare(b.id))
   .map((l) => ({ ...l, fun: l.id.startsWith('m'), name: l.id.startsWith('m') ? `آیکن دنیای موازی ${fa(Number(l.id.slice(1)))}` : `آیکن ${fa(Number(l.id))}` }));
@@ -33,20 +36,22 @@ export const THEMES = [
   { id: 'garden', name: 'باغ' },
 ];
 // 187 extra themes (from Monkeytype), offered behind «تم‌های بیشتر»; their id in settings is «mt:<id>»
-export const MORE_THEMES = MT_THEMES_RAW.map(([id, name, dark, bg, main, sub, subAlt, text, error]) => ({ id: 'mt:' + id, name, dark: !!dark, bg, main, sub, subAlt, text, error }));
-const lum = (hex) => {
-  const v = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
-};
-/** the app's colour variables from a theme's ten Monkeytype colours */
+export const MORE_THEMES = MT_THEMES_RAW.map(([id, name, dark, bg, main, sub, subAlt, text, error]) => {
+  const pal = themePalette({ dark: !!dark, bg, main, sub, subAlt, text, error });
+  // the gallery and settings preview show the readable colours the theme will really use
+  return { id: 'mt:' + id, name, dark: pal.dark, bg: pal.bg, main: pal.accent, sub: pal.muted, subAlt: pal.panel, text: pal.fg, error: pal.danger, pal };
+});
+/** the app's colour variables from a theme's Monkeytype colours, every pair checked for contrast (contrast.js) */
 function moreThemeCss(t) {
-  const mix = (a, pct, b) => `color-mix(in srgb, ${a} ${pct}%, ${b})`;
+  const p = t.pal;
+  const hl = Object.entries(p.hl).map(([k, c]) => `--hl-${k}: ${c};`).join(' ');
   return `:root {
-  --bg: ${t.bg}; --fg: ${t.text}; --muted: ${mix(t.sub, 70, t.text)};
-  --border: ${mix(t.text, 14, t.bg)}; --panel: ${t.subAlt}; --panel-2: ${mix(t.text, 8, t.bg)}; --hover: ${mix(t.text, 10, t.bg)};
-  --accent: ${t.main}; --accent-fg: ${lum(t.main) > 0.45 ? '#141414' : '#ffffff'}; --link: ${t.main};
-  --selection: ${mix(t.main, 30, t.bg)}; --code-bg: ${t.subAlt}; --quote: ${t.sub}; --danger: ${t.error};
-  color-scheme: ${t.dark ? 'dark' : 'light'};
+  --bg: ${p.bg}; --fg: ${p.fg}; --muted: ${p.muted};
+  --border: ${p.border}; --panel: ${p.panel}; --panel-2: ${p.panel2}; --hover: ${p.hover};
+  --accent: ${p.accent}; --accent-fg: ${p.accentFg}; --link: ${p.link};
+  --selection: ${p.selection}; --code-bg: ${p.panel}; --quote: ${p.quote}; --danger: ${p.danger};
+  ${hl}
+  color-scheme: ${p.dark ? 'dark' : 'light'};
 }`;
 }
 export const FONTS = [
@@ -243,7 +248,7 @@ function dropTabMeta(id) {
   settings.draftMeta = meta; persistSettings();
 }
 
-async function newTab({ path = null, content = '', activate = true, mode = 'wysiwyg', mtime = 0, index, draftId, dir = null, title = null } = {}) {
+async function newTab({ path = null, content = '', activate = true, mode = 'wysiwyg', mtime = 0, index, draftId, dir = null, title = null, group = null } = {}) {
   const id = ++seq;
   const wys = el('div', { class: 'wysiwyg', dir: dir || settings.baseDir });
   const src = el('div', { class: 'source', dir: dir || settings.baseDir });
@@ -254,6 +259,8 @@ async function newTab({ path = null, content = '', activate = true, mode = 'wysi
     dirty: false, crepe: null, cm: null, mtime, untitledN: path ? 0 : untitledName(), dir: dir || null, title: path ? null : title || null,
     lastSnap: content, lastSnapTime: Date.now(), saveTimer: null,
     draftId: path ? null : draftId || 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    // set before the tab is first drawn, so a group being restored is never seen empty (and dropped)
+    groupId: group && groups.has(group) ? group : null,
   };
   t.crepe = await createEditor(wys, content, editorHooks(t));
   applySpell(t);
@@ -348,10 +355,12 @@ document.addEventListener('click', (e) => {
   clearTimeout(b._nvT);
   b._nvT = setTimeout(() => b.classList.remove('nv-copied'), 2000);
 });
-// the colour button of the selection toolbar opens its panel on hover, not only on click
-document.addEventListener('mouseover', (e) => {
-  const b = e.target.closest && e.target.closest('[data-toolbar-item="nv-color"]');
-  if (!b || settings.extColor === false) return;
+// the selection toolbar stays out of the way while dragging; its colour button opens its panel on hover too
+installSelectionBar((node) => {
+  const t = node && tabs.find((x) => x.pane.contains(node) && x.crepe);
+  return t ? { view: getView(t.crepe), pane: t.pane } : null;
+}, (b) => {
+  if (settings.extColor === false) return;
   const t = tabs.find((x) => x.pane.contains(b));
   if (t && !t.locked) openColorPanel(t.crepe, b, colorTools(t));
 });
@@ -474,6 +483,14 @@ export const GROUP_COLORS = [
 ];
 const groups = new Map(); // id -> { id, name, color, collapsed }
 const colorOf = (g) => (GROUP_COLORS.find((c) => c.id === g.color) || GROUP_COLORS[0]).c;
+/** a group's name colour, made readable on the bar of the extra themes (the built-in ones are already) */
+function groupText(g) {
+  const c = colorOf(g);
+  const th = String(settings.theme).startsWith('mt:') ? MORE_THEMES.find((x) => x.id === settings.theme) : null;
+  if (!th) return c;
+  const { bg, fg } = th.pal;
+  return ensure(c, [bg, mix(fg, 8, bg), mix(fg, 13, bg), mix('#000000', 22, bg)], 4.5);
+}
 function nextColor() {
   const used = new Set([...groups.values()].map((g) => g.color));
   return (GROUP_COLORS.find((c) => !used.has(c.id)) || GROUP_COLORS[groups.size % GROUP_COLORS.length]).id;
@@ -532,25 +549,103 @@ function groupMenuAt(g, isNew) {
   });
 }
 
+// ---------- several tabs selected (Ctrl / Shift + click) ----------
+const tabSel = new Set(); // tab ids; a selection counts from two tabs up
+const selectedTabs = () => (tabSel.size > 1 ? tabs.filter((t) => tabSel.has(t.id)) : []);
+function clearTabSel() { if (tabSel.size) { tabSel.clear(); renderTabs(); } }
+function selectClick(t, e) {
+  const a = active();
+  if (e.shiftKey && a) {
+    // everything between the active tab and this one; Ctrl+Shift adds the range to what was selected
+    const i = tabs.indexOf(a), j = tabs.indexOf(t);
+    if (!(e.ctrlKey || e.metaKey)) tabSel.clear();
+    for (const x of tabs.slice(Math.min(i, j), Math.max(i, j) + 1)) tabSel.add(x.id);
+  } else {
+    if (!tabSel.size && a) tabSel.add(a.id);
+    // the active tab stays selected: it is the document on screen
+    if (tabSel.has(t.id) && t.id !== activeId) tabSel.delete(t.id); else tabSel.add(t.id);
+  }
+  if (tabSel.size < 2) tabSel.clear();
+  renderTabs();
+}
+/** close several tabs; unsaved ones are asked about once, for all of them */
+async function closeTabs(list) {
+  const dirty = list.filter((t) => t.dirty);
+  if (dirty.length) {
+    const r = await modal({
+      title: dirty.length === 1 ? `تغییرات «${tabTitle(dirty[0])}» ذخیره شود؟` : `${fa(dirty.length)} سند ذخیره نشده`,
+      text: 'اگر ذخیره نکنید، تغییرات از دست می‌رود.',
+      buttons: [{ label: 'ذخیره نکن', value: 'discard', danger: true, aside: true }, { label: 'انصراف', value: null }, { label: dirty.length > 1 ? 'ذخیره‌ی همه' : 'ذخیره', value: 'save', primary: true }],
+    });
+    if (!r) return false;
+    if (r === 'save') for (const t of dirty) if (!(await save(t))) return false;
+  }
+  tabSel.clear();
+  for (const t of list) if (!(await closeTab(t, { skipPrompt: true }))) return false;
+  return true;
+}
+function multiTabMenu(list, x, y) {
+  const n = list.length;
+  const inGroup = list.some((t) => t.groupId);
+  const allGroups = [...groups.values()];
+  const each = (fn) => () => { for (const t of list) fn(t); normalizeGroups(); renderTabs(); saveSessionSoon(); };
+  showMenu([
+    { header: `${fa(n)} تب انتخاب‌شده` },
+    { icon: ICON.group, label: 'افزودن به گروه تازه', run: () => {
+      const g = { id: 'g' + Date.now().toString(36), name: '', color: nextColor(), collapsed: false };
+      groups.set(g.id, g);
+      each((t) => { t.groupId = g.id; })();
+      groupMenuAt(g, true);
+    } },
+    allGroups.length ? { icon: '', label: 'افزودن به گروه', sub: allGroups.map((g) => ({ label: g.name || 'گروه بی‌نام', icon: `<span class="gdot" style="--g:${colorOf(g)}"></span>`, run: each((t) => { t.groupId = g.id; }) })) } : null,
+    inGroup ? { icon: '', label: 'خارج کردن از گروه', run: each((t) => { t.groupId = null; }) } : null,
+    'sep',
+    { icon: ICON.direction, label: 'جهت سند', sub: [
+      { label: 'راست‌به‌چپ', run: () => list.forEach((t) => setTabDir(t, 'rtl')) },
+      { label: 'چپ‌به‌راست', run: () => list.forEach((t) => setTabDir(t, 'ltr')) },
+      'sep',
+      { label: 'پیش‌فرض تنظیمات', run: () => list.forEach((t) => setTabDir(t, null)) },
+    ] },
+    { icon: ICON.window, label: 'انتقال به پنجره‌ی جدید', disabled: n >= tabs.length, run: () => { tabSel.clear(); detachTabs(list, false); } },
+    'sep',
+    { icon: ICON.x, label: `بستن ${fa(n)} تب`, key: 'Ctrl+W', run: () => closeTabs(list) },
+    { icon: '', label: 'بستن بقیه‌ی تب‌ها', disabled: n >= tabs.length, run: () => closeTabs(tabs.filter((t) => !list.includes(t))) },
+    'sep',
+    { icon: '', label: 'لغو انتخاب', key: 'Esc', run: clearTabSel },
+  ], x, y);
+}
+
 function tabNode(t, vertical) {
   const g = t.groupId ? groups.get(t.groupId) : null;
   const close = el('button', { class: 't-close', title: 'بستن (Ctrl+W)', html: `<span class="x">${ICON.x}</span>`, draggable: 'false' });
   close.addEventListener('pointerdown', (e) => e.stopPropagation());
   close.addEventListener('click', (e) => { e.stopPropagation(); closeTab(t); });
   const node = el('div', {
-    class: 'tab' + (t.id === activeId ? ' active' : '') + (t.dirty ? ' dirty' : '') + (g ? ' grouped' : ''),
+    class: 'tab' + (t.id === activeId ? ' active' : '') + (t.dirty ? ' dirty' : '') + (g ? ' grouped' : '') + (tabSel.size > 1 && tabSel.has(t.id) ? ' ms' : ''),
     title: t.path || tabTitle(t), 'data-id': t.id, style: g ? `--g:${colorOf(g)}` : null,
   }, t.locked ? el('span', { class: 't-lock', title: 'حالت امن', html: ICON.lock }) : null,
     el('span', { class: 't-title', dir: bidi(tabTitle(t)) }, tabTitle(t)),
     t.mode === 'source' ? el('span', { class: 't-ind' }, 'کد') : null, close);
   node.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || node.classList.contains('renaming')) return;
+    // Ctrl / Shift + click: build a selection of tabs, without switching documents
+    if (e.ctrlKey || e.metaKey || e.shiftKey) { e.preventDefault(); selectClick(t, e); return; }
+    const inSel = tabSel.size > 1 && tabSel.has(t.id);
+    if (!inSel && tabSel.size) { tabSel.clear(); renderTabs(); }
     if (t.id !== activeId) activateTab(t.id);
     tabDragStart(e, t, node, vertical);
+    // pressing a selected tab keeps the selection for a drag; a plain click (no drag) ends it
+    if (inSel) dragState.collapse = true;
   });
   node.addEventListener('dblclick', (e) => { if (!e.target.closest('.t-close')) startRename(t); });
   node.addEventListener('auxclick', (e) => { if (e.button === 1) closeTab(t); });
-  node.addEventListener('contextmenu', (e) => { e.preventDefault(); if (!node.classList.contains('renaming')) tabMenu(t, e.clientX, e.clientY); });
+  node.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (node.classList.contains('renaming')) return;
+    if (tabSel.size > 1 && tabSel.has(t.id)) { multiTabMenu(selectedTabs(), e.clientX, e.clientY); return; }
+    if (tabSel.size) { tabSel.clear(); renderTabs(); }
+    tabMenu(t, e.clientX, e.clientY);
+  });
   return node;
 }
 
@@ -656,13 +751,14 @@ async function tearOff(e) {
   const ds = dragState;
   ds.mode = 'window';
   clearDropMarks();
-  if (tabs.length > 1) {
-    // the tab becomes its own window right away, and that window follows the pointer
-    const t = ds.t;
+  const list = ds.list || [ds.t];
+  if (tabs.length > list.length) {
+    // the tab (or the selected tabs) become their own window right away, and that window follows the pointer
     const vertical = vertTabsOn();
     windowDrag = true;
-    await api.dragDetach([tabPayload(t)], { x: e.screenX, y: e.screenY, vertical });
-    await closeTab(t, { skipPrompt: true, moved: true });
+    tabSel.clear();
+    await api.dragDetach(list.map(tabPayload), { x: e.screenX, y: e.screenY, vertical });
+    for (const t of list) await closeTab(t, { skipPrompt: true, moved: true });
   } else {
     // the only tab: the whole window moves with it
     windowDrag = true;
@@ -689,6 +785,9 @@ window.addEventListener('pointermove', (e) => {
     // the pointer stays with this window even outside it, so a torn-off window can follow it
     try { $('#app').setPointerCapture(ds.pointerId); } catch {}
     ds.node = tabNodeOf(ds.t) || ds.node;
+    // dragging one of the selected tabs moves all of them
+    ds.list = tabSel.size > 1 && tabSel.has(ds.t.id) ? selectedTabs() : [ds.t];
+    for (const x of ds.list) { const n = tabNodeOf(x); if (n) n.classList.add('dragging'); }
     ds.node.classList.add('dragging');
     document.body.classList.add('tab-dragging');
   }
@@ -696,11 +795,31 @@ window.addEventListener('pointermove', (e) => {
   if (ds.mode === 'window') { api.dragMove(e.screenX, e.screenY); return; }
   if (ds.mode === 'tearing') return;
   if (outsideStrip(e)) { ds.mode = 'tearing'; tearOff(e); return; }
-  const chip = document.elementFromPoint(e.clientX, e.clientY)?.closest('.tgroup, .vgroup');
-  if (chip) { clearDropMarks(); chip.classList.add('drag-over'); ds.chip = chip; return; }
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const chip = under?.closest('.tgroup, .vgroup');
+  if (chip) { clearDropMarks(); chip.classList.add('drag-over'); ds.chip = chip; markJoin(chip.dataset.gid); return; }
   ds.chip = null;
-  markSlot(dropSlot(e.clientX, e.clientY));
+  const slot = dropSlot(e.clientX, e.clientY);
+  markSlot(slot);
+  // the group it will end up in: the group of the tab under the pointer, anywhere on that tab;
+  // over one of the moving tabs, groups stay as they are; between tabs, the tab it lands before decides
+  const overNode = under?.closest('.tab');
+  const over = overNode ? tabs.find((x) => x.id === Number(overNode.dataset.id)) : null;
+  if (over && ds.list.includes(over)) ds.join = undefined;
+  else if (over) ds.join = over.groupId || null;
+  else {
+    const anchor = slot.node && !slot.after ? tabs.find((x) => x.id === Number(slot.node.dataset.id)) : null;
+    ds.join = anchor && !ds.list.includes(anchor) ? anchor.groupId || null : null;
+  }
+  markJoin(ds.join);
 });
+/** while dragging, the whole group the tab would join is tinted */
+function markJoin(gid) {
+  document.querySelectorAll('.g-join').forEach((n) => n.classList.remove('g-join'));
+  if (!gid) return;
+  document.querySelectorAll(`[data-gid="${gid}"]`).forEach((n) => n.classList.add('g-join'));
+  for (const t of tabs) if (t.groupId === gid) { const n = tabNodeOf(t); if (n) n.classList.add('g-join'); }
+}
 async function endTabDrag(e) {
   const ds = dragState;
   if (!ds || e.pointerId !== ds.pointerId) return;
@@ -708,8 +827,10 @@ async function endTabDrag(e) {
   try { $('#app').releasePointerCapture(e.pointerId); } catch {}
   document.body.classList.remove('tab-dragging');
   ds.node.classList.remove('dragging');
+  document.querySelectorAll('.tab.dragging').forEach((n) => n.classList.remove('dragging'));
   clearDropMarks();
-  if (!ds.started) return;
+  markJoin(null);
+  if (!ds.started) { if (ds.collapse) clearTabSel(); return; }
   if (ds.mode === 'window' || ds.mode === 'tearing') {
     // the pointer went to the torn-off window: that window reports the end of the drag
     if (e.type !== 'pointerup') return;
@@ -717,17 +838,18 @@ async function endTabDrag(e) {
     api.dragEnd(e.screenX, e.screenY);
     return;
   }
-  const t = ds.t;
-  if (ds.chip) { setGroup(t, ds.chip.dataset.gid); return; }
+  const list = ds.list || [ds.t];
+  if (ds.chip) { for (const x of list) x.groupId = ds.chip.dataset.gid; normalizeGroups(); renderTabs(); saveSession(); return; }
   const slot = dropSlot(e.clientX, e.clientY);
-  const target = slot.node ? tabs.find((x) => x.id === Number(slot.node.dataset.id)) : null;
-  const from = tabs.indexOf(t);
-  let to = slot.index;
-  if (to > from) to--;
-  if (to === from && (!target || target.groupId === t.groupId)) return;
-  tabs.splice(from, 1);
-  tabs.splice(Math.max(0, Math.min(to, tabs.length)), 0, t);
-  if (target && target !== t) t.groupId = target.groupId; // dropping next to a grouped tab joins its group
+  const anchor = slot.node ? tabs.find((x) => x.id === Number(slot.node.dataset.id)) : null;
+  const rest = tabs.filter((x) => !list.includes(x));
+  let at;
+  if (!anchor) at = rest.length;
+  else if (list.includes(anchor)) at = rest.filter((x) => tabs.indexOf(x) < tabs.indexOf(anchor)).length; // dropped on its own place
+  else at = rest.indexOf(anchor) + (slot.after ? 1 : 0);
+  rest.splice(at, 0, ...list);
+  tabs.splice(0, tabs.length, ...rest);
+  if (ds.join !== undefined) for (const x of list) x.groupId = ds.join;
   normalizeGroups();
   renderTabs();
   saveSession();
@@ -750,7 +872,7 @@ function onDragHover(p) {
 }
 function groupChip(g, vertical) {
   const count = tabs.filter((t) => t.groupId === g.id).length;
-  const chip = el('div', { class: (vertical ? 'vgroup' : 'tgroup') + (g.collapsed ? ' collapsed' : ''), style: `--g:${colorOf(g)}`, title: g.collapsed ? 'باز کردن گروه' : 'جمع کردن گروه', 'data-gid': g.id },
+  const chip = el('div', { class: (vertical ? 'vgroup' : 'tgroup') + (g.collapsed ? ' collapsed' : ''), style: `--g:${colorOf(g)};--gt:${groupText(g)}`, title: g.collapsed ? 'باز کردن گروه' : 'جمع کردن گروه', 'data-gid': g.id },
     vertical ? el('span', { class: 'vg-chev', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>' }) : null,
     el('span', { class: 'g-name', dir: bidi(g.name) }, g.name || (vertical ? 'گروه' : '')),
     (g.collapsed || vertical) ? el('span', { class: 'g-count' }, fa(count)) : null);
@@ -760,6 +882,8 @@ function groupChip(g, vertical) {
 }
 function renderTabs() {
   normalizeGroups();
+  for (const id of [...tabSel]) if (!tabs.some((t) => t.id === id)) tabSel.delete(id);
+  if (tabSel.size < 2) tabSel.clear();
   const vertical = vertTabsOn();
   const hbox = $('#tabs');
   const vbox = $('#vtabs-list');
@@ -1062,7 +1186,7 @@ function togglePin() { return onTop() ? unpinWindow() : pinTab(); }
 // ======================================================================
 // files
 // ======================================================================
-async function openPath(p, { activate = true } = {}) {
+async function openPath(p, { activate = true, group = null } = {}) {
   const existing = tabs.find((t) => samePath(t.path, p));
   if (existing) { if (activate) activateTab(existing.id); return existing; }
   let file;
@@ -1070,7 +1194,7 @@ async function openPath(p, { activate = true } = {}) {
   // reuse a blank untitled tab instead of piling up tabs
   const cur = active();
   const reuse = cur && !cur.path && !cur.dirty && !cur.md.trim() ? cur : null;
-  const t = await newTab({ path: p, content: file.content, mtime: file.mtime, activate, index: reuse ? tabs.indexOf(reuse) + 1 : undefined });
+  const t = await newTab({ path: p, content: file.content, mtime: file.mtime, activate, group, index: reuse ? tabs.indexOf(reuse) + 1 : undefined });
   t.diskContent = file.content;
   restorePos(t);
   if (settings.locked.includes(posKey(p))) setLocked(t, true, true);
@@ -1176,8 +1300,28 @@ function saveModal(t, as) {
     renderChips();
 
     const folderTxt = el('span', { class: 'sv-path', dir: 'ltr', title: folder }, folder || 'انتخاب نشده');
-    const folderRow = el('div', { class: 'sv-folder', dir: 'ltr' }, el('span', { class: 'ic', html: ICON.folder }), folderTxt,
-      el('button', { class: 'hb', onclick: async () => { const d = await api.openFolderDialog(); if (d) { folder = d; folderTxt.textContent = d; folderTxt.title = d; paint(); } } }, 'تغییر…'));
+    // Desktop and Documents one click away; the one the file goes to now is marked
+    const QUICK = [
+      { name: 'Desktop', path: appInfo.desktop, icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 21h9M12 17v4M6.8 3h10.4C19.9 3 21.5 4.6 21.5 7.3v5.4c0 2.7-1.6 4.3-4.3 4.3H6.8C4.1 17 2.5 15.4 2.5 12.7V7.3C2.5 4.6 4.1 3 6.8 3z"/></svg>' },
+      { name: 'Documents', path: appInfo.documents, icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.7 16.2H8.5M15.7 12H8.5M11.3 7.9H8.5M15.9 2.75H8.1C5.3 2.75 3.75 4.4 3.75 7.2v9.6c0 2.9 1.55 4.45 4.35 4.45h7.8c2.8 0 4.35-1.55 4.35-4.45V7.2c0-2.8-1.55-4.45-4.35-4.45z"/></svg>' },
+    ].filter((q) => q.path);
+    const quickRow = el('div', { class: 'sv-quick', dir: 'ltr' });
+    const setFolder = (d) => {
+      folder = d; folderTxt.textContent = d; folderTxt.title = d;
+      for (const b of quickRow.children) {
+        const on = samePath(b.dataset.path, d);
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      }
+      paint();
+    };
+    for (const q of QUICK) {
+      quickRow.append(el('button', { class: 'sv-q', type: 'button', 'data-path': q.path, title: q.path, onclick: () => setFolder(q.path) },
+        el('span', { class: 'qi', html: q.icon }), el('span', {}, q.name), el('span', { class: 'ck', html: ICON.check })));
+    }
+    for (const b of quickRow.children) { const on = samePath(b.dataset.path, folder); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+    const folderRow = el('div', {}, el('div', { class: 'sv-folder', dir: 'ltr' }, el('span', { class: 'ic', html: ICON.folder }), folderTxt,
+      el('button', { class: 'hb', onclick: async () => { const d = await api.openFolderDialog(); if (d) setFolder(d); } }, 'تغییر…')), quickRow);
 
     const fmts = el('div', { class: 'sv-formats', role: 'group', 'aria-label': 'قالب‌های فایل' });
     for (const f of SAVE_FORMATS) {
@@ -1643,6 +1787,7 @@ function applyTheme() {
   }
   const dark = getComputedStyle(document.documentElement).colorScheme.includes('dark');
   setMermaidDark(dark);
+  if (tabs.length) renderTabs(); // group names take readable colours for the theme
   const root = document.documentElement.style;
   root.setProperty('--text-size', settings.fontSize + 'px');
   root.setProperty('--page-width', settings.pageWidth + 'px');
@@ -2846,12 +2991,70 @@ function installClickScrollGuard(t) {
 // ======================================================================
 let sessionT = null;
 function saveSessionSoon() { clearTimeout(sessionT); sessionT = setTimeout(saveSession, 800); }
+/**
+ * Every window keeps its own part of the session (the main process adds its place and size):
+ * saved files by path, unsaved documents by their draft, each with its group.
+ */
+let restoring = false;
 function saveSession() {
-  if (winRole !== 'main') return Promise.resolve();
-  const list = tabs.filter((t) => t.path).map((t) => ({ path: t.path, mode: t.mode, group: t.groupId || null, dir: t.dir || null }));
+  if (restoring) return Promise.resolve();
+  const list = tabs.filter((t) => t.path || t.draftId).map((t) => ({
+    ...(t.path ? { path: t.path } : { draft: t.draftId }), mode: t.mode, group: t.groupId || null, dir: t.dir || null,
+  }));
   const used = new Set(list.map((x) => x.group).filter(Boolean));
   const a = active();
-  return api.setSession({ tabs: list, active: a && a.path ? a.path : null, groups: [...groups.values()].filter((g) => used.has(g.id)) });
+  return api.setSession({
+    tabs: list, active: a ? a.path || a.draftId || null : null,
+    groups: [...groups.values()].filter((g) => used.has(g.id)),
+  });
+}
+/**
+ * Bring back this window's tabs from the last session. `drafts` are the unsaved documents on disk;
+ * the main window also takes those no window claims (left by a crash).
+ */
+async function restoreWindow(entry, drafts, claimed) {
+  restoring = true;
+  const byId = new Map(drafts.map((d) => [d.id, d]));
+  const used = new Set();
+  let restoredDrafts = 0;
+  try {
+    for (const g of entry.groups || []) groups.set(g.id, { ...g });
+    for (const st of entry.tabs || []) {
+      let t = null;
+      if (st.path) {
+        const ex = await api.stat(st.path);
+        if (!ex.exists) continue;
+        t = await openPath(st.path, { activate: false, group: st.group });
+      } else if (st.draft && byId.has(st.draft) && !used.has(st.draft)) {
+        const d = byId.get(st.draft);
+        used.add(d.id);
+        if (!d.content.trim()) { api.draftDelete(d.id); continue; }
+        const meta = (settings.draftMeta || {})[d.id] || {};
+        t = await newTab({ content: d.content, draftId: d.id, activate: false, dir: meta.dir, title: meta.title, group: st.group });
+        t.baseline = ''; t.dirty = true; restoredDrafts++;
+      }
+      if (!t) continue;
+      if (st.mode === 'source') setMode(t, 'source');
+      if (st.dir) { t.dir = st.dir; applyTabDir(t); }
+    }
+    // unsaved documents nobody claims (e.g. after a crash) come back in the main window, as before
+    if (claimed) {
+      for (const d of drafts) {
+        if (used.has(d.id) || claimed.has(d.id)) continue;
+        if (!d.content.trim()) { api.draftDelete(d.id); continue; }
+        const meta = (settings.draftMeta || {})[d.id] || {};
+        const t = await newTab({ content: d.content, draftId: d.id, activate: false, dir: meta.dir, title: meta.title });
+        t.baseline = ''; t.dirty = true; restoredDrafts++;
+      }
+    }
+  } finally {
+    restoring = false;
+  }
+  renderTabs();
+  const a = tabs.find((t) => (entry.active && (samePath(t.path, entry.active) || t.draftId === entry.active)));
+  if (a) activateTab(a.id);
+  if (restoredDrafts) toast(`${fa(restoredDrafts)} پیش‌نویس ذخیره‌نشده بازیابی شد`);
+  saveSession();
 }
 
 // ======================================================================
@@ -2864,6 +3067,7 @@ function onKey(e) {
   const t = active();
   const handled = () => { e.preventDefault(); e.stopPropagation(); };
   if (e.key === 'Escape' && !$('#findbar').hidden) { handled(); closeFind(); return; }
+  if (e.key === 'Escape' && tabSel.size > 1 && !document.querySelector('.menu, .overlay')) { handled(); clearTabSel(); return; }
   if (e.key === 'F8') { handled(); if (t) setLocked(t, !t.locked); return; }
   if (t && t.locked && isEditKey(e)) { handled(); showLockedToast(); return; }
   if (ctrl && !e.shiftKey && !e.altKey && e.code === 'KeyA' && t && !isTypingField()) { handled(); selectAllDoc(t); return; }
@@ -2889,7 +3093,7 @@ function onKey(e) {
     case 'KeyN': handled(); api.newWindow(); break;
     case 'KeyO': handled(); e.shiftKey ? openFolder() : openDialog(); break;
     case 'KeyS': handled(); if (e.altKey) saveAll(); else save(t, e.shiftKey); break;
-    case 'KeyW': handled(); if (t) closeTab(t); break;
+    case 'KeyW': handled(); if (tabSel.size > 1) closeTabs(selectedTabs()); else if (t) closeTab(t); break;
     case 'KeyT': handled(); if (e.shiftKey) reopenClosed(); else newTab(); break;
     case 'Slash': handled(); toggleSource(); break;
     case 'KeyH': handled(); if (e.shiftKey) historyPanel.toggle(); else openFind(true); break;
@@ -2967,6 +3171,13 @@ api.onRequestClose(async () => {
   await persistNow();
   await api.closeNow();
 });
+/** forget titles and directions of drafts that no longer exist */
+function forgetMissingDraftMeta(drafts) {
+  if (!settings.draftMeta) return;
+  const keep = new Set(drafts.map((d) => d.id));
+  const meta = Object.fromEntries(Object.entries(settings.draftMeta).filter(([id]) => keep.has(id)));
+  if (Object.keys(meta).length !== Object.keys(settings.draftMeta).length) { settings.draftMeta = meta; persistSettings(); }
+}
 async function persistNow() { clearTimeout(persistT); await api.setSettings(settings); await saveSession(); }
 
 export async function start() {
@@ -2976,6 +3187,7 @@ export async function start() {
   customThemes = await api.customThemes();
   applyTheme();
   document.addEventListener('keydown', onKey, true);
+  installKeyboardLang(api);
   setupFindInputs();
   setupDnD();
   setupPaste();
@@ -2993,36 +3205,23 @@ export async function start() {
   api.onDragDone(() => { windowDrag = false; document.body.classList.remove('tab-drop'); clearDropMarks(); });
   if (rd && rd.dragging) windowDrag = true;
   api.onSetRole((r) => { winRole = r; saveSession(); });
-  if (winRole !== 'main') {
+  if (api.onStripMenu) api.onStripMenu((x, y) => stripMenu(x, y));
+  const restore = rd && rd.payload && rd.payload.restore;
+  if (restore) {
+    // the main process hands each window its part of the last session
+    const drafts = await api.draftList();
+    await restoreWindow(restore, drafts, winRole === 'main' ? new Set(rd.payload.claimed || []) : null);
+    if (winRole === 'main') forgetMissingDraftMeta(drafts);
+    // a window whose files are all gone does not come back empty
+    if (winRole !== 'main' && !tabs.length) { await api.closeNow(); return; }
+  } else if (winRole !== 'main') {
     await receiveTabs(rd.payload || []);
-  } else if (settings.restoreSession) {
-    const s = await api.getSession();
-    if (s && s.tabs) {
-      for (const g of s.groups || []) groups.set(g.id, { ...g });
-      for (const st of s.tabs) {
-        const ex = await api.stat(st.path);
-        if (ex.exists) await openPath(st.path, { activate: false }).then((t) => { if (!t) return; if (st.mode === 'source') setMode(t, 'source'); if (st.group && groups.has(st.group)) t.groupId = st.group; if (st.dir) { t.dir = st.dir; applyTabDir(t); } });
-      }
-      renderTabs();
-      const a = tabs.find((t) => samePath(t.path, s.active));
-      if (a) activateTab(a.id);
-    }
+  } else {
+    // no session to restore (or restoring is off): unsaved documents still come back
+    const drafts = await api.draftList();
+    await restoreWindow({ tabs: [] }, drafts, new Set());
+    forgetMissingDraftMeta(drafts);
   }
-  const drafts = winRole === 'main' ? await api.draftList() : [];
-  for (const d of drafts) {
-    if (!d.content.trim()) { api.draftDelete(d.id); continue; }
-    const meta = (settings.draftMeta || {})[d.id] || {};
-    const t = await newTab({ content: d.content, draftId: d.id, activate: false, dir: meta.dir, title: meta.title });
-    t.baseline = '';
-    t.dirty = true;
-  }
-  if (winRole === 'main' && settings.draftMeta) {
-    // forget titles and directions of drafts that no longer exist
-    const keep = new Set(drafts.map((d) => d.id));
-    const meta = Object.fromEntries(Object.entries(settings.draftMeta).filter(([id]) => keep.has(id)));
-    if (Object.keys(meta).length !== Object.keys(settings.draftMeta).length) { settings.draftMeta = meta; persistSettings(); }
-  }
-  if (drafts.length) { renderTabs(); toast(`${fa(drafts.length)} پیش‌نویس ذخیره‌نشده بازیابی شد`); }
   for (const f of startupFiles || []) await openPath(f);
   applyCompact();
   booted = true;

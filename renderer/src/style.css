@@ -159,3 +159,7 @@ body.ctrl-down .milkdown .ProseMirror a { cursor: pointer; text-decoration: unde
 .milkdown .ProseMirror li[dir='ltr'] > .label-wrapper .label,
 .milkdown .ProseMirror [dir='ltr'] > .label-wrapper .label { direction: ltr; unicode-bidi: isolate; }
 /* save window: file names are usually English */
+/* the empty-line placeholder follows the keyboard language (kbdlang.js): the line starts on the side the text will go */
+html.kbd-en .milkdown .ProseMirror > p.crepe-placeholder { direction: ltr; text-align: left; }
+html.kbd-en .milkdown .ProseMirror > p.crepe-placeholder::before { content: 'Start writing… press / to insert a block'; font-family: 'Segoe UI', var(--font-text); }
+html.kbd-fa .milkdown .ProseMirror > p.crepe-placeholder { direction: rtl; text-align: right; }

@@ -31,7 +31,8 @@ const logoPath = (id) => {
 };
 // ---------- windows ----------
 // Every window is a full Fedo window (its own tabs). One of them is the "main" window: it gets
-// files opened from Windows and is the one whose tabs are restored next time.
+// files opened from Windows. All windows, with their tabs, groups, place and size, come back next time,
+// except a window the user closed by hand while others stayed open.
 const windows = new Map(); // id -> { win, ready, pending, payload, role, forceClose }
 let mainId = null;
 let lastFocusedId = null;
@@ -152,8 +153,38 @@ function createWindow(opts = {}) {
     e.preventDefault();
     win.webContents.send('request-close');
   });
+  // remember where the window is, so it comes back in the same place
+  const moved = () => { if (winSessions.has(win.id)) writeSessionSoon(); };
+  win.on('move', moved); win.on('resize', moved);
+  win.on('maximize', moved); win.on('unmaximize', moved);
+  win.on('always-on-top-changed', moved);
+  // right-click on the empty part of the top bar (a window-drag area): Fedo's own tab-bar menu instead of
+  // the Windows window menu, which stays on Alt+Space
+  win.on('system-context-menu', (e) => {
+    e.preventDefault();
+    const { screen } = require('electron');
+    const p = screen.getCursorScreenPoint(), c = win.getContentBounds(), z = win.webContents.getZoomFactor() || 1;
+    win.webContents.send('strip-menu', (p.x - c.x) / z, (p.y - c.y) / z);
+  });
+  // the keyboard language changed (Alt+Shift, Win+Space, the taskbar button): tell the page, which shows
+  // the empty-line placeholder in that language. Windows sends WM_INPUTLANGCHANGE with the new layout,
+  // whose low word is its language id.
+  if (process.platform === 'win32') {
+    const RTL_LANGS = new Set([0x01, 0x0d, 0x20, 0x29, 0x63, 0x8c, 0x92]); // Arabic, Hebrew, Urdu, Persian, Pashto, Dari, Kurdish
+    win.hookWindowMessage(0x0051, (_wParam, lParam) => {
+      try {
+        const lang = lParam.readUInt16LE(0) & 0x3ff;
+        if (!win.isDestroyed()) win.webContents.send('kbd-lang', RTL_LANGS.has(lang) ? 'fa' : 'en');
+      } catch { /* an unexpected message shape: ignore */ }
+    });
+  }
+  // Windows is shutting down or restarting: every window is closing, none of them "by hand"
+  win.on('query-session-end', () => markQuitting());
+  win.on('session-end', () => markQuitting());
   win.on('closed', () => {
     windows.delete(win.id);
+    // closed by hand while other windows stay open: it is not brought back next time
+    if (!quitting && windows.size > 0 && winSessions.delete(win.id)) writeSession();
     if (mainId === win.id) {
       // another window takes over as the main one
       const next = [...windows.values()][0];
@@ -196,9 +227,77 @@ app.on('open-file', (e, p) => {
 app.whenReady().then(async () => {
   await fsp.mkdir(themesDir(), { recursive: true });
   require('./updater');
-  createWindow();
+  await restoreWindows();
 });
 app.on('window-all-closed', () => app.quit());
+app.on('before-quit', () => markQuitting());
+
+// ---------- session: every window's tabs, groups, place and size ----------
+const winSessions = new Map(); // window id -> { tabs, active, groups, main, bounds, maximized, alwaysOnTop }
+let quitting = false;
+let quitT = null;
+function markQuitting() {
+  quitting = true;
+  // a quit that a window cancelled ("انصراف" in the save dialog) does not leave the app thinking it is quitting
+  clearTimeout(quitT);
+  quitT = setTimeout(() => { quitting = false; }, 20000);
+}
+function geometry(id) {
+  const st = windows.get(id);
+  if (!st || st.win.isDestroyed()) return null;
+  const w = st.win;
+  return { main: st.role === 'main', bounds: w.getNormalBounds(), maximized: w.isMaximized(), alwaysOnTop: w.isAlwaysOnTop() };
+}
+let writing = Promise.resolve();
+let sessionT = null;
+function writeSessionSoon() { clearTimeout(sessionT); sessionT = setTimeout(writeSession, 600); }
+function writeSession() {
+  clearTimeout(sessionT);
+  const list = [];
+  for (const [id, data] of winSessions) {
+    const g = geometry(id);
+    if (g) Object.assign(data, g); // a window that already closed keeps what it had last
+    list.push(data);
+  }
+  list.sort((a, b) => (b.main ? 1 : 0) - (a.main ? 1 : 0));
+  writing = writing.then(() => writeJSON(sessionFile(), { v: 2, windows: list })).catch(() => {});
+  return writing;
+}
+/** a saved place on screen, if it is still on a connected monitor; else the size alone */
+function placeFor(e) {
+  const b = e && e.bounds;
+  if (!b || !(b.width > 0)) return {};
+  const { screen } = require('electron');
+  const visible = screen.getAllDisplays().some((d) => {
+    const a = d.workArea;
+    const w = Math.min(b.x + b.width, a.x + a.width) - Math.max(b.x, a.x);
+    const h = Math.min(b.y + b.height, a.y + a.height) - Math.max(b.y, a.y);
+    return w >= 120 && h >= 60;
+  });
+  if (visible) return { x: b.x, y: b.y, width: b.width, height: b.height };
+  const a = screen.getPrimaryDisplay().workArea;
+  return { width: Math.min(b.width, a.width), height: Math.min(b.height, a.height) };
+}
+async function restoreWindows() {
+  const settings = await readJSON(settingsFile(), {});
+  const saved = settings.restoreSession === false ? null : await readJSON(sessionFile(), null);
+  // the session of 2.7 and earlier: one window
+  let list = !saved ? [] : Array.isArray(saved.windows) ? saved.windows : saved.tabs ? [{ ...saved, main: true }] : [];
+  list = list.filter((e) => e && Array.isArray(e.tabs) && e.tabs.length);
+  const main = list.find((e) => e.main) || list[0];
+  if (!main) { createWindow(); return; }
+  const others = list.filter((e) => e !== main);
+  // unsaved documents another window will take back; the main window takes the rest
+  const claimed = others.flatMap((e) => e.tabs.filter((t) => t.draft).map((t) => t.draft));
+  const open = (e, payload) => {
+    const w = createWindow({ payload, alwaysOnTop: !!e.alwaysOnTop, ...placeFor(e) });
+    if (e.maximized) w.maximize();
+    return w;
+  };
+  const mainWin = open(main, { restore: main, claimed });
+  for (const e of others) open(e, { restore: e });
+  if (others.length) mainWin.focus();
+}
 
 // ---------- IPC: windows ----------
 ipcMain.handle('win:close-now', (e) => { const w = W(e); const st = stateOf(w); if (st) st.forceClose = true; w && w.close(); });
@@ -573,7 +672,12 @@ ipcMain.handle('history:move', async (_e, from, to) => {
 ipcMain.handle('settings:get', () => readJSON(settingsFile(), {}));
 ipcMain.handle('settings:set', (_e, s) => writeJSON(settingsFile(), s));
 ipcMain.handle('session:get', () => readJSON(sessionFile(), null));
-ipcMain.handle('session:set', (_e, s) => writeJSON(sessionFile(), s));
+ipcMain.handle('session:set', (e, s) => {
+  const w = W(e);
+  if (!w || !s) return;
+  winSessions.set(w.id, { tabs: s.tabs || [], active: s.active || null, groups: s.groups || [] });
+  return writeSession();
+});
 ipcMain.handle('themes:custom', async () => {
   const out = [];
   try {

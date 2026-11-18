@@ -1,0 +1,36 @@
+// The empty-line placeholder follows the current keyboard language: Persian text from the right with a
+// Persian keyboard, English text from the left with an English one. So a bilingual writer sees which
+// layout is on before typing the first word. Sets `kbd-fa` / `kbd-en` on <html>; style.css does the rest.
+//
+// Where the language comes from:
+// - on Windows, the main process hears every switch (Alt+Shift, Win+Space, the taskbar button) from
+//   Windows itself and sends it here (`onKbdLang`);
+// - at start, the layout Chromium reports (later reads of it can be out of date, so it is read only once);
+// - a typed letter, which tells the language for certain.
+
+const RTL = /[֐-ࣿיִ-﷿ﹰ-﻿]/;
+const LATIN = /[A-Za-zÀ-ɏ]/;
+
+function setLang(lang) {
+  const root = document.documentElement;
+  if (!lang || root.classList.contains('kbd-' + lang)) return;
+  root.classList.toggle('kbd-fa', lang === 'fa');
+  root.classList.toggle('kbd-en', lang === 'en');
+}
+
+export function installKeyboardLang(api) {
+  let heard = false; // once Windows has told us, the start-up guess must not overwrite it
+  if (api && api.onKbdLang) api.onKbdLang((lang) => { heard = true; setLang(lang); });
+  if (navigator.keyboard && navigator.keyboard.getLayoutMap) {
+    navigator.keyboard.getLayoutMap().then((map) => {
+      if (heard) return;
+      const k = map.get('KeyA') || '';
+      setLang(RTL.test(k) ? 'fa' : LATIN.test(k) ? 'en' : null);
+    }).catch(() => {});
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      if (RTL.test(e.key)) setLang('fa'); else if (LATIN.test(e.key)) setLang('en');
+    }
+  }, true);
+}

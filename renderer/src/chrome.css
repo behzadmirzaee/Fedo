@@ -60,7 +60,7 @@ svg.flip { transform: scaleX(-1); }
 /* tab groups in the horizontal strip: a coloured dot and name, then a thin coloured line under each member */
 .tgroup {
   flex: none; display: flex; align-items: center; gap: 6px; height: 32px; padding-inline: 10px; border-radius: 999px;
-  color: var(--g); font-weight: 600; cursor: pointer; max-width: 150px; user-select: none;
+  color: var(--gt, var(--g)); font-weight: 600; cursor: pointer; max-width: 150px; user-select: none;
 }
 .tgroup::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--g); flex: none; }
 .tgroup:hover { background: var(--ctl); }
@@ -156,7 +156,7 @@ body.vertical-tabs #tabstrip { display: none; }
 #vtabs-list .tab.drag-over-after { box-shadow: inset 0 -3px 0 var(--accent); }
 .vgroup {
   display: flex; align-items: center; gap: 8px; height: 34px; padding-inline: 10px 8px; margin-top: 4px; border-radius: 10px; flex: none;
-  cursor: pointer; color: var(--g); font-weight: 600; user-select: none;
+  cursor: pointer; color: var(--gt, var(--g)); font-weight: 600; user-select: none;
 }
 .vgroup:hover { background: var(--ctl); }
 .vgroup::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--g); flex: none; order: -1; }
@@ -870,3 +870,26 @@ body.tab-drop #tabstrip, body.tab-drop #vtabs { background: var(--sel); box-shad
 input:placeholder-shown:not([dir='ltr']), textarea:placeholder-shown:not([dir='ltr']) { direction: rtl; text-align: right; }
 .theme-gallery .tg-search input:focus, .theme-gallery .tg-search input:focus-visible { outline: none; box-shadow: none; }
 .theme-gallery .tg-search:focus-within { background: var(--ctl-2); box-shadow: 0 0 0 2px var(--accent); }
+
+/* while the mouse is selecting text the selection toolbar is hidden and lets the pointer through */
+.nv-selecting .milkdown .milkdown-toolbar { visibility: hidden !important; pointer-events: none !important; }
+/* menus opened over the top bar (e.g. its right-click menu) must take clicks, not drag the window */
+.menu, .menu * { -webkit-app-region: no-drag; }
+
+/* save modal: Desktop / Documents shortcuts under the folder; the folder the file goes to is marked */
+.sv-quick { display: flex; gap: 8px; margin-top: 10px; direction: ltr; }
+.sv-q { height: 32px; padding: 0 14px 0 11px; border-radius: 999px; background: var(--ctl); display: inline-flex; align-items: center; gap: 7px; font: 500 13px 'Segoe UI', 'Vazirmatn', system-ui, sans-serif; color: var(--fg); }
+.sv-q:hover { background: color-mix(in srgb, var(--fg) 10%, transparent); }
+.sv-q .qi { display: grid; color: var(--muted); }
+.sv-q .qi svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.sv-q .ck { display: none; width: 16px; height: 16px; border-radius: 999px; background: var(--accent); color: var(--accent-fg); place-items: center; margin-inline-start: 2px; }
+.sv-q .ck svg { width: 10px; height: 10px; stroke-width: 2.8; }
+.sv-q.on { background: var(--sel); color: var(--accent); font-weight: 600; box-shadow: inset 0 0 0 1.5px var(--accent); padding-inline-end: 8px; }
+.sv-q.on .qi { color: var(--accent); }
+.sv-q.on .ck { display: grid; }
+
+/* several tabs selected (Ctrl / Shift + click) */
+.tab.ms { background: var(--sel); color: var(--accent); font-weight: 600; }
+.tab.active.ms { background: var(--ctl-2); color: var(--fg); box-shadow: inset 0 0 0 2px var(--accent), var(--sh); }
+/* dragging a tab: the group it would join is tinted in the group's colour */
+.tab.g-join, .tgroup.g-join, .vgroup.g-join { background: color-mix(in srgb, var(--g) 16%, transparent); }
