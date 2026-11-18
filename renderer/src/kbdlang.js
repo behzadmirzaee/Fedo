@@ -6,7 +6,7 @@
 // - on Windows, the main process hears every switch (Alt+Shift, Win+Space, the taskbar button) from
 //   Windows itself and sends it here (`onKbdLang`);
 // - at start on Windows, the main process asks Windows for the window's layout; elsewhere, the layout
-//   Chromium reports;
+//   Chromium reports (on macOS asked again every second, since macOS sends nothing on a switch);
 // - a typed letter, which tells the language for certain.
 
 const RTL = /[֐-ࣿיִ-﷿ﹰ-﻿]/;
@@ -25,11 +25,18 @@ export function installKeyboardLang(api) {
   // on Windows Chromium's answer is the layout the app started with, not the one in use: Windows itself
   // tells us (see electron/main.js), so it is asked only elsewhere
   if (!/Windows/.test(navigator.userAgent) && navigator.keyboard && navigator.keyboard.getLayoutMap) {
-    navigator.keyboard.getLayoutMap().then((map) => {
+    const ask = () => navigator.keyboard.getLayoutMap().then((map) => {
       if (heard) return;
       const k = map.get('KeyA') || '';
       setLang(RTL.test(k) ? 'fa' : LATIN.test(k) ? 'en' : null);
     }).catch(() => {});
+    ask();
+    // macOS tells the page nothing when the input source changes (⌃Space, the 🌐 key, the menu bar):
+    // ask again when the window comes forward, and every second while it is in front
+    if (/Mac/.test(navigator.platform || navigator.userAgent)) {
+      window.addEventListener('focus', ask);
+      setInterval(() => { if (document.hasFocus()) ask(); }, 1000);
+    }
   }
   document.addEventListener('keydown', (e) => {
     if (e.key && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {

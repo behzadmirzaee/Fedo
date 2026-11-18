@@ -18,6 +18,9 @@ svg.flip { transform: scaleX(-1); }
   -webkit-app-region: drag;
 }
 #topbar .cap, #topbar button, #topbar .tab, #topbar .tgroup { -webkit-app-region: no-drag; }
+/* macOS draws its window buttons (● ● ●) at the top left of this bar: leave them room (none in full screen) */
+html.mac #topbar { padding-left: 84px; }
+html.mac.fullscreen #topbar { padding-left: 10px; }
 #topbar .grow { flex: 1; align-self: stretch; min-width: 24px; }
 
 .cap { display: flex; align-items: center; gap: 2px; background: var(--ctl); border-radius: 999px; padding: 3px; flex: none; }

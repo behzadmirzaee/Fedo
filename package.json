@@ -8,7 +8,8 @@
     "build": "vite build",
     "start": "vite build && electron .",
     "dist:win": "vite build && electron-builder --win --publish never",
-    "release:win": "vite build && electron-builder --win --publish always"
+    "release:win": "vite build && electron-builder --win --publish always",
+    "dist:mac": "vite build && electron-builder --mac --publish never"
   },
   "keywords": [],
   "author": "Behzad",
@@ -79,6 +80,34 @@
       "signAndEditExecutable": false,
       "icon": "build/icon.ico",
       "artifactName": "Fedo-${version}-win.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.productivity",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "darkModeSupport": false,
+      "artifactName": "Fedo-${version}-mac-${arch}.${ext}"
+    },
+    "dmg": {
+      "title": "Fedo ${version}",
+      "artifactName": "Fedo-${version}-mac-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,

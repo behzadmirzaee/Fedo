@@ -1,0 +1,64 @@
+# Builds Fedo for macOS on GitHub's own Macs and tests it there, so the Mac version can be made
+# without owning a Mac. Every push to the `mac` branch (or a manual "Run workflow"):
+#   1. builds Fedo-<version>-mac-arm64.dmg (Apple Silicon) and -mac-x64.dmg (Intel), plus zips
+#   2. starts the built app on an Apple Silicon Mac and on an Intel Mac, tries the basics
+#      (typing, copy / paste, undo, menus, settings, save window, full screen, Dock) and takes screenshots
+# Results: the run's Summary page (pass / fail list) and its Artifacts (dmg files and screenshots).
+name: macOS build and test
+
+on:
+  push:
+    branches: [mac]
+  workflow_dispatch:
+
+jobs:
+  mac:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest   # Apple Silicon
+            arch: arm64
+          - runner: macos-15-intel # Intel (GitHub keeps Intel Macs until 2027)
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Build the app
+        run: npx vite build && npx electron-builder --mac --${{ matrix.arch }} --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Test the built app and take screenshots
+        run: |
+          npm i --no-save --no-audit --no-fund playwright@1
+          APP=$(ls -d release/mac*/Fedo.app | head -1)
+          echo "testing $APP"
+          FEDO_EXE="$APP/Contents/MacOS/Fedo" SHOTS="shots-${{ matrix.arch }}" node test/smoke.mjs
+
+      - name: Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ matrix.arch }}
+          path: shots-${{ matrix.arch }}/
+
+      - name: Installers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fedo-mac-${{ matrix.arch }}
+          path: |
+            release/*.dmg
+            release/*.zip
+          if-no-files-found: ignore

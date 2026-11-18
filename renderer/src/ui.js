@@ -71,15 +71,50 @@ export const ICON = {
 const hIcon = (n) => s(`<path d="M3.5 6v12M11 6v12M3.5 12H11"/><text x="17.8" y="19" text-anchor="middle" font-size="11" font-weight="700" fill="currentColor" stroke="none" font-family="Segoe UI, system-ui, sans-serif">${n}</text>`);
 for (let n = 1; n <= 6; n++) ICON['h' + n] = hIcon(n);
 
+// ---------- shortcuts on macOS ----------
+// The app is written with Windows names (Ctrl+S). On a Mac every shortcut is shown the Mac way (⌘S),
+// in Apple's modifier order (⌃ ⌥ ⇧ ⌘). The key handlers accept both Ctrl and ⌘, so only the labels change.
+export const IS_MAC = /Mac/.test(navigator.platform || navigator.userAgent || '');
+// shortcuts that are different on a Mac, not just renamed (⌘H hides the app, F11 shows the desktop,
+// ⌘Tab switches apps, F8 is play / pause)
+const MAC_KEYS = { 'Ctrl+H': 'Alt+Ctrl+F', 'F11': 'Control+Ctrl+F', 'Ctrl+Tab': 'Control+Tab', 'F8': 'Alt+Ctrl+L' };
+const MAC_MOD = { Control: '⌃', Alt: '⌥', Shift: '⇧', Ctrl: '⌘' };
+const MAC_ORDER = ['Control', 'Alt', 'Shift', 'Ctrl'];
+const MAC_NAME = { Enter: '↩', Tab: '⇥', Backspace: '⌫', Delete: '⌦' };
+/** 'Ctrl+Shift+T' → ['⇧', '⌘', 'T'] on a Mac, ['Ctrl', 'Shift', 'T'] elsewhere */
+export function keyParts(key) {
+  const parts = String(key).split(/\s*\+\s*(?=\S)/).filter(Boolean);
+  if (!IS_MAC) return parts;
+  const mapped = MAC_KEYS[parts.join('+')];
+  const ps = mapped ? mapped.split('+') : parts;
+  const mods = MAC_ORDER.filter((m) => ps.includes(m)).map((m) => MAC_MOD[m]);
+  return [...mods, ...ps.filter((p) => !MAC_MOD[p]).map((p) => MAC_NAME[p] || p)];
+}
+/** any shortcuts inside a text, the Mac way: 'ذخیره (Ctrl+S)' → 'ذخیره (⌘S)' */
+export function keyText(text) {
+  if (!IS_MAC || typeof text !== 'string' || !/Ctrl|Alt\+|Shift\+|F11|F8/.test(text)) return text;
+  return text
+    .replace(/\b(?:Ctrl|Alt|Shift)(?:\+(?:Ctrl|Alt|Shift))*\+(?:[^\s()،,+]+|\+)|\bF11\b|\bF8\b/g, (m) => {
+      const ps = keyParts(m);
+      const last = ps[ps.length - 1];
+      // a word key (کلیک) keeps a + after the modifiers, so it still reads as «⌘ + کلیک»
+      return /[^\x00-\x7f⌃⌥⇧⌘↩⇥⌫⌦]/.test(last) ? ps.slice(0, -1).join('') + '+' + last : ps.join('');
+    })
+    .replace(/\bCtrl\b/g, '⌘');
+}
+const KEY_ATTRS = new Set(['title', 'aria-label', 'placeholder']);
+// lets the styles make room for the Mac's window buttons (● ● ●, top left)
+if (IS_MAC) document.documentElement.classList.add('mac');
+
 export function el(tag, attrs = {}, ...children) {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (k === 'class') e.className = v;
     else if (k === 'html') e.innerHTML = v;
     else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
-    else if (v !== false && v != null) e.setAttribute(k, v === true ? '' : v);
+    else if (v !== false && v != null) e.setAttribute(k, v === true ? '' : KEY_ATTRS.has(k) ? keyText(v) : v);
   }
-  for (const c of children.flat()) if (c != null) e.append(c.nodeType ? c : document.createTextNode(c));
+  for (const c of children.flat()) if (c != null) e.append(c.nodeType ? c : document.createTextNode(IS_MAC && tag !== 'kbd' ? keyText(String(c)) : c));
   return e;
 }
 
@@ -133,8 +168,7 @@ function closeFrom(level) { while (openMenus.length > level) openMenus.pop().rem
 
 /** 'Ctrl+Shift+O' → quiet key chips */
 export function kbd(key) {
-  const parts = String(key).split(/\s*\+\s*(?=\S)/).filter(Boolean);
-  return el('span', { class: 'kb', dir: 'ltr' }, parts.map((k) => el('kbd', {}, k)));
+  return el('span', { class: 'kb', dir: 'ltr' }, keyParts(key).map((k) => el('kbd', {}, k)));
 }
 /**
  * items: 'sep' | {header} | {label, icon, key, run, checked, disabled, danger, badge, sub:[...], style}

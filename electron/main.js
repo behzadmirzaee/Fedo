@@ -6,6 +6,7 @@ const fsp = fs.promises;
 const crypto = require('crypto');
 
 const isDev = !!process.env.VITE_DEV_URL;
+const isMac = process.platform === 'darwin';
 
 // The app used to be called Neveshtar: carry its settings, history and drafts over once.
 app.setName('Fedo');
@@ -75,7 +76,8 @@ const historyRoot = () => path.join(userDir(), 'history');
 const themesDir = () => path.join(userDir(), 'themes');
 const settingsFile = () => path.join(userDir(), 'settings.json');
 const sessionFile = () => path.join(userDir(), 'session.json');
-const keyFor = (p) => crypto.createHash('sha1').update(path.resolve(p).toLowerCase()).digest('hex').slice(0, 16);
+// one Unicode form, so a name macOS hands back with «آ» split in two still finds its history
+const keyFor = (p) => crypto.createHash('sha1').update(path.resolve(p).normalize('NFC').toLowerCase()).digest('hex').slice(0, 16);
 
 async function readJSON(file, fallback) {
   try { return JSON.parse(await fsp.readFile(file, 'utf8')); } catch { return fallback; }
@@ -104,6 +106,8 @@ function createWindow(opts = {}) {
     // Windows: no native title bar. The app's top bar is the title bar, and Windows draws its own
     // caption buttons (− □ ✕, with snap layouts) over its right end.
     ...(process.platform === 'win32' ? { titleBarStyle: 'hidden', titleBarOverlay: { color: '#ECECF0', symbolColor: '#1D1D1F', height: TITLEBAR_H } } : {}),
+    // macOS: the same, with its own window buttons (● ● ●) at the top left, centred in the app's top bar
+    ...(isMac ? { titleBarStyle: 'hidden', trafficLightPosition: { x: 18, y: Math.round(TITLEBAR_H / 2 - 8) } } : {}),
     alwaysOnTop: !!opts.alwaysOnTop,
     // hidden until the page has its theme on (see 'win:painted'), so it never flashes the default look;
     // a window torn off by dragging appears at once, without taking focus, so the drag keeps going
@@ -134,9 +138,10 @@ function createWindow(opts = {}) {
     win.once('ready-to-show', () => setTimeout(st.reveal, 2500));
   }
 
-  Menu.setApplicationMenu(null);
+  // Windows: no menu at all. macOS keeps its menu bar (see macMenu): without it ⌘C / ⌘V / ⌘Z and ⌘Q stop working
+  if (!isMac) Menu.setApplicationMenu(null);
   const ses = win.webContents.session;
-  ses.setSpellCheckerLanguages(['en-US']);
+  try { ses.setSpellCheckerLanguages(['en-US']); } catch { /* macOS picks the language itself */ }
   ses.setSpellCheckerEnabled(false);
   // allow reading the list of installed fonts (font picker) and the clipboard
   const ALLOWED = new Set(['local-fonts', 'clipboard-read', 'clipboard-sanitized-write', 'fullscreen']);
@@ -169,6 +174,9 @@ function createWindow(opts = {}) {
   win.on('move', moved); win.on('resize', moved);
   win.on('maximize', moved); win.on('unmaximize', moved);
   win.on('always-on-top-changed', moved);
+  // full screen hides the Mac's window buttons: the top bar can take back their room
+  win.on('enter-full-screen', () => win.webContents.send('fullscreen', true));
+  win.on('leave-full-screen', () => win.webContents.send('fullscreen', false));
   // right-click on the empty part of the top bar (a window-drag area): Fedo's own tab-bar menu instead of
   // the Windows window menu, which stays on Alt+Space
   win.on('system-context-menu', (e) => {
@@ -244,24 +252,56 @@ ipcMain.handle('app:ready', (e) => {
   if (!st) return { files: [], role: 'main' };
   st.ready = true;
   let files = [];
-  if (st.role === 'main' && !startupTaken) { files = [...filesFromArgv(process.argv), ...pendingFirst.splice(0)]; startupTaken = true; }
+  if (st.role === 'main') {
+    if (!startupTaken) { files = filesFromArgv(process.argv); startupTaken = true; }
+    files.push(...pendingFirst.splice(0));
+  }
   files.push(...st.pending.splice(0));
   const payload = st.payload; st.payload = null;
   return { files, role: st.role, payload, alwaysOnTop: w.isAlwaysOnTop(), dragging: !!(drag && drag.winId === w.id) };
 });
 
-// macOS "open with"
+// macOS "open with" / a file dropped on the Dock icon; it can come before the first window exists,
+// or while the app runs with no window at all (macOS keeps it in the Dock)
 app.on('open-file', (e, p) => {
   e.preventDefault();
+  if (app.isReady() && windows.size === 0) { pendingFirst.push(p); restoreWindows(); return; }
   sendOpen(p);
 });
 
 app.whenReady().then(async () => {
   await fsp.mkdir(themesDir(), { recursive: true });
+  if (isMac) {
+    macMenu();
+    try { app.dock.setIcon(logoPath(readLogoSync())); } catch {}
+  }
   require('./updater');
   await restoreWindows();
 });
-app.on('window-all-closed', () => app.quit());
+// Windows: the last window closed ends the app. macOS: the app stays in the Dock (as Mac apps do),
+// unless it is quitting (⌘Q); clicking its Dock icon brings the windows back
+app.on('window-all-closed', () => { if (!isMac || quitting) app.quit(); });
+app.on('activate', () => { if (app.isReady() && windows.size === 0) restoreWindows(); });
+
+// ---------- macOS menu bar ----------
+// The Mac needs it for the system shortcuts. The page sees each key first; only keys it leaves alone
+// (⌘C, ⌘V, ⌘Q, ⌘H, ⌘M…) reach these items, so Fedo's own shortcuts are not taken over.
+function macMenu() {
+  app.setAboutPanelOptions({ applicationName: 'Fedo', applicationVersion: app.getVersion(), copyright: 'Licensed under Doneshe technology.' });
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { role: 'appMenu' },
+    {
+      role: 'editMenu',
+      submenu: [
+        { role: 'undo' }, { role: 'redo' }, { type: 'separator' },
+        { role: 'cut' }, { role: 'copy' }, { role: 'paste' },
+        { role: 'pasteAndMatchStyle', accelerator: 'Cmd+Shift+V' },
+        { role: 'selectAll' },
+      ],
+    },
+    { role: 'windowMenu', submenu: [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'front' }] },
+  ]));
+}
 app.on('before-quit', () => markQuitting());
 
 // ---------- session: every window's tabs, groups, place and size ----------
@@ -339,6 +379,8 @@ ipcMain.handle('app:set-logo', (_e, id) => {
   const { nativeImage } = require('electron');
   const img = nativeImage.createFromPath(logoPath(id));
   for (const st of windows.values()) st.win.setIcon(img);
+  // macOS: windows have no icon of their own; the Dock icon changes while the app runs
+  if (isMac) try { app.dock.setIcon(img); } catch {}
 });
 ipcMain.handle('win:set-titlebar', (e, o) => {
   const w = W(e);

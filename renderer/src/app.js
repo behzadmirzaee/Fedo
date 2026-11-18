@@ -23,7 +23,7 @@ import { buildRegex, pmEngine, cmEngine, pmCollectEdits, pmApplyEdits, PRESETS }
 import { readOnlyComp } from './editor.js';
 import { EditorState as CMState } from '@codemirror/state';
 import { exportDocument } from './export.js';
-import { el, ICON, showMenu, closeMenu, modal, toast, kbd, fa, basename, dirname, relTime } from './ui.js';
+import { el, ICON, showMenu, closeMenu, modal, toast, kbd, fa, basename, dirname, relTime, IS_MAC, keyText } from './ui.js';
 
 const api = window.api;
 const $ = (s) => document.querySelector(s);
@@ -116,7 +116,8 @@ let historyPanel;
 
 const bidi = (text) => dirOfText(text || '') || 'auto';
 const active = () => tabs.find((t) => t.id === activeId);
-const samePath = (a, b) => a && b && a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase();
+// one Unicode form: macOS can hand a name back with «آ» split into two characters (ا + ٓ)
+const samePath = (a, b) => a && b && a.normalize('NFC').replace(/\\/g, '/').toLowerCase() === b.normalize('NFC').replace(/\\/g, '/').toLowerCase();
 
 // ======================================================================
 // layout
@@ -447,7 +448,7 @@ function dropDraft(t) {
 }
 
 // ---------- caret & scroll memory per file ----------
-const posKey = (p) => p.replace(/\\/g, '/').toLowerCase();
+const posKey = (p) => p.normalize('NFC').replace(/\\/g, '/').toLowerCase();
 function rememberPos(t) {
   if (!t || !t.path) return;
   let sel = 0;
@@ -564,7 +565,7 @@ function selectClick(t, e) {
   if (e.shiftKey && a) {
     // everything between the active tab and this one; Ctrl+Shift adds the range to what was selected
     const i = tabs.indexOf(a), j = tabs.indexOf(t);
-    if (!(e.ctrlKey || e.metaKey)) tabSel.clear();
+    if (!(IS_MAC ? e.metaKey : e.ctrlKey || e.metaKey)) tabSel.clear();
     for (const x of tabs.slice(Math.min(i, j), Math.max(i, j) + 1)) tabSel.add(x.id);
   } else {
     if (!tabSel.size && a) tabSel.add(a.id);
@@ -635,7 +636,8 @@ function tabNode(t, vertical) {
   node.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || node.classList.contains('renaming')) return;
     // Ctrl / Shift + click: build a selection of tabs, without switching documents
-    if (e.ctrlKey || e.metaKey || e.shiftKey) { e.preventDefault(); selectClick(t, e); return; }
+    // on a Mac Ctrl+click is a right-click: there ⌘+click builds the selection
+    if ((IS_MAC ? e.metaKey : e.ctrlKey || e.metaKey) || e.shiftKey) { e.preventDefault(); selectClick(t, e); return; }
     const inSel = tabSel.size > 1 && tabSel.has(t.id);
     if (!inSel && tabSel.size) { tabSel.clear(); renderTabs(); }
     if (t.id !== activeId) activateTab(t.id);
@@ -2205,7 +2207,7 @@ async function openSettings(section = 'look') {
       el('div', { class: 'grp' }, EXTENSIONS.map((x) => extRow(x, sw))),
     ] },
     { id: 'icon', name: 'آیکن برنامه', icon: ICON.image, color: '#E0457B', body: () => [
-      el('div', { class: 'lbl set-free' }, 'با انتخاب هر کدام، آیکن پنجره و نوار وظیفه عوض می‌شود.'), logoGrid,
+      el('div', { class: 'lbl set-free' }, IS_MAC ? 'با انتخاب هر کدام، آیکن Dock عوض می‌شود.' : 'با انتخاب هر کدام، آیکن پنجره و نوار وظیفه عوض می‌شود.'), logoGrid,
     ] },
     { id: 'update', name: 'به‌روزرسانی', icon: ICON.download, color: '#0E9F8E', body: () => {
       const card = el('div', { class: 'grp up-card set-free' });
@@ -2828,7 +2830,10 @@ function openLogoPicker(firstRun = false) {
   }
   modal({
     title: firstRun ? 'به Fedo خوش آمدید! یک آیکن انتخاب کنید' : 'آیکن برنامه',
-    text: firstRun ? 'این آیکن روی پنجره و نوار وظیفه دیده می‌شود. بعداً هم از «تنظیمات»، بخش «آیکن برنامه» قابل تغییر است.' : 'آیکن پنجره و نوار وظیفه همان لحظه عوض می‌شود.',
+    // macOS: no window icons; the Dock icon changes while Fedo runs, the one in Finder stays the same
+    text: IS_MAC
+      ? (firstRun ? 'این آیکن در Dock دیده می‌شود. بعداً هم از «تنظیمات»، بخش «آیکن برنامه» قابل تغییر است.' : 'آیکن Dock همان لحظه عوض می‌شود.')
+      : (firstRun ? 'این آیکن روی پنجره و نوار وظیفه دیده می‌شود. بعداً هم از «تنظیمات»، بخش «آیکن برنامه» قابل تغییر است.' : 'آیکن پنجره و نوار وظیفه همان لحظه عوض می‌شود.'),
     body: grid,
     buttons: [{ label: firstRun ? 'شروع' : 'بستن', value: true, primary: true }],
   }).then(() => { if (!settings.logoChosen || !settings.memeLogosOffered) updateSettings({ logoChosen: true, memeLogosOffered: true }); });
@@ -3074,7 +3079,11 @@ function onKey(e) {
   const handled = () => { e.preventDefault(); e.stopPropagation(); };
   if (e.key === 'Escape' && !$('#findbar').hidden) { handled(); closeFind(); return; }
   if (e.key === 'Escape' && tabSel.size > 1 && !document.querySelector('.menu, .overlay')) { handled(); clearTabSel(); return; }
-  if (e.key === 'F8') { handled(); if (t) setLocked(t, !t.locked); return; }
+  // on a Mac F8 is play / pause and F11 shows the desktop: safe mode is ⌥⌘L there, full screen ⌃⌘F
+  if (e.key === 'F8' || (IS_MAC && e.metaKey && e.altKey && !e.ctrlKey && code === 'KeyL')) { handled(); if (t) setLocked(t, !t.locked); return; }
+  if (IS_MAC && e.metaKey && e.ctrlKey && !e.altKey && code === 'KeyF') { handled(); api.fullscreen(); return; }
+  // ⌘H hides the app on a Mac: find & replace is ⌥⌘F, as in Apple's own apps
+  if (IS_MAC && e.metaKey && e.altKey && !e.ctrlKey && code === 'KeyF') { handled(); openFind(true); return; }
   if (t && t.locked && isEditKey(e)) { handled(); showLockedToast(); return; }
   if (ctrl && !e.shiftKey && !e.altKey && e.code === 'KeyA' && t && !isTypingField()) { handled(); selectAllDoc(t); return; }
   if (e.altKey && !ctrl && !e.shiftKey && code === 'KeyH' && t && t.mode === 'wysiwyg' && settings.extColor !== false) { handled(); applyLastColor(t); return; }
@@ -3102,7 +3111,8 @@ function onKey(e) {
     case 'KeyW': handled(); if (tabSel.size > 1) closeTabs(selectedTabs()); else if (t) closeTab(t); break;
     case 'KeyT': handled(); if (e.shiftKey) reopenClosed(); else newTab(); break;
     case 'Slash': handled(); toggleSource(); break;
-    case 'KeyH': handled(); if (e.shiftKey) historyPanel.toggle(); else openFind(true); break;
+    // ⌘H stays with macOS (hide the app): there find & replace is ⌥⌘F, above
+    case 'KeyH': if (IS_MAC && !e.shiftKey) break; handled(); if (e.shiftKey) historyPanel.toggle(); else openFind(true); break;
     case 'KeyF': handled(); openFind(false); break;
     case 'KeyL': if (e.shiftKey) { handled(); toggleSidebar(); } break;
     case 'Digit1': if (e.shiftKey) { handled(); updateSettings({ sidebar: true, sideView: 'outline' }); } break;
@@ -3206,6 +3216,7 @@ export async function start() {
   if (rd && rd.alwaysOnTop) { document.body.classList.add('on-top'); }
   paintPin();
   api.info().then((i) => { appInfo = i; }).catch(() => {});
+  if (api.onFullscreen) api.onFullscreen((on) => document.documentElement.classList.toggle('fullscreen', !!on));
   if (api.onUpdateState) { api.onUpdateState((u) => onUpdateState(u)); api.updateState().then((u) => onUpdateState(u, true)).catch(() => {}); }
   api.onReceiveTab((p, at) => receiveTabs(p, at));
   api.onDragHover((p) => onDragHover(p));
@@ -3257,7 +3268,7 @@ const WELCOME = `# به Fedo خوش آمدید
 
 - هر پاراگراف جهت خودش را از **اولین حرفش** می‌گیرد؛ فارسی راست‌به‌چپ، English left-to-right.
 - برای درج تیتر، جدول، کد یا فرمول، در یک خط خالی \`/\` را بزنید.
-- با \`Ctrl+/\` بین «ویرایش زنده» و «کد منبع» جابه‌جا شوید.
+- با \`${keyText('Ctrl+/')}\` بین «ویرایش زنده» و «کد منبع» جابه‌جا شوید.
 - هر فایلی که باز می‌کنید در **یک تب** همین پنجره باز می‌شود.
 - از دکمه‌ی ساعت بالای صفحه به **تاریخچه‌ی نسخه‌ها** بروید و هر نسخه‌ی قبلی را ببینید یا برگردانید.
 

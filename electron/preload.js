@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('api', {
   onSetRole: on('set-role'),
   onStripMenu: on('strip-menu'),
   onKbdLang: on('kbd-lang'),
+  onFullscreen: on('fullscreen'),
   setTitle: inv('win:set-title'),
   setTitleBar: inv('win:set-titlebar'),
   devtools: inv('win:devtools'),
