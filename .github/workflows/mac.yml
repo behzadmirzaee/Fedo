@@ -24,9 +24,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -42,7 +42,8 @@ jobs:
       - name: Test the built app and take screenshots
         run: |
           npm i --no-save --no-audit --no-fund playwright@1
-          APP=$(ls -d release/mac*/Fedo.app | head -1)
+          # electron-builder puts the Intel app in release/mac, the Apple Silicon one in release/mac-arm64
+          if [ "${{ matrix.arch }}" = "arm64" ]; then APP=release/mac-arm64/Fedo.app; else APP=release/mac/Fedo.app; fi
           echo "testing $APP"
           FEDO_EXE="$APP/Contents/MacOS/Fedo" SHOTS="shots-${{ matrix.arch }}" node test/smoke.mjs
 
