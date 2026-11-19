@@ -196,7 +196,7 @@ function buildLayout() {
       if (id != null && id !== activeId) activateTab(id, { keepFocus: true });
     }, true);
   }
-  const main = el('div', { id: 'main' }, sidebar, sheet, divider, sheet2, history, vtabs);
+  const main = el('div', { id: 'main' }, sidebar, el('div', { id: 'split-wrap' }, sheet, divider, sheet2), history, vtabs);
 
   app.append(topbar, main);
   historyPanel = createHistoryPanel(history, {
@@ -1006,21 +1006,21 @@ function cycleTab(dir) {
 const ICON_SPLIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M12 4.5v15"/></svg>';
 const SEPARATE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="7.5" height="14" rx="2"/><rect x="13.5" y="5" width="7.5" height="14" rx="2"/></svg>';
 const SWAP_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg>';
-const SPLIT_MIN = 360;
+const SPLIT_MIN = 360, SPLIT_MIN_H = 240;
+const DOTS_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/></svg>';
+const STACK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M3 12h18"/></svg>';
 /** { a: the document on the right, b: the one on the left (null while choosing it), ratio: the right side's share } */
 let split = null;
 const tabById = (id) => tabs.find((t) => t.id === id);
 const inSplit = (t) => !!split && !!t && split.b != null && (t.id === split.a || t.id === split.b);
 const splitOn = () => document.body.classList.contains('split-on');
 /** width the two sheets can share */
-function splitRoom() {
-  const main = $('#main');
-  if (!main) return 0;
-  let w = main.clientWidth - 16;
-  for (const id of ['#sidebar', '#history', '#vtabs']) { const n = $(id); if (n && !n.hidden && n.offsetWidth) w -= n.offsetWidth + 8; }
-  return w - 20;
+function splitRoom(vert = split && split.vert) {
+  const wrap = $('#split-wrap');
+  if (!wrap) return 0;
+  return (vert ? wrap.clientHeight : wrap.clientWidth) - 20;
 }
-const roomForTwo = () => splitRoom() >= SPLIT_MIN * 2;
+const roomForTwo = () => splitRoom() >= (split && split.vert ? SPLIT_MIN_H : SPLIT_MIN) * 2;
 const noRoom = () => toast('برای دو طرف جا نیست؛ پنجره را پهن‌تر کنید', 'info');
 /** the two documents of the pair stay next to each other in the tab bar, in the same group */
 function normalizeSplit() {
@@ -1042,8 +1042,8 @@ function pairNode(vertical) {
 function openSplit(a, b, side = 'left') {
   if (!a || !b || a === b) return;
   if (!roomForTwo()) { noRoom(); return; }
-  const ratio = split && split.b != null ? split.ratio : 0.5;
-  split = side === 'right' ? { a: b.id, b: a.id, ratio } : { a: a.id, b: b.id, ratio };
+  const ratio = split && split.b != null ? split.ratio : 0.5, vert = !!(split && split.vert);
+  split = side === 'right' ? { a: b.id, b: a.id, ratio, vert } : { a: a.id, b: b.id, ratio, vert };
   renderTabs();
   activateTab(b.id);
   saveSessionSoon();
@@ -1053,7 +1053,7 @@ function pickSplit() {
   const a = active();
   if (!a) return;
   if (!roomForTwo()) { noRoom(); return; }
-  split = { a: a.id, b: null, ratio: split && split.b != null ? split.ratio : 0.5 };
+  split = { a: a.id, b: null, ratio: split && split.b != null ? split.ratio : 0.5, vert: !!(split && split.vert) };
   applySplit();
   const first = $('#split-pick button');
   if (first) first.focus();
@@ -1071,7 +1071,7 @@ function toggleSplit() {
 }
 function swapSides() {
   if (!split || split.b == null) return;
-  split = { a: split.b, b: split.a, ratio: 1 - split.ratio };
+  split = { a: split.b, b: split.a, ratio: 1 - split.ratio, vert: split.vert };
   renderTabs();
   applySplit();
   saveSessionSoon();
@@ -1092,22 +1092,36 @@ function hideSide(t) {
   } });
 }
 function splitHead(side) {
-  const b = el('button', { class: 'split-head', 'data-side': side, type: 'button', 'aria-haspopup': 'menu' },
-    el('span', { class: 'sh-name' }), el('span', { class: 'ic', html: ICON.chevDown }));
-  b.addEventListener('click', () => {
-    const id = split ? (side === 'a' ? split.a : split.b) : null;
-    const t = tabById(id);
+  const tabOf = () => tabById(split ? (side === 'a' ? split.a : split.b) : null);
+  const dots = el('button', { class: 'sh-b', type: 'button', title: 'گزینه‌های این طرف', 'aria-label': 'گزینه‌های این طرف', 'aria-haspopup': 'menu', html: DOTS_ICON });
+  const x = el('button', { class: 'sh-b', type: 'button', title: 'بستن این طرف', 'aria-label': 'بستن این طرف', html: ICON.x });
+  const head = el('div', { class: 'split-head', 'data-side': side, hidden: true },
+    el('span', { class: 'sh-name' }), el('span', { class: 'sh-sep' }), dots, x);
+  dots.addEventListener('click', () => {
+    const t = tabOf();
     if (!t) return;
     if (t.id !== activeId) activateTab(t.id);
-    const r = b.getBoundingClientRect();
+    const v = !!split.vert;
+    const r = dots.getBoundingClientRect();
+    dots.classList.add('on');
     showMenu([
-      { icon: SWAP_ICON, label: 'جابه‌جا کردن دو طرف', run: swapSides },
-      { icon: SEPARATE_ICON, label: 'جدا کردن به دو تب', run: () => endSplit(t.id) },
-      'sep',
-      { icon: ICON.x, label: 'بستن این طرف', run: () => hideSide(t) },
-    ], r.right, r.bottom + 4);
+      { icon: ICON.window, label: 'باز کردن در پنجره‌ی جدید', run: () => detachTabs([t], false) },
+      { icon: SEPARATE_ICON, label: 'جدا کردن دو تب', run: () => endSplit(t.id) },
+      { icon: SWAP_ICON, label: v ? 'جابه‌جا کردن بالا و پایین' : 'جابه‌جا کردن چپ و راست', run: swapSides },
+      { icon: v ? ICON_SPLIT : STACK_ICON, label: v ? 'نمایش کنار هم' : 'نمایش بالا و پایین', run: () => setSplitVert(!v) },
+    ], r.right, r.bottom + 4, () => dots.classList.remove('on'));
   });
-  return b;
+  x.addEventListener('click', () => { const t = tabOf(); if (t) hideSide(t); });
+  return head;
+}
+function setSplitVert(v) {
+  if (!split) return;
+  const prev = split.vert;
+  split.vert = v;
+  if (!roomForTwo()) { split.vert = prev; noRoom(); return; }
+  applySplit();
+  requestAnimationFrame(checkNarrow);
+  saveSessionSoon();
 }
 function splitPicker() {
   return el('div', { id: 'split-pick', hidden: true });
@@ -1149,6 +1163,7 @@ function applySplit() {
   const A = split && tabById(split.a), B = split && split.b != null ? tabById(split.b) : null;
   const was = splitOn();
   document.body.classList.toggle('split-on', show);
+  document.body.classList.toggle('split-vert', show && !!split.vert);
   sheet2.hidden = !show; dv.hidden = !show;
   for (const t of tabs) {
     const want = show && t === B ? ed2 : ed;
@@ -1187,7 +1202,7 @@ function updateSplitBits() {
   for (const h of document.querySelectorAll('.split-head')) {
     const t = on && split ? tabById(h.dataset.side === 'a' ? split.a : split.b) : null;
     h.hidden = !t;
-    if (t) { const n = h.querySelector('.sh-name'); n.textContent = tabTitle(t); n.dir = bidi(tabTitle(t)); }
+    if (t) { const n = h.querySelector('.sh-name'); n.textContent = tabTitle(t); n.dir = bidi(tabTitle(t)); h.title = t.path || tabTitle(t); }
   }
 }
 /** the side not being worked on keeps a quiet status bar of its own */
@@ -1214,11 +1229,13 @@ function setupDivider(dv) {
     dv.classList.add('drag');
     document.body.classList.add('split-resizing');
     const r1 = $('#sheet').getBoundingClientRect(), r2 = $('#sheet2').getBoundingClientRect();
+    const vert = !!split.vert;
     const rightIsA = r1.left > r2.left;
-    const L = Math.min(r1.left, r2.left), R = Math.max(r1.right, r2.right), W = R - L;
-    const lim = Math.min(0.5, SPLIT_MIN / W);
+    const L = Math.min(r1.left, r2.left), R = Math.max(r1.right, r2.right), T = Math.min(r1.top, r2.top), B = Math.max(r1.bottom, r2.bottom);
+    const W = vert ? B - T : R - L;
+    const lim = Math.min(0.5, (vert ? SPLIT_MIN_H : SPLIT_MIN) / W);
     const move = (ev) => {
-      let ratio = rightIsA ? (R - ev.clientX) / W : (ev.clientX - L) / W;
+      let ratio = vert ? (ev.clientY - T) / W : rightIsA ? (R - ev.clientX) / W : (ev.clientX - L) / W;
       ratio = Math.min(1 - lim, Math.max(lim, ratio));
       split.ratio = ratio;
       $('#sheet').style.flex = `${ratio} 1 0`;
@@ -3576,7 +3593,7 @@ function saveSession() {
   const used = new Set(list.map((x) => x.group).filter(Boolean));
   const a = active();
   const keyOf = (id) => { const x = tabById(id); return x ? x.path || x.draftId || null : null; };
-  const sp = split && split.b != null && keyOf(split.a) && keyOf(split.b) ? { a: keyOf(split.a), b: keyOf(split.b), ratio: split.ratio } : null;
+  const sp = split && split.b != null && keyOf(split.a) && keyOf(split.b) ? { a: keyOf(split.a), b: keyOf(split.b), ratio: split.ratio, vert: !!split.vert } : null;
   return api.setSession({
     tabs: list, active: a ? a.path || a.draftId || null : null, split: sp,
     groups: [...groups.values()].filter((g) => used.has(g.id)),
@@ -3627,7 +3644,7 @@ async function restoreWindow(entry, drafts, claimed) {
   if (entry.split) {
     const find = (k) => tabs.find((t) => samePath(t.path, k) || t.draftId === k);
     const a = find(entry.split.a), b = find(entry.split.b);
-    if (a && b && a !== b) split = { a: a.id, b: b.id, ratio: Math.min(0.8, Math.max(0.2, Number(entry.split.ratio) || 0.5)) };
+    if (a && b && a !== b) split = { a: a.id, b: b.id, ratio: Math.min(0.8, Math.max(0.2, Number(entry.split.ratio) || 0.5)), vert: !!entry.split.vert };
   }
   renderTabs();
   const a = tabs.find((t) => (entry.active && (samePath(t.path, entry.active) || t.draftId === entry.active)));
@@ -3667,8 +3684,8 @@ function onKey(e) {
     if (target) activateTab(target.id);
     return;
   }
-  if (e.altKey && !e.shiftKey && (code === 'ArrowLeft' || code === 'ArrowRight') && document.body.classList.contains('split-on') && split && split.b != null) {
-    handled(); activateTab(code === 'ArrowLeft' ? split.b : split.a); return;
+  if (e.altKey && !e.shiftKey && /^Arrow(Left|Right|Up|Down)$/.test(code) && document.body.classList.contains('split-on') && split && split.b != null) {
+    handled(); activateTab(code === 'ArrowLeft' || code === 'ArrowDown' ? split.b : split.a); return;
   }
   if (code === 'PageDown') { handled(); cycleTab(1); return; }
   if (code === 'PageUp') { handled(); cycleTab(-1); return; }
