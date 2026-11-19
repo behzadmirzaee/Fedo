@@ -2928,10 +2928,6 @@ const BG_FAMILIES = [
   ['green', 'سبز', ['#5B9A3B', '#7FB25F', '#A9CC90', '#D4E6C7']], ['blue', 'آبی', ['#1F6FD1', '#4E92E3', '#8DB9EE', '#C9DEF7']],
   ['purple', 'بنفش', ['#7B2BA8', '#9E5CC4', '#C39BDC', '#E3CDEF']], ['pink', 'صورتی', ['#C71F5E', '#D85C8A', '#E79DB8', '#F4CEDC']],
 ];
-const BG_RAMP = {
-  white: '#ffffff,#ececf0', silver: '#f2f2f4,#c4c4c8', gray: '#c4c4c8,#6e6e75', black: '#3a3a3f,#000000', brown: '#e9e1dc,#86716a,#2a1d17', red: '#fdecec,#e5484d,#2a0708',
-  orange: '#fff1e0,#f5a524,#2b1703', yellow: '#fffbe0,#e8c52a,#2a2304', green: '#e9f8ee,#3fb26b,#06200f', blue: '#e8efff,#3e7bfa,#050f2b', purple: '#f2eafd,#9b5de5,#1a0b2c', pink: '#fdebf3,#e5679e,#2b0a18',
-};
 /** background colour group, background lightness and text contrast of each gallery theme, worked out once */
 let themeMeta = null;
 function THEME_META() {
@@ -2956,11 +2952,9 @@ function THEME_META() {
 }
 /** «تم‌های بیشتر»: filters in a side panel, the themes beside it */
 function openThemeGallery(onChange) {
-  // filters and order are remembered for the next time the gallery opens; a picked colour lists light to dark
-  const st = Object.assign({ mode: 'all', hue: 'all', hc: false, fav: false, sort: null }, settings.themeGallery || {});
-  if (!BG_FAMILIES.some((f) => f[0] === st.hue)) st.hue = 'all';
+  // filters and order start fresh every time the gallery opens; a picked colour lists light to dark
+  const st = { mode: 'all', hue: 'all', hc: false, fav: false, sort: null };
   const favs = new Set(settings.themeFavs || []);
-  const save = () => updateSettings({ themeGallery: { mode: st.mode, hue: st.hue, hc: st.hc, fav: st.fav, sort: st.sort } });
   const sortOf = () => st.sort || (st.hue !== 'all' ? 'light' : 'name');
   const SORTS = [['name', 'نام (A تا Z)'], ['light', 'روشن به تیره'], ['dark', 'تیره به روشن'], ['color', 'رنگ پس‌زمینه'], ['recent', 'اخیراً استفاده‌شده']];
   const meta = THEME_META();
@@ -2972,13 +2966,12 @@ function openThemeGallery(onChange) {
   const clear = el('button', { class: 'tg-clear', type: 'button' }, 'پاک کردن همه‌ی فیلترها');
   const count = el('span', { class: 'tg-count' });
   const sortBtn = el('button', { class: 'tg-sort', type: 'button', 'aria-haspopup': 'menu' });
-  const ramp = el('div', { class: 'tg-ramp' });
   const grid = el('div', { class: 'tg-grid' });
   const filtered = () => st.mode !== 'all' || st.hue !== 'all' || st.hc || st.fav;
   const pass = (t, skipHue, nq) => (st.mode === 'all' || (st.mode === 'dark') === t.dark) && (skipHue || st.hue === 'all' || meta.get(t.id).fam === st.hue)
     && (!st.hc || meta.get(t.id).cr >= 7) && (!st.fav || favs.has(t.id)) && (!nq || t.name.toLowerCase().includes(nq));
   const stripes = (list) => el('span', { class: 'cin' }, list.map((c) => el('i', { style: `background:${c}` })));
-  const refresh = () => { save(); paintSide(); paint(); };
+  const refresh = () => { paintSide(); paint(); };
   const paintSide = () => {
     const nq = q.value.trim().toLowerCase();
     modeSeg.innerHTML = '';
@@ -3030,14 +3023,6 @@ function openThemeGallery(onChange) {
     }[sort];
     const list = MORE_THEMES.filter((t) => pass(t, false, nq)).sort(by);
     count.textContent = filtered() || nq ? `${fa(list.length)} تم از ${fa(MORE_THEMES.length)}` : `${fa(list.length)} تم`;
-    // a picked colour sorted by lightness shows which way the list runs
-    ramp.hidden = !(st.hue !== 'all' && (sort === 'light' || sort === 'dark'));
-    if (!ramp.hidden) {
-      const name = BG_FAMILIES.find((f) => f[0] === st.hue)[1];
-      ramp.innerHTML = '';
-      ramp.append(el('span', {}, `پس‌زمینه‌های ${name}، ${sort === 'dark' ? 'از تیره به روشن' : 'از روشن به تیره'}`),
-        el('i', { style: `background:linear-gradient(to ${sort === 'dark' ? 'right' : 'left'},${BG_RAMP[st.hue]})` }));
-    }
     grid.innerHTML = '';
     if (!list.length) { grid.append(el('div', { class: 'tg-empty' }, 'تمی با این فیلترها پیدا نشد')); return; }
     for (const t of list) {
@@ -3073,7 +3058,7 @@ function openThemeGallery(onChange) {
     el('div', { class: 'tg-sec' }, lbl('رنگ پس‌زمینه'), allBtn, tiles),
     el('div', { class: 'tg-sec' }, lbl('ویژگی‌ها'), feats),
     clear);
-  const main = el('div', { class: 'tg-main' }, el('div', { class: 'tg-top' }, count, el('span', { class: 'grow' }), sortBtn), ramp, grid);
+  const main = el('div', { class: 'tg-main' }, el('div', { class: 'tg-top' }, count, el('span', { class: 'grow' }), sortBtn), grid);
   const box = el('div', { class: 'modal theme-gallery', dir: 'rtl', role: 'dialog', 'aria-label': 'تم‌های بیشتر' },
     el('div', { class: 'tg-head' }, el('h3', {}, 'تم‌های بیشتر'), el('span', { class: 'grow' }), el('button', { class: 'tg-x', title: 'بستن', 'aria-label': 'بستن', html: ICON.x, onclick: close })),
     el('div', { class: 'tg-body' }, side, main));
