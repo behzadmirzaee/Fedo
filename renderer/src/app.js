@@ -133,6 +133,7 @@ function buildLayout() {
       el('button', { class: 'icon-btn', id: 'btn-newtab', title: 'سند تازه (Ctrl+T)', html: ICON.plus, onclick: () => newTab() })),
     el('div', { class: 'grow' }),
     el('div', { class: 'cap' },
+      el('button', { class: 'icon-btn', id: 'btn-split', title: 'دو سند کنار هم (Ctrl+\\)', 'aria-label': 'دو سند کنار هم', 'aria-pressed': 'false', html: ICON_SPLIT, onclick: () => toggleSplit() }),
       el('button', { class: 'icon-btn', id: 'btn-pin', title: 'پنجره‌ی همیشه‌رو', 'aria-label': 'پنجره‌ی همیشه‌رو', 'aria-pressed': 'false', html: ICON.pin, onclick: () => togglePin() }),
       el('button', { class: 'icon-btn', id: 'btn-history', title: 'تاریخچه‌ی نسخه‌ها (Ctrl+Shift+H)', html: ICON.history, onclick: () => historyPanel.toggle() }),
       el('button', { class: 'icon-btn', id: 'btn-find', title: 'جستجو و جایگزینی (Ctrl+F)', html: ICON.search, onclick: () => ($('#findbar').hidden ? openFind(false) : closeFind()) }),
@@ -182,8 +183,20 @@ function buildLayout() {
       el('button', { title: 'بزرگ‌نمایی (Ctrl+=)', html: ICON.plus, onclick: () => zoomBy(1) }),
       el('button', { id: 'st-zoom', title: 'گزینه‌های زوم', onclick: (e) => openZoomPanel(e.currentTarget.parentNode) }),
       el('button', { title: 'کوچک‌نمایی (Ctrl+-)', html: ICON.minus, onclick: () => zoomBy(-1) })));
-  const sheet = el('div', { id: 'sheet' }, findbar, editors, status);
-  const main = el('div', { id: 'main' }, sidebar, sheet, history, vtabs);
+  const sheet = el('div', { id: 'sheet' }, splitHead('a'), findbar, editors, el('div', { class: 'st-mini', 'data-side': 'a' }), status);
+  // split view: the second document sits in its own sheet on the left, with a draggable line between
+  const sheet2 = el('div', { id: 'sheet2', hidden: true }, splitHead('b'), el('div', { id: 'editors2' }), splitPicker(), el('div', { class: 'st-mini', 'data-side': 'b' }));
+  const divider = el('div', { id: 'split-dv', hidden: true, role: 'separator', 'aria-orientation': 'vertical', 'aria-label': 'تغییر اندازه‌ی دو طرف', title: 'کشیدن برای تغییر اندازه · دوبار کلیک: نصف‌نصف' }, el('i'));
+  setupDivider(divider);
+  for (const [sh, side] of [[sheet, 'a'], [sheet2, 'b']]) {
+    // working in one side makes it the active document
+    sh.addEventListener('pointerdown', (e) => {
+      if (!document.body.classList.contains('split-on') || !split || e.target.closest('.split-head')) return;
+      const id = side === 'a' ? split.a : split.b;
+      if (id != null && id !== activeId) activateTab(id, { keepFocus: true });
+    }, true);
+  }
+  const main = el('div', { id: 'main' }, sidebar, sheet, divider, sheet2, history, vtabs);
 
   app.append(topbar, main);
   historyPanel = createHistoryPanel(history, {
@@ -201,7 +214,7 @@ function buildLayout() {
       return true;
     },
   });
-  history.addEventListener('toggle', () => $('#btn-history').classList.toggle('open', !history.hidden));
+  history.addEventListener('toggle', () => { $('#btn-history').classList.toggle('open', !history.hidden); applySplit(); });
   // tabs, group chips and buttons have their own menus; everything else in the bar gets the strip menu
   const onStripMenu = (e) => {
     if (e.target.closest('.tab, .gchip, .group-chip, button, input, [data-gid]')) return;
@@ -651,8 +664,10 @@ function tabNode(t, vertical) {
     if (e.ctrlKey || e.metaKey || e.shiftKey) { e.preventDefault(); selectClick(t, e); return; }
     const inSel = tabSel.size > 1 && tabSel.has(t.id);
     if (!inSel && tabSel.size) { tabSel.clear(); renderTabs(); }
+    const prevId = activeId;
     if (t.id !== activeId) activateTab(t.id);
     tabDragStart(e, t, node, vertical);
+    dragState.prevId = prevId;
     // pressing a selected tab keeps the selection for a drag; a plain click (no drag) ends it
     if (inSel) dragState.collapse = true;
   });
@@ -813,7 +828,16 @@ window.addEventListener('pointermove', (e) => {
   ds.sx = e.screenX; ds.sy = e.screenY;
   if (ds.mode === 'window') { api.dragMove(e.screenX, e.screenY); return; }
   if (ds.mode === 'tearing') return;
-  if (outsideStrip(e)) { ds.mode = 'tearing'; tearOff(e); return; }
+  ds.split = splitDropAt(e, ds);
+  showSplitDrop(ds.split);
+  ds.offStrip = false;
+  if (ds.split) { clearDropMarks(); markJoin(null); return; }
+  if (outsideStrip(e)) {
+    // a tab that could open beside the current document tears off only once it leaves the window
+    const inWin = e.clientX >= 0 && e.clientY >= 0 && e.clientX <= innerWidth && e.clientY <= innerHeight;
+    if (canSplitDrag(ds) && inWin) { ds.offStrip = true; clearDropMarks(); markJoin(null); return; }
+    ds.mode = 'tearing'; tearOff(e); return;
+  }
   const under = document.elementFromPoint(e.clientX, e.clientY);
   const chip = under?.closest('.tgroup, .vgroup');
   if (chip) { clearDropMarks(); chip.classList.add('drag-over'); ds.chip = chip; markJoin(chip.dataset.gid); return; }
@@ -849,7 +873,10 @@ async function endTabDrag(e) {
   document.querySelectorAll('.tab.dragging').forEach((n) => n.classList.remove('dragging'));
   clearDropMarks();
   markJoin(null);
+  showSplitDrop(null);
   if (!ds.started) { if (ds.collapse) clearTabSel(); return; }
+  if (ds.split && ds.mode === 'reorder') { const z = ds.split; openSplit(z.keep, ds.t, z.side); return; }
+  if (ds.offStrip && ds.mode === 'reorder') return;
   if (ds.mode === 'window' || ds.mode === 'tearing') {
     // the pointer went to the torn-off window: that window reports the end of the drag
     if (e.type !== 'pointerup') return;
@@ -900,6 +927,7 @@ function groupChip(g, vertical) {
   return chip;
 }
 function renderTabs() {
+  normalizeSplit();
   normalizeGroups();
   for (const id of [...tabSel]) if (!tabs.some((t) => t.id === id)) tabSel.delete(id);
   if (tabSel.size < 2) tabSel.clear();
@@ -915,8 +943,11 @@ function renderTabs() {
     if (g && g.id !== lastGroup) box.append(groupChip(g, vertical));
     lastGroup = g ? g.id : null;
     if (g && g.collapsed) continue;
+    if (split && split.b != null && t.id === split.b) continue;
+    if (split && split.b != null && t.id === split.a) { box.append(pairNode(vertical)); continue; }
     box.append(tabNode(t, vertical));
   }
+  updateSplitBits();
   const act = box.querySelector('.tab.active');
   if (act) act.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
@@ -925,7 +956,7 @@ $('#app') && document.addEventListener('wheel', (e) => {
   if (box && box.contains(e.target) && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { box.scrollLeft -= e.deltaY; e.preventDefault(); }
 }, { passive: false });
 
-function activateTab(id) {
+function activateTab(id, { keepFocus = false } = {}) {
   const t = tabs.find((x) => x.id === id);
   if (!t) return;
   if (t.groupId && groups.get(t.groupId)?.collapsed) { groups.get(t.groupId).collapsed = false; setTimeout(renderTabs, 0); }
@@ -933,6 +964,7 @@ function activateTab(id) {
   if (prev && prev !== t) rememberPos(prev);
   activeId = id;
   for (const x of tabs) x.pane.classList.toggle('active', x.id === id);
+  applySplit();
   // only flip classes here: rebuilding the tab bar mid-click would swallow clicks and drags
   const nodes = document.querySelectorAll('#tabs .tab, #vtabs-list .tab');
   if (nodes.length === tabs.length && !(t.groupId && groups.get(t.groupId)?.collapsed)) {
@@ -948,7 +980,7 @@ function activateTab(id) {
   applyPendingScroll(t);
   showSelectionCount('');
   if (findOpen()) runFind();
-  focusEditor(t);
+  if (!keepFocus) focusEditor(t);
   saveSessionSoon();
 }
 function focusEditor(t) {
@@ -966,6 +998,269 @@ function cycleTab(dir) {
   if (tabs.length < 2) return;
   const i = tabs.findIndex((t) => t.id === activeId);
   activateTab(tabs[(i + dir + tabs.length) % tabs.length].id);
+}
+
+// ======================================================================
+// split view: two documents side by side
+// ======================================================================
+const ICON_SPLIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M12 4.5v15"/></svg>';
+const SEPARATE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="7.5" height="14" rx="2"/><rect x="13.5" y="5" width="7.5" height="14" rx="2"/></svg>';
+const SWAP_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg>';
+const SPLIT_MIN = 360;
+/** { a: the document on the right, b: the one on the left (null while choosing it), ratio: the right side's share } */
+let split = null;
+const tabById = (id) => tabs.find((t) => t.id === id);
+const inSplit = (t) => !!split && !!t && split.b != null && (t.id === split.a || t.id === split.b);
+const splitOn = () => document.body.classList.contains('split-on');
+/** width the two sheets can share */
+function splitRoom() {
+  const main = $('#main');
+  if (!main) return 0;
+  let w = main.clientWidth - 16;
+  for (const id of ['#sidebar', '#history', '#vtabs']) { const n = $(id); if (n && !n.hidden && n.offsetWidth) w -= n.offsetWidth + 8; }
+  return w - 20;
+}
+const roomForTwo = () => splitRoom() >= SPLIT_MIN * 2;
+const noRoom = () => toast('برای دو طرف جا نیست؛ پنجره را پهن‌تر کنید', 'info');
+/** the two documents of the pair stay next to each other in the tab bar, in the same group */
+function normalizeSplit() {
+  if (!split) return;
+  const a = tabById(split.a), b = split.b != null ? tabById(split.b) : null;
+  if (!a || (split.b != null && !b)) { split = null; return; }
+  if (!b) return;
+  b.groupId = a.groupId;
+  const ia = tabs.indexOf(a), ib = tabs.indexOf(b);
+  if (ib !== ia + 1) { tabs.splice(ib, 1); tabs.splice(tabs.indexOf(a) + 1, 0, b); }
+}
+function pairNode(vertical) {
+  const a = tabById(split.a), b = tabById(split.b);
+  const on = activeId === a.id || activeId === b.id;
+  return el('div', { class: 'tab-pair' + (on ? ' on' : '') + (vertical ? ' v' : ''), title: 'دو سند کنار هم' },
+    el('span', { class: 'tp-ic', html: ICON_SPLIT }), tabNode(a, vertical), tabNode(b, vertical));
+}
+/** open b beside a; side: where b goes ('left' by default, so the current document stays on the right) */
+function openSplit(a, b, side = 'left') {
+  if (!a || !b || a === b) return;
+  if (!roomForTwo()) { noRoom(); return; }
+  const ratio = split && split.b != null ? split.ratio : 0.5;
+  split = side === 'right' ? { a: b.id, b: a.id, ratio } : { a: a.id, b: b.id, ratio };
+  renderTabs();
+  activateTab(b.id);
+  saveSessionSoon();
+}
+/** the second side asks which document to open */
+function pickSplit() {
+  const a = active();
+  if (!a) return;
+  if (!roomForTwo()) { noRoom(); return; }
+  split = { a: a.id, b: null, ratio: split && split.b != null ? split.ratio : 0.5 };
+  applySplit();
+  const first = $('#split-pick button');
+  if (first) first.focus();
+}
+function endSplit(keepId = activeId) {
+  if (!split) return;
+  split = null;
+  renderTabs();
+  if (tabById(keepId)) activateTab(keepId); else applySplit();
+  saveSessionSoon();
+}
+function toggleSplit() {
+  if (split && (activeId === split.a || activeId === split.b)) endSplit(activeId);
+  else pickSplit();
+}
+function swapSides() {
+  if (!split || split.b == null) return;
+  split = { a: split.b, b: split.a, ratio: 1 - split.ratio };
+  renderTabs();
+  applySplit();
+  saveSessionSoon();
+}
+/** «بستن این طرف»: the document stays open as a normal tab; the other side fills the window */
+function hideSide(t) {
+  if (!inSplit(t)) return;
+  const prev = { ...split };
+  const other = t.id === split.a ? split.b : split.a;
+  split = null;
+  renderTabs();
+  activateTab(other);
+  saveSessionSoon();
+  toast(`«${tabTitle(t)}» از کنار هم بسته شد`, 5000, { label: 'برگرداندن', run: () => {
+    if (!tabById(prev.a) || !tabById(prev.b)) return;
+    if (!roomForTwo()) { noRoom(); return; }
+    split = prev; renderTabs(); activateTab(t.id); saveSessionSoon();
+  } });
+}
+function splitHead(side) {
+  const b = el('button', { class: 'split-head', 'data-side': side, type: 'button', 'aria-haspopup': 'menu' },
+    el('span', { class: 'sh-name' }), el('span', { class: 'ic', html: ICON.chevDown }));
+  b.addEventListener('click', () => {
+    const id = split ? (side === 'a' ? split.a : split.b) : null;
+    const t = tabById(id);
+    if (!t) return;
+    if (t.id !== activeId) activateTab(t.id);
+    const r = b.getBoundingClientRect();
+    showMenu([
+      { icon: SWAP_ICON, label: 'جابه‌جا کردن دو طرف', run: swapSides },
+      { icon: SEPARATE_ICON, label: 'جدا کردن به دو تب', run: () => endSplit(t.id) },
+      'sep',
+      { icon: ICON.x, label: 'بستن این طرف', run: () => hideSide(t) },
+    ], r.right, r.bottom + 4);
+  });
+  return b;
+}
+function splitPicker() {
+  return el('div', { id: 'split-pick', hidden: true });
+}
+function paintPicker() {
+  const box = $('#split-pick');
+  const a = tabById(split.a);
+  const others = tabs.filter((t) => t !== a);
+  const chooseNew = async (make) => {
+    const keep = split && split.a;
+    const before = new Set(tabs);
+    const t = await make();
+    const got = t && t.id ? t : tabs.find((x) => !before.has(x)) || active();
+    const ka = tabById(keep);
+    if (ka && got && got !== ka) openSplit(ka, got);
+  };
+  box.innerHTML = '';
+  box.append(
+    el('b', {}, 'کدام سند این طرف باز شود؟'),
+    others.length ? el('span', { class: 'sp-sub' }, 'از تب‌های باز') : null,
+    others.length ? el('div', { class: 'sp-list' }, others.slice(0, 8).map((t) => el('button', { type: 'button', onclick: () => openSplit(a, t) },
+      el('span', { class: 'ic', html: ICON.file || ICON.doc || '' }), el('span', { class: 'sp-n', dir: bidi(tabTitle(t)) }, tabTitle(t))))) : null,
+    el('div', { class: 'sp-acts' },
+      el('button', { type: 'button', class: 'btn', onclick: () => chooseNew(() => newTab({ activate: false })) }, 'سند تازه'),
+      el('button', { type: 'button', class: 'btn', onclick: () => chooseNew(async () => { await openDialog(); return null; }) }, 'باز کردن فایل…'),
+      el('button', { type: 'button', class: 'btn ghost', onclick: () => endSplit(a.id) }, 'انصراف')),
+    el('span', { class: 'sp-hint' }, 'یک تب را هم می‌شود از بالا روی سند کشید'));
+}
+/** put each document in its sheet; idempotent, called whenever the active tab, the pair or the room changes */
+function applySplit() {
+  const sheet = $('#sheet'), sheet2 = $('#sheet2'), dv = $('#split-dv'), ed = $('#editors'), ed2 = $('#editors2');
+  if (!sheet2) return;
+  if (split) {
+    const okA = tabById(split.a), okB = split.b == null || tabById(split.b);
+    if (!okA || !okB || (split.b == null && activeId !== split.a)) split = null;
+  }
+  const pairOn = !!split && (activeId === split.a || activeId === split.b);
+  const show = pairOn && roomForTwo();
+  const A = split && tabById(split.a), B = split && split.b != null ? tabById(split.b) : null;
+  const was = splitOn();
+  document.body.classList.toggle('split-on', show);
+  sheet2.hidden = !show; dv.hidden = !show;
+  for (const t of tabs) {
+    const want = show && t === B ? ed2 : ed;
+    if (t.pane.parentNode !== want) { const y = t.pane.scrollTop; want.append(t.pane); t.pane.scrollTop = y; }
+    t.pane.classList.toggle('shown', show && (t === A || t === B));
+  }
+  const picking = show && !B;
+  $('#split-pick').hidden = !picking;
+  ed2.hidden = picking;
+  if (picking) paintPicker();
+  const actSheet = show && B && activeId === B.id ? sheet2 : sheet;
+  sheet.classList.toggle('split-act', show && actSheet === sheet);
+  sheet2.classList.toggle('split-act', show && actSheet === sheet2);
+  // the find bar and the full status bar belong to the side being worked on
+  const fb = $('#findbar'), sb = $('#statusbar');
+  const edOf = actSheet === sheet ? ed : ed2;
+  if (fb.parentNode !== actSheet) actSheet.insertBefore(fb, edOf);
+  if (sb.parentNode !== actSheet) actSheet.append(sb);
+  sheet.style.flex = show ? `${split.ratio} 1 0` : '';
+  sheet2.style.flex = show ? `${1 - split.ratio} 1 0` : '';
+  updateSplitBits();
+  paintMiniBars();
+  if (was !== show) requestAnimationFrame(checkNarrow);
+}
+function updateSplitBits() {
+  const on = splitOn();
+  const btn = $('#btn-split');
+  if (btn) {
+    const pairOn = !!split && (activeId === split.a || activeId === split.b);
+    btn.classList.toggle('on', pairOn);
+    btn.setAttribute('aria-pressed', String(pairOn));
+    btn.title = pairOn ? 'یک سند (Ctrl+\\)' : 'دو سند کنار هم (Ctrl+\\)';
+  }
+  const pairOn = !!split && (activeId === split.a || activeId === split.b);
+  for (const n of document.querySelectorAll('.tab-pair')) n.classList.toggle('on', pairOn);
+  for (const h of document.querySelectorAll('.split-head')) {
+    const t = on && split ? tabById(h.dataset.side === 'a' ? split.a : split.b) : null;
+    h.hidden = !t;
+    if (t) { const n = h.querySelector('.sh-name'); n.textContent = tabTitle(t); n.dir = bidi(tabTitle(t)); }
+  }
+}
+/** the side not being worked on keeps a quiet status bar of its own */
+function paintMiniBars() {
+  for (const m of document.querySelectorAll('.st-mini')) {
+    const side = m.dataset.side;
+    const id = split ? (side === 'a' ? split.a : split.b) : null;
+    const t = splitOn() ? tabById(id) : null;
+    const show = !!t && t.id !== activeId;
+    m.hidden = !show;
+    if (!show) continue;
+    const { words } = countWords(t.md);
+    m.innerHTML = '';
+    m.append(el('span', { class: 'chip' }, `${fa(words)} کلمه`));
+    if (t.locked) m.append(el('span', { class: 'chip', html: ICON.lock + '<span>حالت امن روشن است</span>' }));
+    if (t.dirty) m.append(el('span', { class: 'chip' }, 'ذخیره نشده'));
+  }
+}
+function setupDivider(dv) {
+  dv.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || !split) return;
+    e.preventDefault();
+    dv.setPointerCapture(e.pointerId);
+    dv.classList.add('drag');
+    document.body.classList.add('split-resizing');
+    const r1 = $('#sheet').getBoundingClientRect(), r2 = $('#sheet2').getBoundingClientRect();
+    const rightIsA = r1.left > r2.left;
+    const L = Math.min(r1.left, r2.left), R = Math.max(r1.right, r2.right), W = R - L;
+    const lim = Math.min(0.5, SPLIT_MIN / W);
+    const move = (ev) => {
+      let ratio = rightIsA ? (R - ev.clientX) / W : (ev.clientX - L) / W;
+      ratio = Math.min(1 - lim, Math.max(lim, ratio));
+      split.ratio = ratio;
+      $('#sheet').style.flex = `${ratio} 1 0`;
+      $('#sheet2').style.flex = `${1 - ratio} 1 0`;
+    };
+    const up = () => {
+      dv.removeEventListener('pointermove', move); dv.removeEventListener('pointerup', up); dv.removeEventListener('pointercancel', up);
+      dv.classList.remove('drag');
+      document.body.classList.remove('split-resizing');
+      checkNarrow();
+      saveSessionSoon();
+    };
+    dv.addEventListener('pointermove', move); dv.addEventListener('pointerup', up); dv.addEventListener('pointercancel', up);
+  });
+  dv.addEventListener('dblclick', () => { if (!split) return; split.ratio = 0.5; applySplit(); checkNarrow(); saveSessionSoon(); });
+}
+/** a tab dragged onto the page: which half it would open in, beside the document that was open before */
+function canSplitDrag(ds) {
+  if (!ds.list || ds.list.length !== 1 || tabs.length < 2 || splitOn()) return false;
+  const keep = tabById(ds.prevId);
+  return !!keep && keep !== ds.t;
+}
+function splitDropAt(e, ds) {
+  if (!canSplitDrag(ds)) return null;
+  const keep = tabById(ds.prevId);
+  const r = $('#sheet').getBoundingClientRect();
+  if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return null;
+  if (r.width < SPLIT_MIN) return null;
+  const rtl = getComputedStyle($('#main')).direction === 'rtl';
+  const leftHalf = e.clientX < r.left + r.width / 2;
+  return { keep, side: leftHalf ? 'left' : 'right', rect: r, leftHalf, rtl };
+}
+function showSplitDrop(z) {
+  let ov = $('#split-drop');
+  if (!z) { if (ov) ov.remove(); return; }
+  if (!ov) {
+    ov = el('div', { id: 'split-drop' }, el('span', {}, el('span', { class: 'ic', html: ICON_SPLIT }), el('span', { class: 'sd-t' })));
+    document.body.append(ov);
+  }
+  const r = z.rect, half = r.width / 2;
+  Object.assign(ov.style, { top: r.top + 'px', height: r.height + 'px', width: half + 'px', left: (z.leftHalf ? r.left : r.left + half) + 'px' });
+  ov.querySelector('.sd-t').textContent = z.leftHalf ? 'رها کنید تا سمت چپ باز شود' : 'رها کنید تا سمت راست باز شود';
 }
 
 async function closeTab(t, { skipPrompt = false, moved = false } = {}) {
@@ -990,11 +1285,12 @@ async function closeTab(t, { skipPrompt = false, moved = false } = {}) {
   clearTimeout(t.saveTimer);
   try { t.cm && t.cm.destroy(); await t.crepe.destroy(); } catch {}
   t.pane.remove();
+  if (split && (split.a === t.id || split.b === t.id)) split = null;
   if (!tabs.length) {
     if (moved || closeTab.keepWindow) await newTab();
     else { await persistNow().catch(() => {}); await api.closeNow(); return true; }
   } else if (activeId === t.id) activateTab(tabs[Math.min(i, tabs.length - 1)].id);
-  else renderTabs();
+  else { renderTabs(); applySplit(); }
   saveSession();
   return true;
 }
@@ -1008,8 +1304,12 @@ async function reopenClosed() {
 function tabMenu(t, x, y) {
   const idx = tabs.indexOf(t);
   const others = [...groups.values()].filter((g) => g.id !== t.groupId);
+  const cur = active();
   showMenu([
     { icon: ICON.plusSquare, label: 'سند تازه', key: 'Ctrl+T', run: () => newTab() },
+    inSplit(t) ? { icon: SEPARATE_ICON, label: 'جدا کردن دو سند', run: () => endSplit(t.id) }
+      : t !== cur && cur ? { icon: ICON_SPLIT, label: 'باز کردن کنار تب فعلی', key: 'Ctrl+\\', run: () => openSplit(cur, t) }
+        : { icon: ICON_SPLIT, label: 'باز کردن کنار سند دیگر…', key: 'Ctrl+\\', run: () => pickSplit() },
     'sep',
     { icon: ICON.edit, label: 'تغییر نام', key: 'F2', run: () => startRename(t) },
     { icon: ICON.direction, label: 'جهت سند', sub: [
@@ -1797,10 +2097,16 @@ function applyCompact() {
     sidebarAutoHidden = small;
     applySidebar();
   }
-  const ed = $('#editors');
-  if (ed) document.body.classList.toggle('narrow-page', ed.clientWidth < 760);
+  checkNarrow();
 }
-window.addEventListener('resize', () => applyCompact());
+function checkNarrow() {
+  const ed = $('#editors');
+  if (!ed) return;
+  const ed2 = $('#editors2');
+  const w = document.body.classList.contains('split-on') && ed2 ? Math.min(ed.clientWidth, ed2.clientWidth) : ed.clientWidth;
+  document.body.classList.toggle('narrow-page', w < 760);
+}
+window.addEventListener('resize', () => { applyCompact(); applySplit(); });
 document.addEventListener('mousedown', (e) => {
   const sb = $('#statusbar');
   if (sb && sb.classList.contains('open') && !e.target.closest('#st-extra, #st-more, .menu, .popover, .size-panel, .zoom-panel')) sb.classList.remove('open');
@@ -1812,7 +2118,7 @@ function applySidebar() {
   if (document.body.classList.contains('vertical-tabs') !== vert) { document.body.classList.toggle('vertical-tabs', vert); renderTabs(); }
   const sideOn = settings.sidebar && !sidebarAutoHidden;
   $('#sidebar').hidden = !sideOn;
-  requestAnimationFrame(() => { const ed = $('#editors'); if (ed) document.body.classList.toggle('narrow-page', ed.clientWidth < 760); });
+  requestAnimationFrame(() => { applySplit(); checkNarrow(); });
   document.querySelectorAll('.side-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.v === settings.sideView));
   if (settings.sideView === 'files') renderTree();
   else if (settings.sideView === 'recent') renderRecent();
@@ -1912,6 +2218,7 @@ function updateStatus(savedMsg) {
   $('#st-lock').innerHTML = (t.locked ? ICON.lock : ICON.unlock) + `<span>${t.locked ? 'حالت امن روشن است' : 'حالت امن'}</span>`;
   $('#st-lock').classList.toggle('on', !!t.locked);
   $('#st-zoom').textContent = `${fa(Math.round((settings.zoom || 1) * 100))}٪`;
+  paintMiniBars();
 }
 function updateTitle() {
   const t = active();
@@ -3268,8 +3575,10 @@ function saveSession() {
   }));
   const used = new Set(list.map((x) => x.group).filter(Boolean));
   const a = active();
+  const keyOf = (id) => { const x = tabById(id); return x ? x.path || x.draftId || null : null; };
+  const sp = split && split.b != null && keyOf(split.a) && keyOf(split.b) ? { a: keyOf(split.a), b: keyOf(split.b), ratio: split.ratio } : null;
   return api.setSession({
-    tabs: list, active: a ? a.path || a.draftId || null : null,
+    tabs: list, active: a ? a.path || a.draftId || null : null, split: sp,
     groups: [...groups.values()].filter((g) => used.has(g.id)),
   });
 }
@@ -3315,6 +3624,11 @@ async function restoreWindow(entry, drafts, claimed) {
   } finally {
     restoring = false;
   }
+  if (entry.split) {
+    const find = (k) => tabs.find((t) => samePath(t.path, k) || t.draftId === k);
+    const a = find(entry.split.a), b = find(entry.split.b);
+    if (a && b && a !== b) split = { a: a.id, b: b.id, ratio: Math.min(0.8, Math.max(0.2, Number(entry.split.ratio) || 0.5)) };
+  }
   renderTabs();
   const a = tabs.find((t) => (entry.active && (samePath(t.path, entry.active) || t.draftId === entry.active)));
   if (a) activateTab(a.id);
@@ -3332,6 +3646,7 @@ function onKey(e) {
   const t = active();
   const handled = () => { e.preventDefault(); e.stopPropagation(); };
   if (e.key === 'Escape' && !$('#findbar').hidden) { handled(); closeFind(); return; }
+  if (e.key === 'Escape' && splitOn() && !$('#split-pick').hidden && !document.querySelector('.menu, .overlay')) { handled(); endSplit(); return; }
   if (e.key === 'Escape' && tabSel.size > 1 && !document.querySelector('.menu, .overlay')) { handled(); clearTabSel(); return; }
   if (e.key === 'F8') { handled(); if (t) setLocked(t, !t.locked); return; }
   if (t && t.locked && isEditKey(e)) { handled(); showLockedToast(); return; }
@@ -3352,6 +3667,9 @@ function onKey(e) {
     if (target) activateTab(target.id);
     return;
   }
+  if (e.altKey && !e.shiftKey && (code === 'ArrowLeft' || code === 'ArrowRight') && document.body.classList.contains('split-on') && split && split.b != null) {
+    handled(); activateTab(code === 'ArrowLeft' ? split.b : split.a); return;
+  }
   if (code === 'PageDown') { handled(); cycleTab(1); return; }
   if (code === 'PageUp') { handled(); cycleTab(-1); return; }
   switch (code) {
@@ -3367,6 +3685,7 @@ function onKey(e) {
     case 'Digit1': if (e.shiftKey) { handled(); updateSettings({ sidebar: true, sideView: 'outline' }); } break;
     case 'Digit3': if (e.shiftKey) { handled(); updateSettings({ sidebar: true, sideView: 'files' }); } break;
     case 'Comma': handled(); openSettings(); break;
+    case 'Backslash': handled(); toggleSplit(); break;
     case 'Equal': case 'NumpadAdd': handled(); zoomBy(1); break;
     case 'Minus': case 'NumpadSubtract': handled(); zoomBy(-1); break;
     case 'Digit0': case 'Numpad0': if (!e.shiftKey && !e.altKey) { handled(); setZoom(1); } break;

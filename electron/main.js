@@ -724,7 +724,7 @@ ipcMain.handle('session:get', () => readJSON(sessionFile(), null));
 ipcMain.handle('session:set', (e, s) => {
   const w = W(e);
   if (!w || !s) return;
-  winSessions.set(w.id, { tabs: s.tabs || [], active: s.active || null, groups: s.groups || [] });
+  winSessions.set(w.id, { tabs: s.tabs || [], active: s.active || null, groups: s.groups || [], split: s.split || null });
   return writeSession();
 });
 ipcMain.handle('themes:custom', async () => {
