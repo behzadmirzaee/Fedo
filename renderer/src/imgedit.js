@@ -15,7 +15,7 @@ const I = {
   shape: svg('<rect x="3.5" y="3.5" width="10" height="10" rx="2"/><circle cx="15" cy="15" r="5.5"/>'),
   undo: svg('<path d="M15 6.5l3.5 3.5L15 13.5M18.5 10H9.5a5 5 0 0 0 0 10h3"/>'),
   redo: svg('<path d="M9 6.5L5.5 10L9 13.5M5.5 10h9a5 5 0 0 1 0 10h-3"/>'),
-  rotate: svg('<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 3.5v3.7h3.7"/>'),
+  rotate: svg('<rect x="3.5" y="10" width="10.5" height="10.5" rx="2"/><path d="M9 5.5h5.5a5 5 0 0 1 5 5v4.5M17 12.5l2.5 2.5L22 12.5"/>'),
   flip: svg('<path d="M12 3v18M9 7L4 17h5V7zM15 7l5 10h-5V7z"/>'),
   pen: svg('<path d="M14.5 5.5l4 4M4 20l1-4.5L15.8 4.7a2 2 0 0 1 2.8 0l.7.7a2 2 0 0 1 0 2.8L8.5 19 4 20z"/>'),
   arrow: svg('<path d="M5 19L19 5M10 5h9v9"/>'),
@@ -32,11 +32,13 @@ const COLORS = [
   ['#1D1D1F', 'مشکی'], ['#FFFFFF', 'سفید'], ['#FF3B30', 'قرمز'], ['#FF9500', 'نارنجی'], ['#FFCC00', 'زرد'],
   ['#34C759', 'سبز'], ['#32ADE6', 'آبی روشن'], ['#0066DD', 'آبی'], ['#AF52DE', 'بنفش'],
 ];
-const SIZES = [3, 6, 10, 16]; // stroke width on screen, px
-const TOOLS = { pen: 'خودکار', arrow: 'فلش', marker: 'ماژیک', blur: 'محو کردن', eraser: 'پاک‌کن' };
+// stroke width on screen, px: a free slider that snaps to these four stops
+const SIZES = [3, 6, 10, 16];
+const SNAP = 0.045;
+const TOOLS = { pen: 'قلم', arrow: 'فلش', marker: 'ماژیک', blur: 'محو کردن', eraser: 'پاک‌کن' };
 const SHAPES = { rect: 'مستطیل', ellipse: 'بیضی', line: 'خط', bubble: 'حباب گفت‌وگو' };
 const MODES = { crop: 'برش', draw: 'رسم', text: 'متن', emoji: 'اموجی', shape: 'شکل' };
-const RATIOS = [['free', 'آزاد', 0], ['1:1', '۱:۱', 1], ['4:3', '۴:۳', 4 / 3], ['16:9', '۱۶:۹', 16 / 9]];
+const RATIOS = [['free', 'آزاد', 0], ['orig', 'اصلی', -1], ['1:1', '۱:۱', 1], ['4:3', '۴:۳', 4 / 3], ['16:9', '۱۶:۹', 16 / 9]];
 const TIPS = {
   crop: 'گوشه‌ها را بکشید؛ برش تا «ذخیره» قطعی نمی‌شود',
   draw: 'روی تصویر بکشید؛ Shift برای خط صاف',
@@ -92,7 +94,8 @@ class Editor {
     this.buildBase();
     this.crop = { x: 0, y: 0, w: this.W, h: this.H };
     this.objs = [];
-    this.mode = 'draw'; this.tool = 'pen'; this.color = '#FF3B30'; this.size = 1; this.ratio = 'free';
+    this.mode = 'draw'; this.tool = 'pen'; this.color = '#FF3B30'; this.size = 1 / 3; this.blurAmt = 5; this.ratio = 'free';
+    this.customs = ((opts.colors && opts.colors.get()) || []).slice(-4);
     this.tstyle = 'fill'; this.font = (opts.fonts && opts.fonts[0] && opts.fonts[0].id) || 'Vazirmatn';
     this.shapeKind = 'rect'; this.shapeFill = false;
     this.sel = null; this.drag = null; this.textEdit = null;
@@ -119,14 +122,16 @@ class Editor {
     x.drawImage(this.src, -w / 2, -h / 2);
     this.base = c; this.W = W; this.H = H; this.blurCv = null;
   }
-  blurred() {
-    if (this.blurCv) return this.blurCv;
+  /** the whole image blurred at one strength (1..10), kept per strength */
+  blurred(amt = 5) {
+    this.blurCv ||= {};
+    if (this.blurCv[amt]) return this.blurCv[amt];
     const c = document.createElement('canvas');
     c.width = this.W; c.height = this.H;
     const x = c.getContext('2d');
-    x.filter = `blur(${Math.max(8, Math.round(Math.max(this.W, this.H) / 70))}px)`;
+    x.filter = `blur(${Math.max(2, Math.round((Math.max(this.W, this.H) / 70) * (amt / 5)))}px)`;
     x.drawImage(this.base, 0, 0);
-    return (this.blurCv = c);
+    return (this.blurCv[amt] = c);
   }
   /** move every point of the drawing and the crop along with a rotation or flip of the image */
   mapAll(f) {
@@ -144,6 +149,7 @@ class Editor {
     this.mapAll((x, y) => [H - y, x]);
     this.rot = (this.rot + 1) % 4;
     this.buildBase();
+    if (this.ratio === 'orig') { this.setRatio('orig'); return; }
     if (this.ratioVal() && this.ratioVal() !== 1) this.ratio = 'free';
     this.commit();
     this.renderRows();
@@ -155,11 +161,15 @@ class Editor {
     this.buildBase();
     this.commit();
   }
-  ratioVal() { return (RATIOS.find((r) => r[0] === this.ratio) || RATIOS[0])[2]; }
+  ratioVal() { const k = (RATIOS.find((r) => r[0] === this.ratio) || RATIOS[0])[2]; return k === -1 ? this.W / this.H : k; }
   setRatio(id) {
     this.ratio = id;
     const k = this.ratioVal();
-    if (k) {
+    if (id === 'orig') {
+      // «اصلی»: the whole image, as it was
+      this.crop = { x: 0, y: 0, w: this.W, h: this.H };
+      this.commit();
+    } else if (k) {
       // the largest box of that shape that fits, centred on the current crop
       const c = this.crop;
       let w = Math.min(this.W, c.w), h = w / k;
@@ -222,15 +232,20 @@ class Editor {
     this.modeBtns = {};
     const modes = el('div', { class: 'ie-modes' }, Object.entries(MODES).map(([id, label]) => (this.modeBtns[id] = mk('', I[id], label, null, null, () => this.setMode(id)))));
     const bar = el('div', { class: 'ie-bar' },
-      el('button', { class: 'ie-bt', type: 'button', onclick: () => this.cancel() }, 'انصراف'),
       el('div', { class: 'ie-urs' }, this.undoBtn, this.redoBtn),
       el('span', { class: 'ie-sep' }),
-      modes,
+      modes);
+    this.sheet = el('div', { class: 'ie-sheet' }, this.rows, bar);
+    // cancel and save sit in their own box under the controls
+    const acts = el('div', { class: 'ie-acts' },
+      el('button', { class: 'ie-bt', type: 'button', onclick: () => this.cancel() }, 'انصراف'),
+      el('span', { class: 'ie-note' }, this.opts.note || ''),
       el('button', { class: 'ie-bt pr', type: 'button', onclick: () => this.save() }, 'ذخیره'));
-    this.sheet = el('div', { class: 'ie-sheet', dir: 'rtl' }, this.rows, bar);
+    this.dock = el('div', { class: 'ie-dock', dir: 'rtl' }, this.sheet, acts);
     this.colorInput = el('input', { type: 'color', class: 'ie-ci', tabindex: '-1', 'aria-hidden': 'true' });
-    this.colorInput.addEventListener('input', () => this.pickColor(this.colorInput.value.toUpperCase()));
-    this.root = el('div', { class: 'ie-root', dir: 'rtl', role: 'dialog', 'aria-label': 'ویرایش تصویر', style: `top:${top}px` }, hint, this.stageBox, this.tip, this.sheet, this.colorInput);
+    this.colorInput.addEventListener('input', () => this.pickColor(this.colorInput.value.toUpperCase(), true));
+    this.colorInput.addEventListener('change', () => this.addCustom(this.colorInput.value.toUpperCase()));
+    this.root = el('div', { class: 'ie-root', dir: 'rtl', role: 'dialog', 'aria-label': 'ویرایش تصویر', style: `top:${top}px` }, hint, this.stageBox, this.tip, this.dock, this.colorInput);
     document.body.append(this.root);
     this.cv.addEventListener('pointerdown', (e) => this.down(e));
     this.cv.addEventListener('pointermove', (e) => this.move(e));
@@ -260,8 +275,14 @@ class Editor {
       b.addEventListener('click', () => this.pickColor(hex));
       row.append(b);
     }
-    const custom = !COLORS.some((c) => c[0] === this.color);
-    const cb = el('button', { class: 'ie-sw cust' + (custom ? ' on' : ''), type: 'button', 'aria-label': 'رنگ دلخواه', title: 'رنگ دلخواه' }, el('b', { style: custom ? `background:${this.color}` : '' }));
+    // up to four colours of your own, then the colour wheel that adds one
+    if (this.customs.length) row.append(el('span', { class: 'ie-csep' }));
+    for (const hex of this.customs) {
+      const b = el('button', { class: 'ie-sw' + (this.color === hex ? ' on' : ''), type: 'button', 'aria-label': 'رنگ دلخواه ' + hex, title: hex }, el('b', { style: `background:${hex}` }));
+      b.addEventListener('click', () => this.pickColor(hex));
+      row.append(b);
+    }
+    const cb = el('button', { class: 'ie-sw cust', type: 'button', 'aria-label': 'افزودن رنگ دلخواه', title: 'افزودن رنگ دلخواه' }, el('b'));
     cb.addEventListener('click', () => { this.colorInput.value = this.color.length === 7 ? this.color : '#FF3B30'; this.colorInput.click(); });
     row.append(cb);
     return row;
@@ -273,8 +294,9 @@ class Editor {
       return b;
     }));
   }
-  ib(icon, label, on, run) {
-    const b = el('button', { class: 'ie-ib' + (on ? ' on' : ''), type: 'button', 'aria-label': label, title: label, 'aria-pressed': String(!!on), html: icon });
+  ib(icon, label, on, run, named) {
+    const b = el('button', { class: 'ie-ib' + (on ? ' on' : '') + (on && named ? ' named' : ''), type: 'button', 'aria-label': label, title: label, 'aria-pressed': String(!!on) },
+      el('span', { class: 'ic', html: icon }), on && named ? el('span', {}, label) : null);
     b.addEventListener('click', run);
     return b;
   }
@@ -293,15 +315,15 @@ class Editor {
         this.seg(RATIOS.map((x) => [x[0], x[1]]), this.ratio, (id) => this.setRatio(id)),
         grow(), reset));
     } else if (this.mode === 'draw') {
-      if (this.tool !== 'blur' && this.tool !== 'eraser') r.append(this.swatches());
-      const sizes = el('div', { class: 'ie-sizes' }, SIZES.map((px, i) => {
-        const b = el('button', { class: 'ie-dot' + (this.size === i ? ' on' : ''), type: 'button', 'aria-label': `ضخامت ${fa(i + 1)}`, title: `ضخامت ${fa(i + 1)}` }, el('b', { style: `width:${px + 3}px;height:${px + 3}px` }));
-        b.addEventListener('click', () => { this.size = i; this.renderRows(); });
-        return b;
-      }));
+      if (this.tool === 'blur') {
+        const amt = el('input', { type: 'range', min: '1', max: '10', step: '1', class: 'ie-range', 'aria-label': 'میزان محو', dir: 'rtl' });
+        amt.value = String(this.blurAmt);
+        amt.addEventListener('input', () => { this.blurAmt = Number(amt.value); });
+        r.append(el('div', { class: 'ie-row c' }, lbl('میزان محو'), lbl('کم'), amt, lbl('زیاد')));
+      } else if (this.tool !== 'eraser') r.append(this.swatches());
       r.append(el('div', { class: 'ie-row' },
-        ...Object.entries(TOOLS).map(([id, label]) => this.ib(I[id], label, this.tool === id, () => { this.tool = id; this.renderRows(); this.layout(); })),
-        el('span', { class: 'ie-lbl tool' }, TOOLS[this.tool]), grow(), lbl('ضخامت'), sizes));
+        ...Object.entries(TOOLS).map(([id, label]) => this.ib(I[id], label, this.tool === id, () => { this.tool = id; this.renderRows(); this.layout(); }, true)),
+        grow(), this.sizeSlider()));
     } else if (this.mode === 'text') {
       r.append(this.swatches());
       const fonts = (this.opts.fonts || []).map((f) => [f.id, f.name]);
@@ -322,16 +344,47 @@ class Editor {
     } else if (this.mode === 'shape') {
       r.append(this.swatches());
       r.append(el('div', { class: 'ie-row' },
-        ...Object.entries(SHAPES).map(([id, label]) => this.ib(I[id], label, this.shapeKind === id, () => { this.shapeKind = id; this.renderRows(); })),
+        ...Object.entries(SHAPES).map(([id, label]) => this.ib(I[id], label, this.shapeKind === id, () => { this.shapeKind = id; this.renderRows(); }, true)),
         el('span', { class: 'ie-sep' }),
         this.seg([['0', 'توخالی'], ['1', 'توپر']], this.shapeFill ? '1' : '0', (id) => { this.shapeFill = id === '1'; this.applyToSel({ fill: this.shapeFill }); this.renderRows(); })));
     }
   }
-  pickColor(hex) {
+  pickColor(hex, live) {
     this.color = hex;
     this.applyToSel({ color: hex });
     if (this.textEdit) { this.textEdit.o.color = hex; this.styleTextBox(); }
-    this.renderRows();
+    if (!live) this.renderRows();
+  }
+  /** a colour from the wheel joins the row; the fifth one pushes out the oldest */
+  addCustom(hex) {
+    if (!COLORS.some((c) => c[0] === hex)) {
+      this.customs = this.customs.filter((c) => c !== hex).concat([hex]).slice(-4);
+      if (this.opts.colors) this.opts.colors.set(this.customs);
+    }
+    this.pickColor(hex);
+  }
+  /** the tapered thickness slider: free, but it snaps to the four stops */
+  sizeSlider() {
+    const wrap = el('div', { class: 'ie-wedge', title: 'ضخامت' });
+    wrap.innerHTML = '<svg viewBox="0 0 190 34" aria-hidden="true"><path d="M15 5 L183 14 A3 3 0 0 1 183 20 L15 29 A12 12 0 0 1 15 5Z"/>'
+      + [183, 127, 71, 15].map((x) => `<circle cx="${x}" cy="17" r="1.6"/>`).join('') + '</svg>';
+    const thumb = el('span', { class: 'th' });
+    const inp = el('input', { type: 'range', min: '0', max: '1000', step: '1', 'aria-label': 'ضخامت', dir: 'rtl' });
+    inp.value = String(Math.round(this.size * 1000));
+    const place = () => {
+      const px = this.sizePx(), d = 8 + (px - 3) * 1.15;
+      thumb.style.right = 7 + this.size * 168 + 'px';
+      thumb.style.width = thumb.style.height = d + 'px';
+    };
+    inp.addEventListener('input', () => {
+      let t = inp.value / 1000;
+      for (let i = 0; i < SIZES.length; i++) { const stop = i / (SIZES.length - 1); if (Math.abs(t - stop) < SNAP) t = stop; }
+      this.size = t;
+      place();
+    });
+    place();
+    wrap.append(thumb, inp);
+    return wrap;
   }
   /** a style picked while a text or shape is selected applies to it */
   applyToSel(patch) {
@@ -405,7 +458,11 @@ class Editor {
     return [R.x + (e.clientX - r.left) / this.k, R.y + (e.clientY - r.top) / this.k];
   }
   toScreen(x, y) { const R = this.view(); return [(x - R.x) * this.k, (y - R.y) * this.k]; }
-  strokeW() { return SIZES[this.size] / this.k; }
+  sizePx(t = this.size) {
+    const f = clamp(t, 0, 1) * (SIZES.length - 1), i = Math.min(SIZES.length - 2, Math.floor(f));
+    return SIZES[i] + (SIZES[i + 1] - SIZES[i]) * (f - i);
+  }
+  strokeW() { return this.sizePx() / this.k; }
 
   // ---------- drawing ----------
   paint() {
@@ -500,7 +557,7 @@ class Editor {
     this.path(tx, o.pts);
     tx.stroke();
     tx.globalCompositeOperation = 'source-in';
-    tx.drawImage(this.blurred(), 0, 0);
+    tx.drawImage(this.blurred(o.amt || 5), 0, 0);
     tx.globalCompositeOperation = 'source-over';
     x.save();
     x.setTransform(1, 0, 0, 1, 0, 0);
@@ -584,14 +641,10 @@ class Editor {
       const o = this.objs[i];
       if (o.type === 'text' || o.type === 'emoji') { const b = o._box; if (b && p[0] >= b.x && p[0] <= b.x + b.w && p[1] >= b.y && p[1] <= b.y + b.h) return o; }
       if (o.type === 'shape') {
-        const r = norm(o.a, o.b), tol = Math.max(o.w, 8 / this.k);
-        if (o.kind === 'line') { if (segDist(p, o.a, o.b) <= tol) return o; }
-        else if (o.fill) { if (p[0] >= r.x && p[0] <= r.x + r.w && p[1] >= r.y && p[1] <= r.y + r.h) return o; }
-        else {
-          const inOuter = p[0] >= r.x - tol && p[0] <= r.x + r.w + tol && p[1] >= r.y - tol && p[1] <= r.y + r.h + tol;
-          const inInner = p[0] > r.x + tol && p[0] < r.x + r.w - tol && p[1] > r.y + tol && p[1] < r.y + r.h - tol;
-          if (inOuter && !inInner) return o;
-        }
+        // hollow shapes are grabbed from anywhere inside, like filled ones; lines from close by
+        const r = norm(o.a, o.b), tol = Math.max(o.w, 10 / this.k);
+        if (o.kind === 'line') { if (segDist(p, o.a, o.b) <= Math.max(o.w, 14 / this.k)) return o; }
+        else if (p[0] >= r.x - tol && p[0] <= r.x + r.w + tol && p[1] >= r.y - tol && p[1] <= r.y + r.h + tol) return o;
       }
     }
     return null;
@@ -625,6 +678,7 @@ class Editor {
       if (this.tool === 'arrow') { const o = { type: 'arrow', color: this.color, w: this.strokeW(), a: p, b: p }; this.objs.push(o); this.drag = { kind: 'new', o }; return; }
       const w = this.tool === 'marker' ? this.strokeW() * 3 : this.tool === 'blur' ? Math.max(this.strokeW() * 4, 18 / this.k) : this.strokeW();
       const o = { type: 'stroke', tool: this.tool, color: this.color, w, pts: [p] };
+      if (this.tool === 'blur') o.amt = this.blurAmt;
       this.objs.push(o);
       this.drag = { kind: 'new', o, shift: e.shiftKey };
       this.paint();
@@ -853,7 +907,7 @@ class Editor {
       const r = await modal({
         title: 'تغییرات تصویر دور ریخته شود؟',
         text: `${fa(this.hi)} تغییر روی این تصویر هنوز ذخیره نشده.`,
-        buttons: [{ label: 'دور ریختن', value: 'discard', danger: true, aside: true }, { label: 'ادامه‌ی ویرایش', value: null, primary: true }],
+        buttons: [{ label: 'بستن بدون ذخیره', value: 'discard', danger: true, aside: true }, { label: 'ادامه‌ی ویرایش', value: null, primary: true }],
       });
       if (r !== 'discard') return;
     }

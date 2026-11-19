@@ -80,6 +80,15 @@ export function installSelectionBar(find, openColor) {
   }, true);
 
   window.addEventListener('blur', () => root.classList.remove('nv-selecting'));
+  // the block handle's + adds a block on pointer-up; it only counts when the press began on it too,
+  // so letting go of a text selection over it never adds a block
+  let downOn = null;
+  document.addEventListener('pointerdown', (e) => { downOn = e.target.closest && e.target.closest('.milkdown-block-handle .operation-item'); }, true);
+  document.addEventListener('pointerup', (e) => {
+    const item = e.target.closest && e.target.closest('.milkdown-block-handle .operation-item');
+    if (item && item !== downOn) { e.stopPropagation(); e.preventDefault(); }
+    downOn = null;
+  }, true);
   document.addEventListener('keydown', () => { below = null; }, true);
 
   // colour panel on hover: only after a short rest, and never while a button is held

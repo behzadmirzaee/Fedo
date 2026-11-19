@@ -1184,7 +1184,11 @@ async function editImage(t, blk) {
   let res;
   try {
     const { openImageEditor } = await loadImgEditor();
-    res = await openImageEditor({ src: url, ext, fonts: FONTS.filter((f) => f.id), emoji: emojiTools() });
+    res = await openImageEditor({
+      src: url, ext, fonts: FONTS.filter((f) => f.id), emoji: emojiTools(),
+      note: info.kind === 'file' ? 'نسخه‌ی ویرایش‌شده کنار تصویر اصلی ذخیره می‌شود' : 'نسخه‌ی ویرایش‌شده در پوشه‌ی assets کنار سند ذخیره می‌شود',
+      colors: { get: () => settings.imgColors || [], set: (list) => updateSettings({ imgColors: list }) },
+    });
   } catch { toast('ویرایشگر تصویر باز نشد', 'err'); return; } finally { URL.revokeObjectURL(url); }
   if (!res) { getView(t.crepe).focus(); return; }
   let newSrc;
@@ -2268,18 +2272,18 @@ async function openSettings(section = 'look') {
       el('span', { class: 'tp', style: sw2 ? `background:${sw2[0]};color:${sw2[1]}` : null }, el('i', { style: 'width:60%;opacity:.75' }), el('i', { style: 'width:90%' }), el('i', { style: 'width:75%' })),
       el('span', { class: 'th-n' }, th.name)));
     for (const th of THEMES) tile(th, THEME_SWATCH[th.id]);
-    // sixth tile: the chosen extra theme, or the way into all of them
-    const more = MORE_THEMES.find((x) => x.id === settings.theme);
+    // the last theme picked from the gallery keeps a tile of its own (one click to go back to it),
+    // and «تم‌های بیشتر» always stays at the end of the row, so the way into the gallery never changes
+    const more = MORE_THEMES.find((x) => x.id === settings.theme) || MORE_THEMES.find((x) => x.id === settings.lastMoreTheme);
     if (more) {
-      themeGrid.append(el('button', { class: 'th on', title: 'تم‌های بیشتر', onclick: () => openThemeGallery(paintThemes) },
+      themeGrid.append(el('button', { class: 'th' + (settings.theme === more.id ? ' on' : ''), title: more.name, onclick: () => { updateSettings({ theme: more.id }); paintThemes(); } },
         el('span', { class: 'tp', style: `background:${more.bg};color:${more.text}` }, el('i', { style: 'width:60%;opacity:.75' }), el('i', { style: 'width:90%' }), el('i', { style: 'width:75%' })),
         el('span', { class: 'th-n', dir: 'ltr' }, more.name)));
-    } else {
-      themeGrid.append(el('button', { class: 'th more', title: 'تم‌های بیشتر', onclick: () => openThemeGallery(paintThemes) },
-        el('span', { class: 'tp' }, ['#bd93f9', '#e2b714', '#ff7a90'].map((c) => el('span', { class: 'sw', style: `background:${c}` }))),
-        el('span', { class: 'th-n' }, `${fa(MORE_THEMES.length)} تم دیگر`)));
     }
     for (const th of customThemes) tile(th, null);
+    themeGrid.append(el('button', { class: 'th more', title: `${fa(MORE_THEMES.length)} تم دیگر`, onclick: () => openThemeGallery(paintThemes) },
+      el('span', { class: 'tp' }, ['#bd93f9', '#e2b714', '#ff7a90'].map((c) => el('span', { class: 'sw', style: `background:${c}` }))),
+      el('span', { class: 'th-n' }, 'تم‌های بیشتر')));
   };
   paintThemes();
   // two groups: the official icons and the fun ones
@@ -2914,40 +2918,128 @@ function applySpell(t) {
 }
 
 /** all the extra themes: search, light / dark, and a preview of each in its own colours; a click applies it */
+const STAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.8l2.5 5.1l5.6.8l-4 3.9l1 5.6L12 16.6l-5.1 2.6l1-5.6l-4-3.9l5.6-.8z"/></svg>';
+/** colour family, hue, background lightness and text contrast of each gallery theme, worked out once */
+let themeMeta = null;
+function THEME_META() {
+  if (themeMeta) return themeMeta;
+  const rgb = (h) => { const n = parseInt(String(h).slice(1, 7), 16); return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; };
+  const lin = (v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  const lum = (h) => { const c = rgb(h).map(lin); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const hsl = (h) => {
+    const c = rgb(h), mx = Math.max(...c), mn = Math.min(...c), l = (mx + mn) / 2, d = mx - mn, s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+    let H = 0;
+    if (d) { H = mx === c[0] ? ((c[1] - c[2]) / d) % 6 : mx === c[1] ? (c[2] - c[0]) / d + 2 : (c[0] - c[1]) / d + 4; H *= 60; if (H < 0) H += 360; }
+    return [H, s, l];
+  };
+  const fam = ([H, sat, l]) => {
+    if (sat < 0.2 || l < 0.12 || l > 0.94) return 'neutral';
+    return H < 15 || H >= 345 ? 'red' : H < 40 ? 'orange' : H < 65 ? 'yellow' : H < 160 ? 'green' : H < 195 ? 'teal' : H < 250 ? 'blue' : H < 290 ? 'purple' : 'pink';
+  };
+  themeMeta = new Map();
+  for (const t of MORE_THEMES) {
+    const v = hsl(t.main), a = lum(t.bg), b = lum(t.text);
+    themeMeta.set(t.id, { fam: fam(v), hue: v[0], L: a, cr: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) });
+  }
+  return themeMeta;
+}
 function openThemeGallery(onChange) {
-  let filter = 'all';
+  // filters and order are remembered for the next time the gallery opens
+  const st = Object.assign({ mode: 'all', hue: 'all', hc: false, fav: false, sort: 'name' }, settings.themeGallery || {});
+  const favs = new Set(settings.themeFavs || []);
+  const save = () => updateSettings({ themeGallery: { mode: st.mode, hue: st.hue, hc: st.hc, fav: st.fav, sort: st.sort } });
   const q = el('input', { type: 'text', placeholder: 'جستجوی تم', 'aria-label': 'جستجوی تم', spellcheck: 'false', dir: 'auto' });
   const seg = el('div', { class: 'tg-seg', role: 'radiogroup', 'aria-label': 'روشن یا تیره' });
+  const hues = el('div', { class: 'tg-hues', role: 'radiogroup', 'aria-label': 'رنگ اصلی' });
+  const toggles = el('div', { class: 'tg-toggles' });
+  const sortBtn = el('button', { class: 'tg-sort', type: 'button', 'aria-haspopup': 'menu' });
   const grid = el('div', { class: 'tg-grid' });
   const count = el('span', { class: 'tg-count' });
-  const paintSeg = () => {
+  const clear = el('button', { class: 'tg-clear', type: 'button' }, 'پاک کردن فیلترها');
+  const SORTS = [['name', 'نام (A تا Z)'], ['color', 'رنگ اصلی'], ['light', 'روشن به تیره'], ['dark', 'تیره به روشن'], ['recent', 'اخیراً استفاده‌شده']];
+  const HUES = [['all', 'همه', ''], ['red', 'قرمز', '#e5484d'], ['orange', 'نارنجی', '#f5a524'], ['yellow', 'زرد', '#f2d33f'], ['green', 'سبز', '#3fb26b'],
+    ['teal', 'فیروزه‌ای', '#2fb6c6'], ['blue', 'آبی', '#3e7bfa'], ['purple', 'بنفش', '#9b5de5'], ['pink', 'صورتی', '#e5679e'], ['neutral', 'خنثی', '#9a9aa3']];
+  const recent = settings.themeRecent || [];
+  const meta = THEME_META();
+  const paintTools = () => {
     seg.innerHTML = '';
     for (const [k, label] of [['all', 'همه'], ['light', 'روشن'], ['dark', 'تیره']]) {
-      seg.append(el('button', { class: filter === k ? 'on' : '', role: 'radio', 'aria-checked': String(filter === k), onclick: () => { filter = k; paintSeg(); paint(); } }, label));
+      seg.append(el('button', { class: st.mode === k ? 'on' : '', role: 'radio', 'aria-checked': String(st.mode === k), onclick: () => { st.mode = k; save(); paintTools(); paint(); } }, label));
     }
+    hues.innerHTML = '';
+    for (const [k, name, hex] of HUES) {
+      hues.append(el('button', { class: 'tg-hue' + (st.hue === k ? ' on' : '') + (k === 'all' ? ' all' : ''), role: 'radio', 'aria-checked': String(st.hue === k), 'aria-label': name, title: name,
+        onclick: () => { st.hue = k; save(); paintTools(); paint(); } }, el('b', { style: hex ? `background:${hex}` : null })));
+    }
+    toggles.innerHTML = '';
+    const tg = (key, label, icon) => toggles.append(el('button', { class: 'tg-tg' + (st[key] ? ' on' : ''), type: 'button', 'aria-pressed': String(!!st[key]),
+      onclick: () => { st[key] = !st[key]; save(); paintTools(); paint(); } }, el('span', { class: 'ic', html: icon }), label));
+    tg('hc', 'کنتراست بالا', '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></svg>');
+    tg('fav', 'پسندیده‌ها', STAR);
+    sortBtn.innerHTML = '';
+    sortBtn.append(el('span', { class: 'ic', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 5v14M4 16l3 3l3-3M14 7h6M14 12h4M14 17h2"/></svg>' }),
+      el('span', { class: 'k' }, 'مرتب‌سازی:'), el('span', {}, SORTS.find((x) => x[0] === st.sort)[1]), el('span', { class: 'ic chev', html: ICON.chevDown || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6l6-6"/></svg>' }));
   };
+  sortBtn.addEventListener('click', () => {
+    const r = sortBtn.getBoundingClientRect();
+    const m = showMenu(SORTS.map(([k, label]) => ({ label, checked: st.sort === k, run: () => { st.sort = k; save(); paintTools(); paint(); } })), r.left, r.bottom + 6);
+    m.style.zIndex = '2100'; // above the gallery's overlay
+    m.style.minWidth = Math.max(200, r.width) + 'px';
+    m.style.left = r.left + 'px'; m.style.right = 'auto'; m.style.top = r.bottom + 6 + 'px';
+  });
+  clear.addEventListener('click', () => { Object.assign(st, { mode: 'all', hue: 'all', hc: false, fav: false }); q.value = ''; save(); paintTools(); paint(); });
   const paint = () => {
     const nq = q.value.trim().toLowerCase();
-    const list = MORE_THEMES.filter((t) => (filter === 'all' || (filter === 'dark') === t.dark) && (!nq || t.name.toLowerCase().includes(nq)));
-    count.textContent = `${fa(list.length)} تم`;
+    let list = MORE_THEMES.filter((t) => {
+      const m = meta.get(t.id);
+      return (st.mode === 'all' || (st.mode === 'dark') === t.dark) && (st.hue === 'all' || m.fam === st.hue) && (!st.hc || m.cr >= 7)
+        && (!st.fav || favs.has(t.id)) && (!nq || t.name.toLowerCase().includes(nq));
+    });
+    const by = {
+      name: (a, b) => a.name.localeCompare(b.name),
+      color: (a, b) => (meta.get(a.id).fam === 'neutral') - (meta.get(b.id).fam === 'neutral') || meta.get(a.id).hue - meta.get(b.id).hue,
+      light: (a, b) => meta.get(b.id).L - meta.get(a.id).L,
+      dark: (a, b) => meta.get(a.id).L - meta.get(b.id).L,
+      recent: (a, b) => { const i = recent.indexOf(a.id), j = recent.indexOf(b.id); return (i < 0 ? 1e3 : i) - (j < 0 ? 1e3 : j) || a.name.localeCompare(b.name); },
+    }[st.sort];
+    list = list.slice().sort(by);
+    const filtered = st.mode !== 'all' || st.hue !== 'all' || st.hc || st.fav || !!nq;
+    count.textContent = filtered ? `${fa(list.length)} تم از ${fa(MORE_THEMES.length)}` : `${fa(list.length)} تم`;
+    clear.hidden = !(st.mode !== 'all' || st.hue !== 'all' || st.hc || st.fav);
     grid.innerHTML = '';
-    if (!list.length) { grid.append(el('div', { class: 'tg-empty' }, 'تمی با این نام پیدا نشد')); return; }
+    if (!list.length) { grid.append(el('div', { class: 'tg-empty' }, nq && !filtered ? 'تمی با این نام پیدا نشد' : 'تمی با این فیلترها پیدا نشد')); return; }
     for (const t of list) {
-      const on = settings.theme === t.id;
-      grid.append(el('button', { class: 'tg-card' + (on ? ' on' : ''), title: t.name, 'aria-pressed': String(on), onclick: () => { updateSettings({ theme: t.id }); paint(); onChange && onChange(); } },
-        el('span', { class: 'tg-pv', style: `background:${t.bg}` },
+      const on = settings.theme === t.id, fav = favs.has(t.id);
+      const star = el('button', { class: 'tg-star' + (fav ? ' on' : ''), type: 'button', 'aria-pressed': String(fav), 'aria-label': fav ? 'حذف از پسندیده‌ها' : 'افزودن به پسندیده‌ها', title: fav ? 'حذف از پسندیده‌ها' : 'افزودن به پسندیده‌ها', html: STAR });
+      star.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (favs.has(t.id)) favs.delete(t.id); else favs.add(t.id);
+        updateSettings({ themeFavs: [...favs] });
+        paint();
+      });
+      grid.append(el('div', { class: 'tg-card' + (on ? ' on' : '') },
+        el('button', { class: 'tg-pv', type: 'button', style: `background:${t.bg}`, title: t.name, 'aria-label': t.name, 'aria-pressed': String(on),
+          onclick: () => { updateSettings({ theme: t.id, lastMoreTheme: t.id, themeRecent: [t.id, ...(settings.themeRecent || []).filter((x) => x !== t.id)].slice(0, 20) }); paint(); onChange && onChange(); } },
           el('i', { style: `width:55%;background:${t.text}` }), el('i', { style: `width:85%;background:${t.sub}` }), el('b', { style: `background:${t.main}` })),
+        star,
         el('span', { class: 'tg-n', dir: 'ltr' }, t.name)));
     }
   };
   q.addEventListener('input', paint);
-  paintSeg(); paint();
+  paintTools(); paint();
   // Escape closes only the gallery, not the Settings window under it (window capture runs before document's)
   const close = () => { ov.remove(); window.removeEventListener('keydown', onKey, true); };
-  const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); close(); } };
+  const onKey = (e) => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    // the sort menu goes first; the gallery on the next Escape; Settings underneath stays open either way
+    if (document.querySelector('.menu')) closeMenu(); else close();
+  };
   const box = el('div', { class: 'modal theme-gallery', dir: 'rtl', role: 'dialog', 'aria-label': 'تم‌های بیشتر' },
-    el('div', { class: 'tg-head' }, el('h3', {}, 'تم‌های بیشتر'), count, el('button', { class: 'tg-x', title: 'بستن', 'aria-label': 'بستن', html: ICON.x, onclick: close })),
-    el('div', { class: 'tg-tools' }, el('label', { class: 'tg-search' }, el('span', { class: 'ic', html: ICON.search }), q), seg),
+    el('div', { class: 'tg-head' }, el('h3', {}, 'تم‌های بیشتر'), el('span', { class: 'grow' }), el('button', { class: 'tg-x', title: 'بستن', 'aria-label': 'بستن', html: ICON.x, onclick: close })),
+    el('div', { class: 'tg-tools' }, el('label', { class: 'tg-search' }, el('span', { class: 'ic', html: ICON.search }), q), seg, el('span', { class: 'grow' }), sortBtn),
+    el('div', { class: 'tg-filters' }, el('span', { class: 'tg-lbl' }, 'رنگ اصلی'), hues, el('span', { class: 'tg-vs' }), toggles),
+    el('div', { class: 'tg-meta' }, count, clear),
     grid);
   const ov = el('div', { class: 'overlay' }, box);
   ov.addEventListener('mousedown', (e) => { if (e.target === ov) close(); });
