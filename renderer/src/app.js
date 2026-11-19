@@ -102,7 +102,7 @@ const DEFAULTS = {
   sidebar: true, sideView: 'files', folder: null, spellcheck: false, locked: [], logo: '08', verticalTabs: false,
   autoPair: true, pasteLink: true, plainAfterPaste: true, defaultExt: 'md',
   userDefaults: null,
-  extColor: true, lastColor: { color: '#D93A3A', bg: null },
+  extColor: true, lastColor: { color: '#D93A3A', bg: null }, extImage: true,
   updateAuto: true, updateDownload: false, updateInstallOnQuit: true,
 };
 
@@ -287,8 +287,21 @@ async function newTab({ path = null, content = '', activate = true, mode = 'wysi
       ], e.clientX, e.clientY);
       return;
     }
+    const imgBlk = e.target.closest('.milkdown-image-block, .milkdown-image-inline');
+    if (imgBlk && imgBlk.querySelector('img') && openImageMenu(t, imgBlk, e.clientX, e.clientY)) return;
     openEditorMenu(t.crepe, e.clientX, e.clientY, { insertImage: () => insertImageFromDisk(t), edit: (op) => api.edit(op), color: colorTools(t), emoji: emojiTools() });
   });
+  // image editor: an «ویرایش» button on hover, and double-click, open it
+  wys.addEventListener('mouseover', (e) => {
+    const blk = e.target.closest && e.target.closest('.milkdown-image-block');
+    if (blk) addImageEditButton(t, blk);
+  });
+  wys.addEventListener('dblclick', (e) => {
+    const blk = e.target.closest && e.target.closest('.milkdown-image-block');
+    if (!blk || !e.target.closest('img') || settings.extImage === false) return;
+    const info = imageInfo(t, blk);
+    if (info && info.kind === 'file') { e.preventDefault(); e.stopPropagation(); editImage(t, blk); }
+  }, true);
   // block paste / drop into a locked document
   for (const ev of ['paste', 'drop', 'cut']) {
     pane.addEventListener(ev, (e) => { if (t.locked) { e.preventDefault(); e.stopPropagation(); showLockedToast(); } }, true);
@@ -1070,6 +1083,136 @@ function applyLastColor(t) {
   return true;
 }
 
+// ---------- built-in extension: image editor ----------
+// The editor itself (imgedit.js and its CSS) is loaded the first time it opens.
+let imgEditMod = null;
+const loadImgEditor = () => (imgEditMod ||= import('./imgedit.js'));
+/** the image node behind a rendered image, its position, and what can be done with it */
+function imageInfo(t, blk) {
+  const v = getView(t.crepe);
+  let pos = null, node = null;
+  v.state.doc.descendants((n, p) => {
+    if (node) return false;
+    if (/image/.test(n.type.name) && v.nodeDOM(p) === blk) { pos = p; node = n; return false; }
+  });
+  if (!node) return null;
+  const src = node.attrs.src || '';
+  const ext = ((src.split(/[?#]/)[0].match(/\.([a-z0-9]+)$/i) || [])[1] || '').toLowerCase();
+  let kind = 'file', abs = null;
+  if (/^https?:/i.test(src)) kind = 'web';
+  else if (/^data:image\//i.test(src)) kind = 'data';
+  else if (/^(blob:)/i.test(src) || !src) kind = 'none';
+  else {
+    let p = src;
+    if (/^file:/i.test(p)) p = decodeURI(p.replace(/^file:\/\/\/?/i, '/')).replace(/^\/([a-zA-Z]:)/, '$1');
+    else if (!/^[a-zA-Z]:[\\/]/.test(p) && !p.startsWith('/')) p = t.path ? dirname(t.path) + '/' + decodeURI(p) : null;
+    abs = p;
+    if (!abs) kind = 'none';
+  }
+  const anim = ext === 'gif' || ext === 'svg' || /^data:image\/(gif|svg)/i.test(src);
+  return { pos, node, src, ext, kind, abs, anim };
+}
+function canEditImage(info) { return info && !info.anim && info.kind !== 'none'; }
+function addImageEditButton(t, blk) {
+  if (settings.extImage === false || t.locked || t.mode !== 'wysiwyg') return;
+  const ops = blk.querySelector('.image-wrapper .operation');
+  if (!ops || ops.querySelector('.fd-img-edit')) return;
+  const info = imageInfo(t, blk);
+  if (!info || info.kind !== 'file' || info.anim) return;
+  const b = el('button', { class: 'fd-img-edit', type: 'button', title: 'ویرایش تصویر' }, el('span', { class: 'ic', html: ICON.edit }), 'ویرایش');
+  b.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
+  b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); editImage(t, blk); });
+  ops.append(b);
+}
+/** right-click on an image; false when the normal text menu should open instead */
+function openImageMenu(t, blk, x, y) {
+  const info = imageInfo(t, blk);
+  if (!info) return false;
+  const v = getView(t.crepe);
+  const on = settings.extImage !== false;
+  const items = [];
+  if (on) {
+    if (info.anim) items.push({ icon: ICON.edit, label: 'ویرایش تصویر', tag: info.ext === 'svg' ? 'SVG' : 'GIF متحرک', disabled: true });
+    else if (info.kind === 'web') items.push({ icon: ICON.download, label: 'دانلود و ویرایش', tag: 'تصویر اینترنتی', run: () => editImage(t, blk) });
+    else items.push({ icon: ICON.edit, label: 'ویرایش تصویر', disabled: !canEditImage(info), run: () => editImage(t, blk) });
+  }
+  items.push(
+    { icon: ICON.copy, label: 'کپی تصویر', run: () => copyImage(blk) },
+    { icon: ICON.folder, label: 'نمایش در پوشه', disabled: info.kind !== 'file', run: () => api.reveal(info.abs) },
+    'sep',
+    { icon: ICON.trash, label: 'حذف تصویر', danger: true, run: () => {
+      if (t.locked) { showLockedToast(); return; }
+      const n = v.state.doc.nodeAt(info.pos);
+      if (n) v.dispatch(v.state.tr.delete(info.pos, info.pos + n.nodeSize));
+      v.focus();
+    } },
+  );
+  showMenu(items, x, y);
+  return true;
+}
+async function copyImage(blk) {
+  try {
+    const img = blk.querySelector('img');
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    c.getContext('2d').drawImage(img, 0, 0);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    toast('تصویر کپی شد', 'ok');
+  } catch { toast('کپی تصویر ممکن نشد', 'err'); }
+}
+const IMG_MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', bmp: 'image/bmp', avif: 'image/avif' };
+async function editImage(t, blk) {
+  if (settings.extImage === false) return;
+  if (t.locked) { showLockedToast(); return; }
+  const info = imageInfo(t, blk);
+  if (!canEditImage(info)) return;
+  let bytes, ext = info.ext;
+  try {
+    if (info.kind === 'file') bytes = await api.readImage(info.abs);
+    else if (info.kind === 'data') bytes = new Uint8Array(await (await fetch(info.src)).arrayBuffer());
+    else {
+      const r = await api.fetchImage(info.src);
+      bytes = r.bytes;
+      const m = (r.type.match(/image\/(png|jpe?g|webp|bmp|avif)/) || [])[1];
+      if (m) ext = m === 'jpeg' ? 'jpg' : m;
+    }
+  } catch { toast(info.kind === 'web' ? 'دانلود تصویر ممکن نشد' : 'تصویر خوانده نشد', 'err'); return; }
+  if (info.kind === 'data') ext = ((info.src.match(/^data:image\/([a-z]+)/i) || [])[1] || 'png').replace('jpeg', 'jpg');
+  if (!IMG_MIME[ext]) ext = 'png';
+  const url = URL.createObjectURL(new Blob([bytes], { type: IMG_MIME[ext] }));
+  let res;
+  try {
+    const { openImageEditor } = await loadImgEditor();
+    res = await openImageEditor({ src: url, ext, fonts: FONTS.filter((f) => f.id), emoji: emojiTools() });
+  } catch { toast('ویرایشگر تصویر باز نشد', 'err'); return; } finally { URL.revokeObjectURL(url); }
+  if (!res) { getView(t.crepe).focus(); return; }
+  let newSrc;
+  try {
+    if (info.kind === 'file') {
+      const r = await api.saveEditedImage(info.abs, res.ext, res.bytes);
+      newSrc = info.src.replace(/[^/\\]*$/, r.name.replace(/ /g, '%20'));
+    } else {
+      const base = (info.kind === 'web' ? basename(info.src.split(/[?#]/)[0]).replace(/\.[^.]+$/, '') : '') || 'image';
+      const r = await api.saveImage(t.path, `${base}-edited.${res.ext}`, res.bytes);
+      newSrc = r.relative || toFileURL(r.absolute);
+    }
+  } catch { toast('ذخیره‌ی تصویر ممکن نشد', 'err'); return; }
+  const setSrc = (from, to) => {
+    const v = getView(t.crepe);
+    let at = null;
+    v.state.doc.descendants((n, p) => { if (at == null && /image/.test(n.type.name) && n.attrs.src === from) { at = p; return false; } });
+    if (at == null) return false;
+    const n = v.state.doc.nodeAt(at);
+    v.dispatch(v.state.tr.setNodeMarkup(at, undefined, { ...n.attrs, src: to }));
+    return true;
+  };
+  setSrc(info.src, newSrc);
+  getView(t.crepe).focus();
+  toast(info.kind === 'file' ? 'تصویر ویرایش‌شده ذخیره شد؛ اصلی دست‌نخورده ماند' : 'تصویر ویرایش‌شده کنار سند ذخیره شد', 6000,
+    { label: 'برگرداندن', run: () => setSrc(newSrc, info.src) }, 'ok');
+}
+
 // ---------- copy the whole document ----------
 async function copyWholeDoc() {
   const t = active();
@@ -1834,6 +1977,7 @@ function applyAll() {
   api.setSpellcheck(!!settings.spellcheck);
   api.setLogo(settings.logo);
   document.body.classList.toggle('no-ext-color', settings.extColor === false);
+  document.body.classList.toggle('no-ext-image', settings.extImage === false);
   const lc = settings.lastColor || DEFAULTS.lastColor;
   document.documentElement.style.setProperty('--nv-last-color', lc.bg || lc.color || '#D93A3A');
   if (api.updateConfig) api.updateConfig({ auto: settings.updateAuto !== false, download: !!settings.updateDownload, installOnQuit: settings.updateInstallOnQuit !== false });
@@ -2002,10 +2146,12 @@ function updateStatusLine() {
 const EXTENSIONS = [
   { key: 'extColor', name: 'رنگ متن و پس‌زمینه', builtin: true, icon: ICON.palette, color: '#D6407F',
     hint: 'رنگ در فایل با تگ HTML ذخیره می‌شود و در خروجی HTML و PDF می‌ماند', details: true },
+  { key: 'extImage', name: 'ویرایشگر تصویر', builtin: true, icon: ICON.image, color: '#0E7AE6',
+    hint: 'برش، رسم، متن، اموجی و شکل روی تصویرهای سند' },
   { key: 'spellcheck', name: 'غلط‌یابی املایی', tag: 'فقط انگلیسی', icon: ICON.tickSquare, color: '#2FA84F', hint: 'خط زیر کلمه‌های نادرست و پیشنهاد در راست‌کلیک' },
 ];
 function extRow(x, sw) {
-  const on = () => (x.key === 'extColor' ? settings.extColor !== false : !!settings[x.key]);
+  const on = () => (x.builtin ? settings[x.key] !== false : !!settings[x.key]);
   const toggleBtn = sw(on, () => updateSettings({ [x.key]: !on() }), x.name);
   const row = el('div', { class: 'ex', 'data-s': x.name + ' ' + x.hint + ' افزونه' },
     el('span', { class: 'sq', style: `background:${x.color}`, html: x.icon }),

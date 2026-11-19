@@ -227,6 +227,7 @@ function buildMenu(items, level, detached = false) {
       el('span', { class: 'lb', style: it.style || null }, it.label),
       it.badge ? el('span', { class: 'badge' }, it.badge) : null,
       it.count ? el('span', { class: 'ct' }, it.count) : null,
+      it.tag ? el('span', { class: 'mtag' }, it.tag) : null,
       it.key ? kbd(it.key) : null,
       it.checked ? el('span', { class: 'tick', html: ICON.check }) : null,
       it.sub ? el('span', { class: 'arrow', html: ICON.chevron }) : null);

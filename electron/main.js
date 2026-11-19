@@ -1,5 +1,5 @@
 // Fedo: main process
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
@@ -594,6 +594,24 @@ ipcMain.handle('file:save-image', async (_e, docPath, name, bytes) => {
   const abs = path.join(dir, fileName);
   await fsp.writeFile(abs, Buffer.from(bytes));
   return { absolute: abs };
+});
+
+// image editor: read an image, save the edited copy next to the original, fetch a web image
+ipcMain.handle('image:read', async (_e, p) => new Uint8Array(await fsp.readFile(p)));
+ipcMain.handle('image:save-edited', async (_e, original, ext, bytes) => {
+  const dir = path.dirname(original);
+  // editing an edited copy again gives lake-edited-2, not lake-edited-edited
+  const stem = path.basename(original, path.extname(original)).replace(/-edited(-\d+)?$/, '');
+  const dot = '.' + String(ext || 'png').replace(/^\./, '').toLowerCase();
+  let name = `${stem}-edited${dot}`;
+  for (let i = 2; fs.existsSync(path.join(dir, name)); i++) name = `${stem}-edited-${i}${dot}`;
+  await fsp.writeFile(path.join(dir, name), Buffer.from(bytes));
+  return { name, absolute: path.join(dir, name) };
+});
+ipcMain.handle('image:fetch', async (_e, url) => {
+  const r = await net.fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return { bytes: new Uint8Array(await r.arrayBuffer()), type: r.headers.get('content-type') || '' };
 });
 
 // folder tree (markdown files only, sensible depth)

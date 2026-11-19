@@ -893,3 +893,12 @@ input:placeholder-shown:not([dir='ltr']), textarea:placeholder-shown:not([dir='l
 .tab.active.ms { background: var(--ctl-2); color: var(--fg); box-shadow: inset 0 0 0 2px var(--accent), var(--sh); }
 /* dragging a tab: the group it would join is tinted in the group's colour */
 .tab.g-join, .tgroup.g-join, .vgroup.g-join { background: color-mix(in srgb, var(--g) 16%, transparent); }
+
+/* image editor (built-in extension): the «ویرایش» button on an image, the reason tag in the image menu */
+.menu .mi .mtag { margin-inline-start: auto; padding-inline-start: 18px; font-size: 11.5px; color: var(--muted); }
+.milkdown .milkdown-image-block .image-wrapper .operation { align-items: center; }
+.milkdown .milkdown-image-block .image-wrapper .operation > .fd-img-edit { height: 32px; padding: 0 14px 0 12px; border-radius: 999px; border: 0; background: color-mix(in srgb, var(--bg) 94%, transparent); color: var(--fg); box-shadow: var(--sh); display: flex; align-items: center; gap: 6px; font: 600 13px var(--font-ui); cursor: pointer; direction: rtl; }
+.milkdown .milkdown-image-block .image-wrapper .operation > .fd-img-edit:hover { background: var(--bg); }
+.milkdown .milkdown-image-block .image-wrapper .operation > .fd-img-edit .ic { display: grid; }
+.milkdown .milkdown-image-block .image-wrapper .operation > .fd-img-edit svg { width: 16px; height: 16px; }
+body.no-ext-image .fd-img-edit { display: none !important; }
