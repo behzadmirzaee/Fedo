@@ -1,6 +1,6 @@
 {
   "name": "fedo",
-  "version": "2.10.1",
+  "version": "2.10.2",
   "description": "Fedo: ویرایشگر Markdown فارسی",
   "main": "electron/main.js",
   "scripts": {

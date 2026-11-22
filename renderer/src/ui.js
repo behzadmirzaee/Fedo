@@ -352,6 +352,49 @@ export function toast(msg, ms = 2200, action = null, kind = null) {
   toastT = setTimeout(() => t.remove(), ms);
 }
 
+/**
+ * A clearer toast for a finished save: a card with the file name, its folder and real buttons,
+ * a countdown line that pauses while the pointer is on it, and a close button.
+ * opts: { title, name, folder, extra, actions: [{ icon, label, run, done, primary }], ms }
+ * An action with `done` stays in the card and shows `done` as its label for a moment (e.g. «کپی شد»).
+ */
+export function saveToast({ title, name, folder, extra = null, actions = [], ms = 9000 }) {
+  document.querySelectorAll('.toast').forEach((t) => t.remove());
+  clearTimeout(toastT);
+  const bar = el('span', { class: 'st-bar' });
+  const close = () => { card.classList.add('out'); setTimeout(() => card.remove(), 160); };
+  const card = el('div', { class: 'toast save-toast', dir: 'rtl', role: 'status' },
+    el('div', { class: 'st-head' },
+      el('span', { class: 'st-ic', html: ICON.check }),
+      el('div', { class: 'st-txt' },
+        el('div', { class: 'st-title' }, title),
+        el('div', { class: 'st-name', dir: 'auto', title: name }, name),
+        folder ? el('div', { class: 'st-folder', title: folder }, el('span', { html: ICON.folder }), el('span', { class: 'st-path' }, '\u200E' + folder + '\u200E')) : null,
+        extra ? el('div', { class: 'st-extra' }, extra) : null),
+      el('button', { class: 'st-x', title: 'بستن', 'aria-label': 'بستن', html: ICON.x, onclick: close })),
+    el('div', { class: 'st-actions' }, actions.map((a) => {
+      const b = el('button', { class: 'st-btn' + (a.primary ? ' primary' : '') }, el('span', { class: 'st-bi', html: a.icon || '' }), el('span', { class: 'st-bl' }, a.label));
+      b.addEventListener('click', async () => {
+        const ok = await a.run();
+        if (!a.done) { close(); return; }
+        if (ok === false) return;
+        b.classList.add('ok'); b.querySelector('.st-bi').innerHTML = ICON.check; b.querySelector('.st-bl').textContent = a.done;
+        setTimeout(() => { b.classList.remove('ok'); b.querySelector('.st-bi').innerHTML = a.icon || ''; b.querySelector('.st-bl').textContent = a.label; }, 1800);
+      });
+      return b;
+    })),
+    bar);
+  // the countdown: the line runs out, hovering the card pauses it
+  let left = ms; let since = 0; let timer = null;
+  const run = () => { since = Date.now(); bar.style.transition = `transform ${left}ms linear`; bar.style.transform = 'scaleX(0)'; timer = setTimeout(close, left); };
+  const pause = () => { clearTimeout(timer); left = Math.max(800, left - (Date.now() - since)); const k = getComputedStyle(bar).transform; bar.style.transition = 'none'; bar.style.transform = k === 'none' ? 'scaleX(1)' : k; };
+  card.addEventListener('mouseenter', pause);
+  card.addEventListener('mouseleave', run);
+  document.body.append(card);
+  requestAnimationFrame(() => requestAnimationFrame(run));
+  return card;
+}
+
 const faNum = new Intl.NumberFormat('fa-IR');
 export const fa = (n) => faNum.format(n);
 export const faTime = (t) => new Intl.DateTimeFormat('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(t);

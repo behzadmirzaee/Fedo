@@ -23,7 +23,7 @@ import { buildRegex, pmEngine, cmEngine, pmCollectEdits, pmApplyEdits, PRESETS }
 import { readOnlyComp } from './editor.js';
 import { EditorState as CMState } from '@codemirror/state';
 import { exportDocument } from './export.js';
-import { el, ICON, showMenu, closeMenu, modal, toast, kbd, fa, basename, dirname, relTime } from './ui.js';
+import { el, ICON, showMenu, closeMenu, modal, toast, saveToast, kbd, fa, basename, dirname, relTime } from './ui.js';
 
 const api = window.api;
 const $ = (s) => document.querySelector(s);
@@ -1910,15 +1910,38 @@ async function exportTo(t, list) {
   }
   return made;
 }
-function announceFiles(files, savedDoc) {
+/** the save card's buttons for one file on disk */
+const fileActions = (p, { open = false } = {}) => [
+  open ? { icon: ICON.file, label: 'باز کردن', run: () => api.openExternal(p) } : null,
+  { icon: ICON.folder, label: 'نمایش در پوشه', primary: !open, run: () => api.reveal(p) },
+  { icon: ICON.copy, label: 'کپی فایل', done: 'کپی شد', run: async () => { const ok = await api.copyFile(p); if (!ok) toast('کپی فایل ممکن نشد', 'err'); return ok; } },
+].filter(Boolean);
+const fmtOf = (p) => (p.match(/\.([^.\\/]+)$/) || [, ''])[1].toUpperCase();
+const andList = (xs) => (xs.length < 2 ? xs.join('') : xs.slice(0, -1).join('، ') + ' و ' + xs[xs.length - 1]);
+/** a document saved through the save window (first save, save as), with any extra formats made alongside */
+function announceSave(docPath, others = [], failed = 0) {
+  const parts = [];
+  if (others.length) parts.push(`همراه با ${andList([...new Set(others.map(fmtOf))])} در همین پوشه`);
+  if (failed) parts.push(`ساخت ${fa(failed)} فایل دیگر ممکن نشد`);
+  saveToast({
+    title: 'ذخیره شد',
+    name: basename(docPath),
+    folder: dirname(docPath),
+    extra: parts.join('؛ ') || null,
+    actions: fileActions(docPath),
+  });
+}
+/** exports made without saving the document itself */
+function announceFiles(files) {
   if (!files.length) return;
   const last = files[files.length - 1];
-  const msg = files.length === 1 && !savedDoc ? 'خروجی ساخته شد: ' + basename(last)
-    : savedDoc ? `ذخیره شد، به‌همراه ${plural(files.length, basename(last), 'فایل دیگر')}` : `${fa(files.length)} فایل ساخته شد`;
-  toast(msg, 8000, [
-    files.length === 1 ? { label: 'باز کردن فایل', run: () => api.openExternal(last) } : null,
-    { label: 'نمایش در پوشه', run: () => api.reveal(last) },
-  ].filter(Boolean), 'ok');
+  const one = files.length === 1;
+  saveToast({
+    title: one ? 'خروجی ساخته شد' : `${fa(files.length)} خروجی ساخته شد`,
+    name: one ? basename(last) : andList(files.map(basename)),
+    folder: dirname(last),
+    actions: one ? fileActions(last, { open: true }) : fileActions(last).slice(0, 1),
+  });
 }
 
 async function save(t = active(), as = false, silent = false) {
@@ -1928,7 +1951,7 @@ async function save(t = active(), as = false, silent = false) {
   if (!p || as) {
     const r = await askSavePath(t, as);
     if (!r) return false;
-    if (!r.path) { announceFiles(await exportTo(t, r.exports), false); return false; }
+    if (!r.path) { announceFiles(await exportTo(t, r.exports)); return false; }
     p = r.path;
     extras = r;
   }
@@ -1958,11 +1981,11 @@ async function save(t = active(), as = false, silent = false) {
   updateStatus(silent ? 'ذخیره‌ی خودکار' : 'ذخیره شد');
   if (t.id === activeId && historyPanel.visible()) historyPanel.refresh();
   saveSession();
-  if (extras && (extras.copies.length || extras.exports.length)) {
+  if (extras) {
     const files = [];
-    for (const c of extras.copies) { try { await api.writeFile(c, content); files.push(c); } catch (e) { toast('ساخت ' + basename(c) + ' ممکن نشد', 5000, null, 'err'); } }
-    files.push(...await exportTo(t, extras.exports));
-    announceFiles(files, true);
+    for (const c of extras.copies || []) { try { await api.writeFile(c, content); files.push(c); } catch (e) { toast('ساخت ' + basename(c) + ' ممکن نشد', 5000, null, 'err'); } }
+    files.push(...await exportTo(t, extras.exports || []));
+    announceSave(p, files, (extras.copies || []).length + (extras.exports || []).length - files.length);
   }
   return true;
 }

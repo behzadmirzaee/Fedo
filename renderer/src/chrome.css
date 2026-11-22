@@ -271,6 +271,43 @@ body.vertical-tabs #tabstrip { display: none; }
 .toast.has-action { padding-inline-end: 6px; }
 .toast-btn { height: 28px; padding-inline: 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.16); color: #fff; font-weight: 600; font-size: 12px; flex: none; }
 .toast-btn:hover { background: rgba(255, 255, 255, 0.26); }
+/* the save card: same dark surface as the pill, but a card with the file, its folder and buttons */
+.toast.save-toast {
+  width: min(440px, calc(100vw - 32px)); min-height: 0; padding: 16px 16px 14px; border-radius: 16px; overflow: hidden;
+  display: flex; flex-direction: column; align-items: stretch; gap: 14px; white-space: normal;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+.toast.save-toast.out { opacity: 0; transform: translate(-50%, 6px); transition: opacity 0.16s, transform 0.16s; }
+.save-toast .st-head { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.save-toast .st-ic { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgba(76, 208, 125, 0.18); color: #4cd07d; }
+.save-toast .st-ic svg { width: 18px; height: 18px; stroke-width: 2.4; }
+.save-toast .st-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.save-toast .st-title { font-size: 12px; font-weight: 600; color: #4cd07d; }
+.save-toast .st-name { font-size: 15px; font-weight: 700; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.save-toast .st-folder { display: flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(255, 255, 255, 0.62); min-width: 0; }
+.save-toast .st-folder > span:first-child { display: grid; flex: none; }
+.save-toast .st-folder svg { width: 14px; height: 14px; }
+/* long folders lose their start, so the folder that holds the file stays readable */
+.save-toast .st-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
+.save-toast .st-extra { font-size: 12px; color: rgba(255, 255, 255, 0.72); margin-top: 2px; }
+.save-toast .st-x { flex: none; width: 28px; height: 28px; margin: -4px -4px 0 0; border-radius: 8px; display: grid; place-items: center; color: rgba(255, 255, 255, 0.55); }
+.save-toast .st-x:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.save-toast .st-x svg { width: 16px; height: 16px; }
+.save-toast .st-actions { display: flex; gap: 8px; }
+.save-toast .st-btn {
+  flex: 1; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: rgba(255, 255, 255, 0.12); color: #fff; font: 600 13px var(--font-ui); white-space: nowrap; transition: background 0.12s;
+}
+.save-toast .st-btn:hover { background: rgba(255, 255, 255, 0.2); }
+.save-toast .st-btn.primary { background: #fff; color: #1d1d1f; }
+.save-toast .st-btn.primary:hover { background: rgba(255, 255, 255, 0.88); }
+.save-toast .st-btn.ok { background: rgba(76, 208, 125, 0.22); color: #7fe0a4; }
+.save-toast .st-bi { display: grid; }
+.save-toast .st-bi:empty { display: none; }
+.save-toast .st-bi svg { width: 17px; height: 17px; }
+.save-toast .st-bar { position: absolute; inset-inline: 0; bottom: 0; height: 3px; background: rgba(255, 255, 255, 0.28); transform-origin: right; transform: scaleX(1); }
+.save-toast:hover .st-bar { background: rgba(255, 255, 255, 0.45); }
+
 @media (prefers-reduced-motion: reduce) { .toast { animation: none; } .tg, .tg::after { transition: none; } }
 
 /* ---------- popovers (text size, zoom) ---------- */
