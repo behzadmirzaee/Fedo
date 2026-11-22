@@ -1070,6 +1070,10 @@ body.split-resizing, body.split-resizing * { cursor: col-resize !important; user
 .row-mut.wrap { white-space: normal; line-height: 1.7; font-size: 12px; }
 .milkdown .milkdown-toolbar .toolbar-item[data-toolbar-item='nv-translate'].open { background: var(--crepe-color-selected); }
 .milkdown .milkdown-toolbar .toolbar-item[data-toolbar-item='nv-google'] svg { width: 17px; height: 17px; }
+/* an outline icon: the toolbar fills icons by default, which turned the «A» into a solid triangle */
+.milkdown .milkdown-toolbar .toolbar-item[data-toolbar-item='nv-translate'] svg { fill: none !important; stroke: var(--crepe-color-outline); width: 20px; height: 20px; }
+.milkdown .milkdown-toolbar .toolbar-item[data-toolbar-item='nv-translate'].open svg { stroke: var(--crepe-color-primary); }
+.tr-chip .nt { font-size: 11px; color: var(--muted); margin-inline-start: 6px; }
 body.no-ext-translate .milkdown-toolbar [data-toolbar-item='nv-translate'],
 body.no-ext-google .milkdown-toolbar [data-toolbar-item='nv-google'] { display: none; }
 body.no-ext-translate.no-ext-google .milkdown-toolbar .divider:has(+ [data-toolbar-item='nv-google']) { display: none; }

@@ -104,7 +104,7 @@ const DEFAULTS = {
   autoPair: true, pasteLink: true, plainAfterPaste: true, defaultExt: 'md',
   userDefaults: null,
   extColor: true, lastColor: { color: '#D93A3A', bg: null }, extImage: true,
-  extTranslate: true, extGoogle: true, trTo: 'auto', trAlts: true, trRecent: [],
+  extTranslate: true, extGoogle: true, trTo: 'auto', trAlts: true, trAltClick: true, trRecent: [],
   updateAuto: true, updateDownload: false, updateInstallOnQuit: true,
 };
 
@@ -317,6 +317,21 @@ async function newTab({ path = null, content = '', activate = true, mode = 'wysi
     const info = imageInfo(t, blk);
     if (info && info.kind === 'file') { e.preventDefault(); e.stopPropagation(); editImage(t, blk); }
   }, true);
+  // translator: Alt + double-click on a word, or Alt + drag over a few words, translates at once
+  let altDown = null;
+  wys.addEventListener('mousedown', (e) => { altDown = e.button === 0 && e.altKey ? { x: e.clientX, y: e.clientY } : null; }, true);
+  const altTranslateOn = () => settings.extTranslate !== false && settings.trAltClick !== false && t.mode === 'wysiwyg';
+  wys.addEventListener('dblclick', (e) => {
+    if (!e.altKey || !altTranslateOn() || (e.target.closest && e.target.closest('.milkdown-image-block, .cm-editor'))) return;
+    setTimeout(() => translateSelection(t), 0);
+  });
+  wys.addEventListener('mouseup', (e) => {
+    const d = altDown;
+    altDown = null;
+    if (!d || !e.altKey || !altTranslateOn() || e.detail > 1) return;
+    if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 5) return;
+    setTimeout(() => { if (!getView(t.crepe).state.selection.empty) translateSelection(t); }, 0);
+  });
   // block paste / drop into a locked document
   for (const ev of ['paste', 'drop', 'cut']) {
     pane.addEventListener(ev, (e) => { if (t.locked) { e.preventDefault(); e.stopPropagation(); showLockedToast(); } }, true);
@@ -2579,10 +2594,13 @@ function translatorDetails() {
   target.addEventListener('change', () => updateSettings({ trTo: target.value }));
   const alts = el('button', { class: 'tg big' + (settings.trAlts !== false ? ' on' : ''), role: 'switch', 'aria-checked': String(settings.trAlts !== false), 'aria-label': 'معنی‌های دیگر کلمه' });
   alts.addEventListener('click', () => { const on = settings.trAlts === false; updateSettings({ trAlts: on }); alts.classList.toggle('on', on); alts.setAttribute('aria-checked', String(on)); });
+  const altClick = el('button', { class: 'tg big' + (settings.trAltClick !== false ? ' on' : ''), role: 'switch', 'aria-checked': String(settings.trAltClick !== false), 'aria-label': 'ترجمه‌ی فوری' });
+  altClick.addEventListener('click', () => { const on = settings.trAltClick === false; updateSettings({ trAltClick: on }); altClick.classList.toggle('on', on); altClick.setAttribute('aria-checked', String(on)); });
   return [
     el('div', { class: 'xd-r' }, el('span', { class: 'xd-l w' }, 'ترجمه به'), target),
     el('div', { class: 'xd-r' }, el('span', { class: 'xd-l w' }, ''), el('span', { class: 'row-mut wrap' }, 'متن فارسی به انگلیسی، هر زبان دیگر به فارسی. می‌شود یک زبان ثابت هم انتخاب کرد.')),
     el('div', { class: 'xd-r' }, el('span', { class: 'xd-l w' }, 'معنی‌های دیگر کلمه'), alts, el('span', { class: 'row-mut' }, 'وقتی فقط یک کلمه انتخاب شده باشد')),
+    el('div', { class: 'xd-r' }, el('span', { class: 'xd-l w' }, 'ترجمه‌ی فوری'), altClick, el('span', { class: 'row-mut' }, 'Alt + دابل‌کلیک روی کلمه، یا Alt + کشیدن روی چند کلمه')),
     el('div', { class: 'xd-r' }, el('span', { class: 'xd-l w' }, 'میان‌بر'), kbd('Alt+T')),
   ];
 }
@@ -2594,7 +2612,7 @@ const KEY_LIST = [
   [['سند تازه', 'Ctrl+T'], ['پنجره‌ی جدید', 'Ctrl+N'], ['باز کردن', 'Ctrl+O'], ['باز کردن سریع', 'Ctrl+P'], ['باز کردن پوشه', 'Ctrl+Shift+O'], ['ذخیره', 'Ctrl+S'], ['ذخیره با نام', 'Ctrl+Shift+S'], ['ذخیره‌ی همه', 'Ctrl+Alt+S'],
     ['بستن تب', 'Ctrl+W'], ['بازکردن تب بسته‌شده', 'Ctrl+Shift+T'], ['تغییر نام تب', 'F2'], ['تب بعدی', 'Ctrl+Tab'], ['تاریخچه‌ی نسخه‌ها', 'Ctrl+Shift+H'], ['تنظیمات', 'Ctrl+,'], ['تمام‌صفحه', 'F11']],
   [['جستجو', 'Ctrl+F'], ['جایگزینی', 'Ctrl+H'], ['چسباندن متن ساده', 'Ctrl+Shift+V'], ['خط‌خورده', 'Alt+Shift+5'], ['منوی درج بلوک', '/'], ['باز کردن لینک', 'Ctrl+کلیک'], ['کد منبع', 'Ctrl+/'], ['نوار کناری', 'Ctrl+Shift+L'],
-    ['سرفصل‌ها', 'Ctrl+Shift+1'], ['ترجمه‌ی متن انتخاب‌شده', 'Alt+T'], ['حالت امن', 'F8'], ['بزرگ‌نمایی', 'Ctrl+='], ['کوچک‌نمایی', 'Ctrl+-'], ['اندازه‌ی واقعی', 'Ctrl+0']],
+    ['سرفصل‌ها', 'Ctrl+Shift+1'], ['ترجمه‌ی متن انتخاب‌شده', 'Alt+T'], ['ترجمه‌ی فوری کلمه', 'Alt+دابل‌کلیک'], ['حالت امن', 'F8'], ['بزرگ‌نمایی', 'Ctrl+='], ['کوچک‌نمایی', 'Ctrl+-'], ['اندازه‌ی واقعی', 'Ctrl+0']],
 ];
 let settingsOpen = null;
 async function openSettings(section = 'look') {

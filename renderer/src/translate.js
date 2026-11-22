@@ -32,6 +32,15 @@ export const langName = (code) => NAME[code] || NAME[String(code).split('-')[0]]
 const PERSIAN = /[؀-ۿ]/;
 const MAX = 5000;
 
+/** up to four words with capitalised Latin words → the same in lower case; anything else → null.
+ *  ALL-CAPS words (NASA, CO2) and mixed ones (iPhone) stay as they are. */
+export function lowerShort(text) {
+  const words = text.trim().split(/\s+/);
+  if (words.length > 4) return null;
+  const low = text.replace(/\b([A-Z])([a-z]+)\b/g, (_m, a, b) => a.toLowerCase() + b);
+  return low !== text ? low : null;
+}
+
 let card = null;
 
 export function closeTranslate() {
@@ -110,10 +119,13 @@ export function openTranslate(opts) {
     }
     const r = st.result;
     body.append(el('div', { class: 'tr-out', dir: 'auto' }, r.text));
-    if (isWord && settings.trAlts !== false && r.alts && r.alts.length) {
-      body.append(el('div', { class: 'tr-alts' }, el('span', { class: 'h' }, 'معنی‌های دیگر'),
-        r.alts.filter((a) => a !== r.text).slice(0, 6).map((a) => el('button', { class: 'tr-chip', title: 'کپی', onclick: (e) => copyText(a, e.currentTarget, a) }, a))));
+    // only when there is something to show: no lonely «معنی‌های دیگر» label
+    const alts = settings.trAlts !== false ? (r.alts || []).filter((a) => a && a !== r.text).slice(0, 6) : [];
+    const chips = alts.map((a) => el('button', { class: 'tr-chip', title: 'کپی', onclick: (e) => copyText(a, e.currentTarget, a) }, a));
+    if (r.asName && r.asName !== r.text && !alts.includes(r.asName)) {
+      chips.push(el('button', { class: 'tr-chip', title: 'کپی', onclick: (e) => copyText(r.asName, e.currentTarget, r.asName) }, r.asName, el('span', { class: 'nt' }, 'به‌عنوان نام')));
     }
+    if (chips.length) body.append(el('div', { class: 'tr-alts' }, el('span', { class: 'h' }, 'معنی‌های دیگر'), chips));
     acts.append(
       qa(ICON.copy, 'کپی', (b) => copyText(r.text, b)),
       qa(I.replace, 'جایگزین کن', () => replace(r.text)),
@@ -242,11 +254,21 @@ export function openTranslate(opts) {
     st.state = 'loading';
     paintHead(); paintBody(); place();
     let r;
-    try { r = await api.translate(text.slice(0, MAX), st.sl, st.tl); } catch (e) { r = { ok: false, error: String(e && e.message || e) }; }
+    let asName = null;
+    try {
+      // Google's free endpoint reads a capitalised word as a name («Seismic» → «سیسمونی»): short selections go
+      // in lower case, and the capitalised reading, when it differs, is offered as «به‌عنوان نام»
+      const low = lowerShort(text);
+      if (low) {
+        const [a, b] = await Promise.all([api.translate(low, st.sl, st.tl), api.translate(text, st.sl, st.tl).catch(() => null)]);
+        r = a;
+        if (b && b.ok && a && a.ok && b.text.trim() !== a.text.trim()) asName = b.text.trim();
+      } else r = await api.translate(text.slice(0, MAX), st.sl, st.tl);
+    } catch (e) { r = { ok: false, error: String(e && e.message || e) }; }
     if (my !== st.seq || card !== self) return;
     if (r && r.ok) {
       st.state = 'done';
-      st.result = { text: r.text, alts: r.alts || [] };
+      st.result = { text: r.text, alts: r.alts || [], asName };
       if (st.sl === 'auto' && r.src) {
         st.detected = r.src;
         // auto target: a Persian text that came back as itself goes to English instead
