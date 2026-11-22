@@ -1354,9 +1354,17 @@ function tabMenu(t, x, y) {
     vtabsSwitch(),
     'sep',
     { icon: ICON.folder, label: 'نمایش در پوشه', disabled: !t.path, run: () => api.reveal(t.path) },
+    { icon: ICON.file, label: 'کپی فایل', disabled: !t.path, run: () => copyFileToClipboard(t) },
     { icon: ICON.copy, label: 'کپی مسیر فایل', disabled: !t.path, run: () => { navigator.clipboard.writeText(t.path); toast('مسیر کپی شد', 'ok'); } },
     { icon: ICON.history, label: 'تاریخچه‌ی نسخه‌ها', key: 'Ctrl+Shift+H', disabled: !t.path, run: () => { activateTab(t.id); historyPanel.show(); } },
   ], x, y);
+}
+
+/** the saved file itself goes on the clipboard (paste it into a folder, a chat, an email) */
+async function copyFileToClipboard(t) {
+  if (!t.path) return;
+  if (!(await api.copyFile(t.path))) { toast('کپی فایل ممکن نشد', 'err'); return; }
+  toast(t.dirty ? 'فایل کپی شد؛ تغییرهای ذخیره‌نشده در آن نیست' : 'فایل کپی شد', 'ok');
 }
 
 const vtabsSwitch = () => ({ icon: ICON.vtabs, label: 'تب‌های عمودی', switch: () => !!settings.verticalTabs, run: () => updateSettings({ verticalTabs: !settings.verticalTabs }) });
@@ -2336,7 +2344,7 @@ function fontItems(key) {
 // ---------- updates (GitHub Releases) ----------
 let upd = { status: 'idle', current: '', manual: false };
 const updListeners = new Set();
-const faVer = (v) => String(v || '').split('.').map((n) => fa(Number(n) || 0)).join('٫');
+const faVer = (v) => String(v || '').split('.').map((n) => fa(Number(n) || 0)).join('.');
 const updReady = () => upd.status === 'available' || upd.status === 'downloading' || upd.status === 'downloaded';
 function onUpdateState(next, initial = false) {
   const prev = upd;
@@ -3513,7 +3521,8 @@ for (const ev of ['copy', 'cut']) {
     if (e.target.closest('.cm-editor')) return; // code blocks copy their own text as it is
     const text = e.clipboardData.getData('text/plain');
     const html = e.clipboardData.getData('text/html');
-    if (text && /<br\s*\/?>/i.test(text)) e.clipboardData.setData('text/plain', plainForClipboard(text));
+    // «<br />» for an empty line, «\» for a Shift+Enter line break and Markdown escapes: never paste them as text
+    if (text && /<br\s*\/?>|\\/i.test(text)) e.clipboardData.setData('text/plain', plainForClipboard(text));
     if (html && /<p(\s[^>]*)?>\s*<\/p>/i.test(html)) e.clipboardData.setData('text/html', htmlForClipboard(html));
   });
 }
@@ -3713,25 +3722,106 @@ function onKey(e) {
 
 function setupDnD() {
   let hint = null;
-  const isMd = (f) => /\.(md|markdown|mdown|mkd|txt)$/i.test(f.name);
-  const hasFiles = (e) => e.dataTransfer && e.dataTransfer.types.includes('Files');
+  let inside = false; // a drag that started in this window (selected text, an image) is never a file to open
+  const MD = /\.(md|markdown|mdown|mkd|txt)$/i;
+  const isMd = (f) => MD.test(f.name);
+  const types = (e) => (e.dataTransfer ? [...e.dataTransfer.types].map((x) => x.toLowerCase()) : []);
+  const hasFiles = (e) => types(e).includes('files');
+  // other apps (code editors, chat apps, browsers) often drag a file as a link or a path instead of a real file
+  const LINKY = ['text/uri-list', 'codefiles', 'resourceurls', 'downloadurl'];
+  const maybeLinked = (e) => !inside && types(e).some((x) => LINKY.includes(x));
+  const removeHint = () => { if (hint) { hint.remove(); hint = null; } };
+  document.addEventListener('dragstart', () => { inside = true; }, true);
+  document.addEventListener('dragend', () => { inside = false; }, true);
   window.addEventListener('dragover', (e) => {
-    if (!hasFiles(e)) return;
-    const items = [...e.dataTransfer.items];
-    const md = items.some((i) => i.kind === 'file' && !/^image\//.test(i.type));
-    if (md) {
-      e.preventDefault();
-      if (!hint) { hint = el('div', { class: 'drop-hint' }, 'رها کنید تا در تب جدید باز شود'); document.body.append(hint); }
+    const files = hasFiles(e) && [...e.dataTransfer.items].some((i) => i.kind === 'file' && !/^image\//.test(i.type));
+    if (!files && !maybeLinked(e)) return;
+    e.preventDefault();
+    // a dragged link may be a web page rather than a file, so only real files get the hint
+    if (files && !hint) { hint = el('div', { class: 'drop-hint' }, 'رها کنید تا در تب جدید باز شود'); document.body.append(hint); }
+  }, true);
+  window.addEventListener('dragleave', (e) => { if (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= innerWidth || e.clientY >= innerHeight) removeHint(); });
+  window.addEventListener('drop', async (e) => {
+    removeHint();
+    const wasInside = inside;
+    inside = false;
+    if (wasInside || !e.dataTransfer) return;
+    let paths = hasFiles(e) ? [...e.dataTransfer.files].filter(isMd).map((f) => api.pathForFile(f)).filter(Boolean) : [];
+    if (!paths.length) paths = linkedPaths(e.dataTransfer).filter((p) => MD.test(p));
+    if (!paths.length) return;
+    e.preventDefault(); e.stopPropagation();
+    for (const p of paths) {
+      const st = await api.stat(p).catch(() => null);
+      if (st && st.exists) await openPath(p);
+      else toast('فایل پیدا نشد: ' + basename(p), 'err');
     }
   }, true);
-  window.addEventListener('dragleave', (e) => { if (hint && (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= innerWidth || e.clientY >= innerHeight)) { hint.remove(); hint = null; } });
-  window.addEventListener('drop', async (e) => {
-    if (hint) { hint.remove(); hint = null; }
-    if (!hasFiles(e)) return;
-    const files = [...e.dataTransfer.files].filter(isMd);
-    if (!files.length) return;
-    e.preventDefault(); e.stopPropagation();
-    for (const f of files) await openPath(api.pathForFile(f));
+}
+/** file paths hidden in a drag from another app: file:// links, VS Code-style lists, or a plain path */
+function linkedPaths(dt) {
+  const out = [];
+  const add = (s) => {
+    s = String(s || '').trim().replace(/^["']|["']$/g, '');
+    if (!s || s.startsWith('#')) return;
+    let p = null;
+    if (/^file:/i.test(s)) {
+      try {
+        const u = new URL(s);
+        p = decodeURIComponent(u.pathname);
+        if (u.host) p = `//${u.host}${p}`; // network share
+        else if (/^\/[A-Za-z]:/.test(p)) p = p.slice(1); // /C:/… → C:/…
+      } catch { return; }
+    } else if (/^[A-Za-z]:[\\/]/.test(s) || /^\\\\/.test(s) || s.startsWith('/')) p = s;
+    if (!p) return;
+    if (navigator.platform.startsWith('Win')) p = p.replace(/\//g, '\\');
+    if (!out.includes(p)) out.push(p);
+  };
+  const get = (k) => { try { return dt.getData(k); } catch { return ''; } };
+  for (const k of ['CodeFiles', 'ResourceURLs']) {
+    const raw = get(k);
+    if (!raw) continue;
+    try { for (const x of JSON.parse(raw)) add(typeof x === 'string' ? x : x && (x.fsPath || x.path || x.uri || x.resource)); } catch { /* not JSON */ }
+  }
+  const dl = get('DownloadURL'); // mime:name:url
+  if (dl) { const m = dl.match(/^[^:]*:[^:]*:(file:.*)$/i); if (m) add(m[1]); }
+  get('text/uri-list').split(/\r?\n/).forEach(add);
+  // a lone path as plain text (only when it is the whole text, so dragged prose is never mistaken for a file)
+  const txt = get('text/plain').trim();
+  if (!out.length && txt && !/\n/.test(txt)) add(txt);
+  return out;
+}
+
+/**
+ * Image blocks: the editor fixes an image's height once, when it loads, from the page width at that
+ * moment. When the page gets narrower later (window, sidebar, split view, a tab opened in the
+ * background) the picture was cropped. Keep the height in step with the real width instead.
+ */
+function setupImageFit() {
+  const fit = (host) => {
+    const img = host.querySelector(':scope > .image-wrapper img');
+    if (!img || !img.naturalWidth || !img.isConnected) return;
+    const cs = getComputedStyle(host);
+    const hostW = host.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+    if (hostW <= 0) return; // hidden tab: done when it shows
+    const w = Math.min(img.naturalWidth, hostW);
+    const origin = w * (img.naturalHeight / img.naturalWidth);
+    const o = Number(img.dataset.origin);
+    const h = Number(img.dataset.height);
+    const ratio = o > 0 && h > 0 ? h / o : 1; // a height the user dragged by hand is kept as a ratio
+    const next = origin * ratio;
+    if (Math.abs((parseFloat(img.style.height) || 0) - next) < 0.5) return;
+    img.dataset.origin = origin.toFixed(2);
+    img.dataset.height = next.toFixed(2);
+    img.style.height = `${next.toFixed(2)}px`;
+  };
+  const ro = new ResizeObserver((entries) => { for (const en of entries) fit(en.target); });
+  document.addEventListener('load', (e) => {
+    const img = e.target;
+    if (!img || img.tagName !== 'IMG') return;
+    const host = img.closest('.milkdown-image-block');
+    if (!host || !img.closest('.image-wrapper')) return;
+    ro.observe(host);
+    requestAnimationFrame(() => fit(host)); // after the editor's own sizing on load
   }, true);
 }
 
@@ -3793,6 +3883,7 @@ export async function start() {
   installKeyboardLang(api);
   setupFindInputs();
   setupDnD();
+  setupImageFit();
   setupPaste();
 
   const rd = await api.ready();

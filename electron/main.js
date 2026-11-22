@@ -575,6 +575,20 @@ ipcMain.handle('drafts:list', async () => {
   return out.sort((a, b) => a.mtime - b.mtime);
 });
 ipcMain.handle('file:reveal', (_e, p) => shell.showItemInFolder(p));
+// put the file itself on the clipboard, so it can be pasted into Explorer, Telegram, an email…
+ipcMain.handle('file:copy-to-clipboard', async (_e, p) => {
+  try { await fsp.access(p); } catch { return false; }
+  const { execFile } = require('child_process');
+  const run = (cmd, args, env) => new Promise((res) => execFile(cmd, args, { windowsHide: true, timeout: 15000, env: { ...process.env, ...env } }, (err) => res(!err)));
+  if (process.platform === 'win32') {
+    // the path travels in an environment variable, so no quoting can break the command
+    return run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Set-Clipboard -LiteralPath $env:FEDO_COPY_PATH'], { FEDO_COPY_PATH: p });
+  }
+  if (process.platform === 'darwin') {
+    return run('osascript', ['-e', 'on run argv', '-e', 'set the clipboard to (POSIX file (item 1 of argv))', '-e', 'end run', p]);
+  }
+  return false;
+});
 ipcMain.handle('file:open-external', (_e, p) => shell.openPath(p));
 
 // pasted / dropped images are saved next to the document in ./assets

@@ -6,12 +6,17 @@ import { StateField, StateEffect } from '@codemirror/state';
 import { EditorView, Decoration as CMDeco } from '@codemirror/view';
 
 const MAX_MATCHES = 20000;
+const DIGIT_OF = (d) => { const c = d.charCodeAt(0); return c >= 0x06F0 ? c - 0x06F0 : c >= 0x0660 ? c - 0x0660 : c - 48; };
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** spec: { text, matchCase, wholeWord } → RegExp or null */
 export function buildRegex(spec) {
   if (!spec || !spec.text) return null;
-  let src = escapeRe(spec.text);
+  // a digit matches all its forms: «5» finds «۵» and «٥», and the other way round
+  let src = escapeRe(spec.text).replace(/[0-9۰-۹٠-٩]/g, (d) => {
+    const n = DIGIT_OF(d);
+    return `[${n}${String.fromCharCode(0x06F0 + n)}${String.fromCharCode(0x0660 + n)}]`;
+  });
   if (spec.wholeWord) src = `(?<![\\p{L}\\p{N}\\p{M}_‌])${src}(?![\\p{L}\\p{N}\\p{M}_‌])`;
   try { return new RegExp(src, 'gu' + (spec.matchCase ? '' : 'i')); } catch { return null; }
 }
