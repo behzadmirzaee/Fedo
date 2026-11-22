@@ -5,6 +5,7 @@ import { pmSearchPlugin, cmSearchExtension } from './search.js';
 import { tableCellSchema, tableHeaderSchema } from '@milkdown/kit/preset/gfm';
 import { textColorPlugins } from './textcolor.js';
 import { ICON } from './ui.js';
+import { GOOGLE_ICON, TRANSLATE_ICON } from './translate.js';
 
 // Table cells with no alignment follow their text direction (right for Persian) instead of
 // being forced to "left"; an alignment picked by the user is kept and written to the file.
@@ -300,12 +301,25 @@ export async function createEditor(root, markdownText, hooks) {
       [Crepe.Feature.Toolbar]: {
         boldLabel: 'پررنگ', italicLabel: 'کج', strikethroughLabel: 'خط‌خورده', codeLabel: 'کد درون‌خطی', linkLabel: 'پیوند', latexLabel: 'فرمول',
         buildToolbar: (b) => {
-          if (!hooks.colorMenu) return;
-          b.getGroup('formatting').addItem('nv-color', {
-            icon: COLOR_ICON, label: 'رنگ',
-            active: () => false,
-            onRun: () => hooks.colorMenu(root.querySelector('.milkdown-toolbar[data-show="true"] [data-toolbar-item="nv-color"]')),
-          });
+          if (hooks.colorMenu) {
+            b.getGroup('formatting').addItem('nv-color', {
+              icon: COLOR_ICON, label: 'رنگ',
+              active: () => false,
+              onRun: () => hooks.colorMenu(root.querySelector('.milkdown-toolbar[data-show="true"] [data-toolbar-item="nv-color"]')),
+            });
+          }
+          if (hooks.translate) {
+            // Google search and translate sit in the middle: after the text styles, before code / formula / link
+            b.addGroup('nv-web', 'وب')
+              .addItem('nv-google', { icon: GOOGLE_ICON, label: 'جستجو در گوگل', active: () => false, onRun: () => hooks.googleSearch() })
+              .addItem('nv-translate', {
+                icon: TRANSLATE_ICON, label: 'ترجمه', shortcut: 'Alt+T', active: () => false,
+                onRun: () => hooks.translate(root.querySelector('.milkdown-toolbar[data-show="true"] [data-toolbar-item="nv-translate"]')),
+              });
+            const groups = b.build();
+            const at = groups.findIndex((g) => g.key === 'formatting');
+            groups.splice(at + 1, 0, groups.pop());
+          }
         },
       },
     },

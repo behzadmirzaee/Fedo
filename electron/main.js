@@ -575,6 +575,32 @@ ipcMain.handle('drafts:list', async () => {
   return out.sort((a, b) => a.mtime - b.mtime);
 });
 ipcMain.handle('file:reveal', (_e, p) => shell.showItemInFolder(p));
+// selection translator: Google Translate's public endpoint (no key). Runs here, not in the page, so the
+// request uses Electron's network stack and with it the system proxy / VPN.
+ipcMain.handle('translate:text', async (_e, text, sl, tl) => {
+  text = String(text || '').slice(0, 5000);
+  if (!text.trim()) return { ok: false, error: 'empty' };
+  const u = new URL('https://translate.googleapis.com/translate_a/single');
+  for (const [k, v] of [['client', 'gtx'], ['sl', sl || 'auto'], ['tl', tl || 'fa'], ['hl', 'fa'], ['dt', 't'], ['dt', 'bd'], ['dj', '1'], ['ie', 'UTF-8'], ['oe', 'UTF-8']]) u.searchParams.append(k, v);
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 15000);
+  try {
+    // long text goes in the body, so the address never gets too long
+    const res = await net.fetch(u.toString(), {
+      method: 'POST', signal: ac.signal,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: 'q=' + encodeURIComponent(text),
+    });
+    if (!res.ok) return { ok: false, error: 'HTTP ' + res.status };
+    const j = await res.json();
+    const out = (j.sentences || []).map((x) => x.trans || '').join('');
+    const alts = [];
+    for (const d of j.dict || []) for (const term of d.terms || []) if (!alts.includes(term)) alts.push(term);
+    return { ok: !!out, text: out, src: j.src || null, alts };
+  } catch (e) {
+    return { ok: false, offline: true, error: String(e && e.message || e) };
+  } finally { clearTimeout(timer); }
+});
 // put the file itself on the clipboard, so it can be pasted into Explorer, Telegram, an email…
 ipcMain.handle('file:copy-to-clipboard', async (_e, p) => {
   try { await fsp.access(p); } catch { return false; }

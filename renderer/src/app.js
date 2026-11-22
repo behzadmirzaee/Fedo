@@ -16,6 +16,7 @@ import MT_THEMES_RAW from './mt-themes.json';
 import { themePalette, ensure, mix } from './contrast.js';
 import { installSelectionBar } from './selbar.js';
 import { installKeyboardLang } from './kbdlang.js';
+import { openTranslate, closeTranslate, googleSearch, LANGS } from './translate.js';
 const LOGOS = Object.entries(import.meta.glob('../logos/*.png', { eager: true, query: '?url', import: 'default' }))
   .map(([k, url]) => ({ id: k.match(/(\w+)\.png$/)[1], url })).sort((a, b) => a.id.localeCompare(b.id))
   .map((l) => ({ ...l, fun: l.id.startsWith('m'), name: l.id.startsWith('m') ? `آیکن دنیای موازی ${fa(Number(l.id.slice(1)))}` : `آیکن ${fa(Number(l.id))}` }));
@@ -103,6 +104,7 @@ const DEFAULTS = {
   autoPair: true, pasteLink: true, plainAfterPaste: true, defaultExt: 'md',
   userDefaults: null,
   extColor: true, lastColor: { color: '#D93A3A', bg: null }, extImage: true,
+  extTranslate: true, extGoogle: true, trTo: 'auto', trAlts: true, trRecent: [],
   updateAuto: true, updateDownload: false, updateInstallOnQuit: true,
 };
 
@@ -377,6 +379,8 @@ function editorHooks(t) {
     uploadImage: (file) => uploadImage(t, file),
     // a click lands after the hover already opened the panel: reopen once the click's own mousedown has passed
     colorMenu: (anchor) => setTimeout(() => openColorPanel(t.crepe, anchor, colorTools(t)), 0),
+    translate: (anchor) => translateSelection(t, anchor),
+    googleSearch: () => searchSelection(t),
   };
 }
 // code block «کپی» turns into «کپی شد» for two seconds, then back
@@ -957,6 +961,7 @@ $('#app') && document.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 function activateTab(id, { keepFocus = false } = {}) {
+  closeTranslate();
   const t = tabs.find((x) => x.id === id);
   if (!t) return;
   if (t.groupId && groups.get(t.groupId)?.collapsed) { groups.get(t.groupId).collapsed = false; setTimeout(renderTabs, 0); }
@@ -1386,6 +1391,29 @@ function emojiTools() {
     setPins: (list) => { settings.emojiPins = list; persistSettings(); },
     used: (e) => { settings.emojiRecent = [e, ...(settings.emojiRecent || []).filter((x) => x !== e)].slice(0, 16); persistSettings(); },
   };
+}
+
+// ---------- built-in extensions: translator and Google search ----------
+function selectedText(t) {
+  const v = getView(t.crepe);
+  const { from, to, empty } = v.state.selection;
+  return empty ? null : { v, from, to, text: v.state.doc.textBetween(from, to, '\n', ' ') };
+}
+function translateSelection(t, anchor = null) {
+  if (!t || t.mode !== 'wysiwyg' || settings.extTranslate === false) return false;
+  const s = selectedText(t);
+  if (!s || !s.text.trim()) { toast('اول بخشی از متن را انتخاب کنید', 'info'); return true; }
+  openTranslate({
+    view: s.v, text: s.text, from: s.from, to: s.to, anchor, api, toast, settings,
+    setSettings: (patch) => updateSettings(patch),
+    guard: () => { if (t.locked) { showLockedToast(); return true; } return false; },
+  });
+  return true;
+}
+function searchSelection(t) {
+  if (!t || settings.extGoogle === false) return;
+  const s = selectedText(t);
+  if (s) googleSearch(api, s.text);
 }
 
 // ---------- built-in extension: text colour ----------
@@ -2337,6 +2365,9 @@ function applyAll() {
   api.setLogo(settings.logo);
   document.body.classList.toggle('no-ext-color', settings.extColor === false);
   document.body.classList.toggle('no-ext-image', settings.extImage === false);
+  document.body.classList.toggle('no-ext-translate', settings.extTranslate === false);
+  document.body.classList.toggle('no-ext-google', settings.extGoogle === false);
+  if (settings.extTranslate === false) closeTranslate();
   const lc = settings.lastColor || DEFAULTS.lastColor;
   document.documentElement.style.setProperty('--nv-last-color', lc.bg || lc.color || '#D93A3A');
   if (api.updateConfig) api.updateConfig({ auto: settings.updateAuto !== false, download: !!settings.updateDownload, installOnQuit: settings.updateInstallOnQuit !== false });
@@ -2502,11 +2533,16 @@ function updateStatusLine() {
 }
 
 // ---------- built-in extensions (switched on and off in Settings) ----------
+const TRANSLATE_SQ = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5.5h9M7.5 3.5v2M5 5.5c.9 3.2 3.2 5.8 6.5 7.3M10 5.5c-.9 3.2-3.2 5.8-6.5 7.3M12.5 20.5l4-9l4 9M13.8 17.5h5.4"/></svg>';
 const EXTENSIONS = [
   { key: 'extColor', name: 'رنگ متن و پس‌زمینه', builtin: true, icon: ICON.palette, color: '#D6407F',
     hint: 'رنگ در فایل با تگ HTML ذخیره می‌شود و در خروجی HTML و PDF می‌ماند', details: true },
   { key: 'extImage', name: 'ویرایشگر تصویر', builtin: true, icon: ICON.image, color: '#0E7AE6',
     hint: 'برش، رسم، متن، اموجی و شکل روی تصویرهای سند' },
+  { key: 'extTranslate', name: 'مترجم', builtin: true, icon: TRANSLATE_SQ, color: '#2F7BF6',
+    hint: 'ترجمه‌ی متن انتخاب‌شده با Google Translate؛ نیاز به اینترنت', details: () => translatorDetails() },
+  { key: 'extGoogle', name: 'جستجو در گوگل', builtin: true, icon: ICON.search, color: '#0E9F8E',
+    hint: 'متن انتخاب‌شده در مرورگر پیش‌فرض جستجو می‌شود' },
   { key: 'spellcheck', name: 'غلط‌یابی املایی', tag: 'فقط انگلیسی', icon: ICON.tickSquare, color: '#2FA84F', hint: 'خط زیر کلمه‌های نادرست و پیشنهاد در راست‌کلیک' },
 ];
 function extRow(x, sw) {
@@ -2516,6 +2552,7 @@ function extRow(x, sw) {
     el('span', { class: 'sq', style: `background:${x.color}`, html: x.icon }),
     el('span', { class: 'nm' }, el('b', {}, x.name, x.builtin ? el('span', { class: 'pill' }, 'پیش‌فرض') : null, x.tag ? el('span', { class: 'pill' }, x.tag) : null), el('small', {}, x.hint)));
   if (!x.details) { if (x.keyHint) row.append(kbd(x.keyHint)); row.append(toggleBtn); return row; }
+  if (typeof x.details === 'function') return detailsWrap(x, row, toggleBtn, x.details(sw));
   const sw2 = (list, text) => el('span', { class: 'ex-sw' }, list.map((c) => el('span', { class: 'sw' + (text ? '' : ' bg'), title: c.name, style: text ? `color:${c.c}` : `background:${c.c}` }, text ? 'آ' : '')));
   const details = el('div', { class: 'xd', hidden: true },
     el('div', { class: 'xd-r' }, el('span', { class: 'xd-l' }, 'رنگ متن'), sw2(TEXT_COLORS, true)),
@@ -2527,6 +2564,29 @@ function extRow(x, sw) {
   return el('div', { class: 'ex-wrap', 'data-s': x.name + ' ' + x.hint + ' افزونه' }, row, details);
 }
 
+function detailsWrap(x, row, toggleBtn, inner) {
+  const details = el('div', { class: 'xd', hidden: true }, inner);
+  const more = el('button', { class: 'xb', 'aria-expanded': 'false', onclick: () => { details.hidden = !details.hidden; more.setAttribute('aria-expanded', String(!details.hidden)); more.classList.toggle('open', !details.hidden); } },
+    'تنظیمات', el('span', { class: 'ic', html: ICON.chevDown }));
+  row.append(more, toggleBtn);
+  return el('div', { class: 'ex-wrap', 'data-s': x.name + ' ' + x.hint + ' افزونه' }, row, details);
+}
+function translatorDetails() {
+  const target = el('select', { class: 'set-select', 'aria-label': 'ترجمه به' },
+    el('option', { value: 'auto' }, 'خودکار: فارسی و انگلیسی'),
+    el('optgroup', { label: 'همیشه به' }, LANGS.map((l) => el('option', { value: l[0] }, l[1]))));
+  target.value = settings.trTo || 'auto';
+  target.addEventListener('change', () => updateSettings({ trTo: target.value }));
+  const alts = el('button', { class: 'tg big' + (settings.trAlts !== false ? ' on' : ''), role: 'switch', 'aria-checked': String(settings.trAlts !== false), 'aria-label': 'معنی‌های دیگر کلمه' });
+  alts.addEventListener('click', () => { const on = settings.trAlts === false; updateSettings({ trAlts: on }); alts.classList.toggle('on', on); alts.setAttribute('aria-checked', String(on)); });
+  return [
+    el('div', { class: 'xd-r' }, el('span', { class: 'xd-l w' }, 'ترجمه به'), target),
+    el('div', { class: 'xd-r' }, el('span', { class: 'xd-l w' }, ''), el('span', { class: 'row-mut wrap' }, 'متن فارسی به انگلیسی، هر زبان دیگر به فارسی. می‌شود یک زبان ثابت هم انتخاب کرد.')),
+    el('div', { class: 'xd-r' }, el('span', { class: 'xd-l w' }, 'معنی‌های دیگر کلمه'), alts, el('span', { class: 'row-mut' }, 'وقتی فقط یک کلمه انتخاب شده باشد')),
+    el('div', { class: 'xd-r' }, el('span', { class: 'xd-l w' }, 'میان‌بر'), kbd('Alt+T')),
+  ];
+}
+
 // ---------- settings window: sections on the right, changes apply at once ----------
 const THEME_SWATCH = { light: ['#ffffff', '#1d1d1f'], dark: ['#1e1f22', '#dcdde1'], sepia: ['#f7f1e3', '#3b2f22'], nord: ['#2e3440', '#e5e9f0'], garden: ['#fbfdf9', '#1d2a20'] };
 const PAGE_WIDTHS = [[720, 'باریک'], [860, 'متوسط'], [1040, 'پهن']];
@@ -2534,7 +2594,7 @@ const KEY_LIST = [
   [['سند تازه', 'Ctrl+T'], ['پنجره‌ی جدید', 'Ctrl+N'], ['باز کردن', 'Ctrl+O'], ['باز کردن سریع', 'Ctrl+P'], ['باز کردن پوشه', 'Ctrl+Shift+O'], ['ذخیره', 'Ctrl+S'], ['ذخیره با نام', 'Ctrl+Shift+S'], ['ذخیره‌ی همه', 'Ctrl+Alt+S'],
     ['بستن تب', 'Ctrl+W'], ['بازکردن تب بسته‌شده', 'Ctrl+Shift+T'], ['تغییر نام تب', 'F2'], ['تب بعدی', 'Ctrl+Tab'], ['تاریخچه‌ی نسخه‌ها', 'Ctrl+Shift+H'], ['تنظیمات', 'Ctrl+,'], ['تمام‌صفحه', 'F11']],
   [['جستجو', 'Ctrl+F'], ['جایگزینی', 'Ctrl+H'], ['چسباندن متن ساده', 'Ctrl+Shift+V'], ['خط‌خورده', 'Alt+Shift+5'], ['منوی درج بلوک', '/'], ['باز کردن لینک', 'Ctrl+کلیک'], ['کد منبع', 'Ctrl+/'], ['نوار کناری', 'Ctrl+Shift+L'],
-    ['سرفصل‌ها', 'Ctrl+Shift+1'], ['حالت امن', 'F8'], ['بزرگ‌نمایی', 'Ctrl+='], ['کوچک‌نمایی', 'Ctrl+-'], ['اندازه‌ی واقعی', 'Ctrl+0']],
+    ['سرفصل‌ها', 'Ctrl+Shift+1'], ['ترجمه‌ی متن انتخاب‌شده', 'Alt+T'], ['حالت امن', 'F8'], ['بزرگ‌نمایی', 'Ctrl+='], ['کوچک‌نمایی', 'Ctrl+-'], ['اندازه‌ی واقعی', 'Ctrl+0']],
 ];
 let settingsOpen = null;
 async function openSettings(section = 'look') {
@@ -3701,6 +3761,7 @@ function onKey(e) {
   if (t && t.locked && isEditKey(e)) { handled(); showLockedToast(); return; }
   if (ctrl && !e.shiftKey && !e.altKey && e.code === 'KeyA' && t && !isTypingField()) { handled(); selectAllDoc(t); return; }
   if (e.altKey && !ctrl && !e.shiftKey && code === 'KeyH' && t && t.mode === 'wysiwyg' && settings.extColor !== false) { handled(); applyLastColor(t); return; }
+  if (e.altKey && !ctrl && !e.shiftKey && code === 'KeyT' && t && t.mode === 'wysiwyg' && settings.extTranslate !== false) { handled(); translateSelection(t); return; }
   if (e.key === 'F11') { handled(); api.fullscreen(); return; }
   if (e.key === 'F2' && !ctrl && !e.altKey && t && !isTypingField()) { handled(); startRename(t); return; }
   if (e.key === 'F12' || (ctrl && e.shiftKey && code === 'KeyI')) { handled(); api.devtools(); return; }

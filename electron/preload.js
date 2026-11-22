@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('api', {
   stat: inv('file:stat'),
   reveal: inv('file:reveal'),
   copyFile: inv('file:copy-to-clipboard'),
+  translate: inv('translate:text'),
   openUrl: inv('shell:open-url'),
   draftSave: inv('drafts:save'),
   draftDelete: inv('drafts:delete'),
