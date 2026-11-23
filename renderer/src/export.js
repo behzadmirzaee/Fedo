@@ -107,12 +107,19 @@ function renderMath(doc) {
   });
 }
 
-export async function exportDocument({ kind, layout, html, title, baseDir, docPath, directPath }) {
+/** a tab with a forced direction: every block starts on that side, words keep their own order */
+const FORCED_CSS = (side) => `
+p, h1, h2, h3, h4, h5, h6, li, td, th, figcaption { unicode-bidi: plaintext; text-align: ${side === 'rtl' ? 'right' : 'left'}; }
+pre.nv-text { text-align: ${side === 'rtl' ? 'right' : 'left'}; }
+pre.nv-text code { unicode-bidi: plaintext; }
+`;
+export async function exportDocument({ kind, layout, html, title, baseDir, align = 'auto', docPath, directPath }) {
+  const force = align === 'rtl' || align === 'ltr' ? align : null;
   const doc = new DOMParser().parseFromString(`<article>${html}</article>`, 'text/html');
   doc.querySelectorAll(AUTO).forEach((n) => {
     const c = n.cloneNode(true);
     c.querySelectorAll('code, pre').forEach((x) => x.remove());
-    const d = dirOfText(c.textContent);
+    const d = force || dirOfText(c.textContent);
     if (d) n.setAttribute('dir', d);
   });
   // code blocks: real code stays LTR; plain-text blocks follow their text. Nothing scrolls on paper.
@@ -121,7 +128,7 @@ export async function exportDocument({ kind, layout, html, title, baseDir, docPa
     const plain = ['', 'text', 'txt', 'plain', 'plaintext'].includes(lang);
     const txt = n.textContent;
     const fa = (txt.match(/[\u0600-\u06FF]/g) || []).length, en = (txt.match(/[A-Za-z]/g) || []).length;
-    n.setAttribute('dir', plain && fa > en ? 'rtl' : 'ltr');
+    n.setAttribute('dir', plain && force ? force : plain && fa > en ? 'rtl' : 'ltr');
     if (plain) n.classList.add('nv-text');
     if (kind === 'pdf') n.classList.add('nv-wrap');
   });
@@ -136,7 +143,7 @@ export async function exportDocument({ kind, layout, html, title, baseDir, docPa
 <title>${title.replace(/</g, '&lt;')}</title>
 <style>${fonts}</style>
 <style>${katexCSS.replace(/url\([^)]*\)\s*format\(["']?(woff|truetype)["']?\),?/g, '')}</style>
-<style>:root { ${themeVars()} } ${BASE_CSS}</style>
+<style>:root { ${themeVars()} } ${BASE_CSS}${force ? FORCED_CSS(force) : ''}</style>
 </head>
 <body>${doc.body.innerHTML}</body>
 </html>`;

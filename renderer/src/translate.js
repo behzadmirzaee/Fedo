@@ -30,6 +30,15 @@ export const LANGS = [
 const NAME = Object.fromEntries(LANGS.map((l) => [l[0], l[1]]));
 export const langName = (code) => NAME[code] || NAME[String(code).split('-')[0]] || code;
 const PERSIAN = /[؀-ۿ]/;
+const RTL_LETTER = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+/** Same rule as the document: any Persian/Arabic/Hebrew letter → right-to-left, otherwise left-to-right.
+ *  A tab with a forced direction ('rtl' / 'ltr') puts every line on that side; words keep their order. */
+function placeText(node, text, align) {
+  const d = RTL_LETTER.test(text) ? 'rtl' : 'ltr';
+  node.setAttribute('dir', d);
+  node.style.textAlign = align === 'rtl' ? 'right' : align === 'ltr' ? 'left' : d === 'rtl' ? 'right' : 'left';
+  return node;
+}
 const MAX = 5000;
 
 /** up to four words with capitalised Latin words → the same in lower case; anything else → null.
@@ -80,7 +89,7 @@ export function openTranslate(opts) {
   const swapBtn = el('button', { class: 'tr-ic', title: 'جابه‌جایی زبان‌ها', 'aria-label': 'جابه‌جایی زبان‌ها', html: I.swap });
   const closeBtn = el('button', { class: 'tr-ic', title: 'بستن (Esc)', 'aria-label': 'بستن', html: ICON.x });
   const head = el('div', { class: 'tr-head' }, el('div', { class: 'tr-langs' }, fromBtn, swapBtn, toBtn), closeBtn);
-  const src = el('div', { class: 'tr-src', dir: 'auto' }, text.length > 400 ? text.slice(0, 400) + '…' : text);
+  const src = placeText(el('div', { class: 'tr-src' }, text.length > 400 ? text.slice(0, 400) + '…' : text), text, opts.align);
   const body = el('div', { class: 'tr-body' });
   const gt = el('button', { class: 'tr-gt', title: 'باز کردن در Google Translate' }, el('span', {}, 'Google Translate'), el('span', { class: 'ic', html: I.ext }));
   const acts = el('span', { class: 'tr-acts' });
@@ -118,7 +127,7 @@ export function openTranslate(opts) {
       return;
     }
     const r = st.result;
-    body.append(el('div', { class: 'tr-out', dir: 'auto' }, r.text));
+    body.append(placeText(el('div', { class: 'tr-out' }, r.text), r.text, opts.align));
     // only when there is something to show: no lonely «معنی‌های دیگر» label
     const alts = settings.trAlts !== false ? (r.alts || []).filter((a) => a && a !== r.text).slice(0, 6) : [];
     const chips = alts.map((a) => el('button', { class: 'tr-chip', title: 'کپی', onclick: (e) => copyText(a, e.currentTarget, a) }, a));

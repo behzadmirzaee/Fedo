@@ -163,3 +163,24 @@ body.ctrl-down .milkdown .ProseMirror a { cursor: pointer; text-decoration: unde
 html.kbd-en .milkdown .ProseMirror > p.crepe-placeholder { direction: ltr; text-align: left; }
 html.kbd-en .milkdown .ProseMirror > p.crepe-placeholder::before { content: 'Start writing… press / to insert a block'; font-family: 'Segoe UI', var(--font-text); }
 html.kbd-fa .milkdown .ProseMirror > p.crepe-placeholder { direction: rtl; text-align: right; }
+
+/* ---------- forced document direction (per tab) ----------
+   Every block starts on the forced side; the words inside a line keep their own order (plaintext),
+   so an English sentence pushed to the right keeps its full stop at the end. Code in a programming
+   language is untouched; plain-text code blocks follow the tab. */
+.pane .wysiwyg[data-align] .milkdown .ProseMirror :is(p, h1, h2, h3, h4, h5, h6, td, th) { unicode-bidi: plaintext; }
+.pane .wysiwyg[data-align='rtl'] .milkdown .ProseMirror [dir]:not(pre):not(.nv-code-text) { text-align: right; }
+.pane .wysiwyg[data-align='ltr'] .milkdown .ProseMirror [dir]:not(pre):not(.nv-code-text) { text-align: left; }
+.pane .wysiwyg[data-align='rtl'] .milkdown .ProseMirror :is(p, h1, h2, h3, h4, h5, h6) { text-align: right; }
+.pane .wysiwyg[data-align='ltr'] .milkdown .ProseMirror :is(p, h1, h2, h3, h4, h5, h6) { text-align: left; }
+.pane .wysiwyg[data-align] .milkdown .ProseMirror :is(td, th)[style*='text-align'] > p[dir] { text-align: inherit; }
+.pane .wysiwyg[data-align='rtl'] .milkdown .nv-code-text .cm-line { text-align: right; unicode-bidi: plaintext; }
+.pane .wysiwyg[data-align='ltr'] .milkdown .nv-code-text .cm-line { text-align: left; unicode-bidi: plaintext; }
+.pane .wysiwyg[data-align='rtl'] .milkdown .ProseMirror > p.crepe-placeholder { direction: rtl; text-align: right; }
+.pane .wysiwyg[data-align='ltr'] .milkdown .ProseMirror > p.crepe-placeholder { direction: ltr; text-align: left; }
+.pane .wysiwyg[data-align] .milkdown .ProseMirror > p.crepe-placeholder { unicode-bidi: normal; }
+.pane .wysiwyg[data-align] .milkdown .ProseMirror > p.crepe-placeholder::before { white-space: nowrap; }
+/* source view */
+.pane .source[data-align] .cm-line { unicode-bidi: plaintext; }
+.pane .source[data-align='rtl'] .cm-line { text-align: right !important; }
+.pane .source[data-align='ltr'] .cm-line { text-align: left !important; }

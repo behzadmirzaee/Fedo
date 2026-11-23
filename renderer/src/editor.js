@@ -124,15 +124,30 @@ const wordUndo = $prose(() => new Plugin({
   },
 }));
 const dirKey = new PluginKey('nv-dir');
+// A tab can force every block to one side ('rtl' / 'ltr'); 'auto' keeps the per-block rule above.
+// Forced blocks only move their start side: the words inside keep their own order (unicode-bidi: plaintext).
 const dirPlugin = $prose(() => new Plugin({
   key: dirKey,
   state: {
-    init: (_, state) => buildDirDecos(state.doc),
-    apply: (tr, old) => (tr.docChanged ? buildDirDecos(tr.doc) : old),
+    init: (_, state) => ({ force: null, set: buildDirDecos(state.doc, null) }),
+    apply: (tr, old) => {
+      const m = tr.getMeta(dirKey);
+      const force = m !== undefined ? m : old.force;
+      return tr.docChanged || force !== old.force ? { force, set: buildDirDecos(tr.doc, force) } : old;
+    },
   },
-  props: { decorations: (state) => dirKey.getState(state) },
+  props: { decorations: (state) => dirKey.getState(state).set },
 }));
-function buildDirDecos(doc) {
+/** align: 'rtl' | 'ltr' forces one side, anything else = automatic (by each block's text) */
+export function setForcedDir(crepe, align) {
+  const force = align === 'rtl' || align === 'ltr' ? align : null;
+  try {
+    const view = getView(crepe);
+    if (dirKey.getState(view.state).force === force) return;
+    view.dispatch(view.state.tr.setMeta(dirKey, force).setMeta('addToHistory', false));
+  } catch { /* editor not ready yet */ }
+}
+function buildDirDecos(doc, force) {
   const decos = [];
   doc.descendants((node, pos) => {
     const t = node.type.name;
@@ -143,7 +158,7 @@ function buildDirDecos(doc) {
       return false;
     }
     if (DIR_BLOCKS.has(t)) {
-      const d = dirOfNode(node);
+      const d = force || dirOfNode(node);
       const attrs = d ? { dir: d } : {};
       // a short paragraph that is entirely bold works as a sub-heading: give it heading spacing
       if (t === 'paragraph' && node.childCount && node.textContent.trim().length && node.textContent.length < 140) {

@@ -3,7 +3,7 @@ import { insert } from '@milkdown/kit/utils';
 import { openSearchPanel } from '@codemirror/search';
 import {
   createEditor, setMarkdown, getView, headingsFromView, jumpTo,
-  createSource, sourceHeadings, setMermaidDark, getEditorHTML, dirOfText, headingBackspace,
+  createSource, setForcedDir, sourceHeadings, setMermaidDark, getEditorHTML, dirOfText, headingBackspace,
 } from './editor.js';
 import { TextSelection, AllSelection } from '@milkdown/kit/prose/state';
 import { createHistoryPanel } from './history.js';
@@ -98,7 +98,7 @@ const DOC_KEYS = Object.keys(FEDO_DOC);
 const docDefaults = () => ({ ...FEDO_DOC, ...(settings.userDefaults || {}) });
 const DEFAULTS = {
   textFont: '', headFont: '', uiFont: '', zoom: 1, positions: {},
-  theme: 'light', baseDir: 'rtl', fontSize: 17, pageWidth: 860, lineHeight: 1.95,
+  theme: 'light', baseDir: 'rtl', dirMode: 'auto', fontSize: 17, pageWidth: 860, lineHeight: 1.95,
   autosave: false, snapshotMinutes: 5, restoreSession: true, recent: [],
   sidebar: true, sideView: 'files', folder: null, spellcheck: false, locked: [], logo: '08', verticalTabs: false,
   autoPair: true, pasteLink: true, plainAfterPaste: true, defaultExt: 'md',
@@ -180,6 +180,13 @@ function buildLayout() {
     el('button', { class: 'chip on', id: 'st-mode', title: 'برگشت به ویرایش زنده (Ctrl+/)', onclick: toggleSource }, el('span', { class: 'ic', html: ICON.code }), el('span', {}, 'کد منبع')),
     el('span', { class: 'chip ok', id: 'st-saved' }),
     el('span', { class: 'grow' }),
+    el('div', { class: 'dirseg', id: 'st-dir', role: 'radiogroup', 'aria-label': 'جهت سند در این تب' },
+      DIR_SEG.map(([v, label, tip, icon]) => {
+        const b = el('button', { class: 'sg', 'data-v': v, role: 'radio', 'aria-checked': 'false', 'aria-label': tip, title: tip,
+          onclick: () => { const t = active(); if (t) setTabDir(t, v); } }, el('span', { class: 'ic', html: icon }), el('span', { class: 'sg-l' }, label));
+        b.addEventListener('mousedown', (e) => e.preventDefault()); // keep the caret in the document
+        return b;
+      })),
     el('button', { class: 'chip', id: 'st-size', title: 'اندازه‌ی متن و فاصله‌ی خطوط', onclick: (e) => openSizePanel(e.currentTarget) }, el('span', { class: 'ic', html: ICON.textSize }), el('span', {}, 'اندازه')),
     el('div', { class: 'zoomer', title: 'زوم · میان‌بر: Ctrl و + یا Ctrl و −' },
       el('button', { title: 'بزرگ‌نمایی (Ctrl+=)', html: ICON.plus, onclick: () => zoomBy(1) }),
@@ -242,14 +249,34 @@ function tabTitle(t) {
   return t.untitledN === 1 ? 'بدون عنوان' : `بدون عنوان ${fa(t.untitledN)}`;
 }
 /** each tab can have its own direction; without one it follows the setting */
-const tabDir = (t) => t.dir || settings.baseDir;
-function applyTabDir(t) {
-  const d = tabDir(t);
-  t.wys.setAttribute('dir', d);
-  t.src.setAttribute('dir', d);
+const dirIcon = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+// order in the DOM = right to left on screen: forced right, automatic, forced left
+const DIR_SEG = [
+  ['rtl', 'راست‌چین', 'راست‌چین اجباری · همه‌ی خط‌ها، حتی انگلیسی، از راست', dirIcon('M4 6h16M9 10h11M4 14h16M11 18h9')],
+  ['auto', 'خودکار', 'خودکار · بر اساس متن هر خط', dirIcon('M4 6h9M11 10h9M4 14h9M11 18h9')],
+  ['ltr', 'چپ‌چین', 'چپ‌چین اجباری · همه‌ی خط‌ها، حتی فارسی، از چپ', dirIcon('M4 6h16M4 10h11M4 14h16M4 18h9')],
+];
+function paintDirSeg(t) {
+  const a = t ? tabAlign(t) : 'auto';
+  document.querySelectorAll('#st-dir .sg').forEach((b) => { const on = b.dataset.v === a; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
 }
-function setTabDir(t, dir) {
-  t.dir = dir || null;
+// Three modes per tab: 'rtl' (every line starts on the right), 'auto' (by each line's text) and 'ltr'.
+// A tab without its own choice follows the setting. Code blocks in a programming language always stay LTR.
+const DIR_MODES = ['rtl', 'auto', 'ltr'];
+const tabAlign = (t) => (DIR_MODES.includes(t.align) ? t.align : DIR_MODES.includes(settings.dirMode) ? settings.dirMode : 'auto');
+/** base direction of the page: the forced side, or (automatic) the side empty lines start from */
+const tabDir = (t) => { const a = tabAlign(t); return a === 'auto' ? settings.baseDir || 'rtl' : a; };
+function applyTabDir(t) {
+  const a = tabAlign(t), d = tabDir(t);
+  for (const n of [t.wys, t.src]) {
+    n.setAttribute('dir', d);
+    if (a === 'auto') n.removeAttribute('data-align'); else n.setAttribute('data-align', a);
+  }
+  if (t.crepe) setForcedDir(t.crepe, a);
+  if (t === active()) paintDirSeg(t);
+}
+function setTabDir(t, align) {
+  t.align = DIR_MODES.includes(align) ? align : null;
   applyTabDir(t);
   saveTabMeta(t);
   saveSessionSoon();
@@ -258,7 +285,7 @@ function setTabDir(t, dir) {
 function saveTabMeta(t) {
   if (t.path || !t.draftId) return;
   const meta = { ...(settings.draftMeta || {}) };
-  if (t.title || t.dir) meta[t.draftId] = { title: t.title || null, dir: t.dir || null };
+  if (t.title || t.align) meta[t.draftId] = { title: t.title || null, align: t.align || null };
   else delete meta[t.draftId];
   settings.draftMeta = meta; persistSettings();
 }
@@ -269,21 +296,23 @@ function dropTabMeta(id) {
   settings.draftMeta = meta; persistSettings();
 }
 
-async function newTab({ path = null, content = '', activate = true, mode = 'wysiwyg', mtime = 0, index, draftId, dir = null, title = null, group = null } = {}) {
+async function newTab({ path = null, content = '', activate = true, mode = 'wysiwyg', mtime = 0, index, draftId, align = null, title = null, group = null } = {}) {
   const id = ++seq;
-  const wys = el('div', { class: 'wysiwyg', dir: dir || settings.baseDir });
-  const src = el('div', { class: 'source', dir: dir || settings.baseDir });
+  const wys = el('div', { class: 'wysiwyg' });
+  const src = el('div', { class: 'source' });
   const pane = el('div', { class: 'pane' }, wys, src);
   $('#editors').append(pane);
   const t = {
     id, path, pane, wys, src, mode: 'wysiwyg', md: content, baseline: content, diskContent: content,
-    dirty: false, crepe: null, cm: null, mtime, untitledN: path ? 0 : untitledName(), dir: dir || null, title: path ? null : title || null,
+    dirty: false, crepe: null, cm: null, mtime, untitledN: path ? 0 : untitledName(), align: DIR_MODES.includes(align) ? align : null, title: path ? null : title || null,
     lastSnap: content, lastSnapTime: Date.now(), saveTimer: null,
     draftId: path ? null : draftId || 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     // set before the tab is first drawn, so a group being restored is never seen empty (and dropped)
     groupId: group && groups.has(group) ? group : null,
   };
+  applyTabDir(t);
   t.crepe = await createEditor(wys, content, editorHooks(t));
+  applyTabDir(t);
   applySpell(t);
   wys.addEventListener('contextmenu', (e) => {
     e.preventDefault();
@@ -297,6 +326,7 @@ async function newTab({ path = null, content = '', activate = true, mode = 'wysi
     if (t.locked) {
       showMenu([
         { label: 'کپی', key: 'Ctrl+C', run: () => api.edit('copy') },
+        { label: 'کپی متن ساده', key: 'Ctrl+Shift+C', run: () => copyPlainText(t) },
         'sep',
         { label: 'خاموش کردن حالت امن', key: 'F8', run: () => setLocked(t, false) },
       ], e.clientX, e.clientY);
@@ -304,7 +334,7 @@ async function newTab({ path = null, content = '', activate = true, mode = 'wysi
     }
     const imgBlk = e.target.closest('.milkdown-image-block, .milkdown-image-inline');
     if (imgBlk && imgBlk.querySelector('img') && openImageMenu(t, imgBlk, e.clientX, e.clientY)) return;
-    openEditorMenu(t.crepe, e.clientX, e.clientY, { insertImage: () => insertImageFromDisk(t), edit: (op) => api.edit(op), color: colorTools(t), emoji: emojiTools() });
+    openEditorMenu(t.crepe, e.clientX, e.clientY, { insertImage: () => insertImageFromDisk(t), edit: (op) => api.edit(op), color: colorTools(t), emoji: emojiTools(), copyPlain: () => copyPlainText(t) });
   });
   // image editor: an «ویرایش» button on hover, and double-click, open it
   wys.addEventListener('mouseover', (e) => {
@@ -652,8 +682,9 @@ function multiTabMenu(list, x, y) {
     inGroup ? { icon: '', label: 'خارج کردن از گروه', run: each((t) => { t.groupId = null; }) } : null,
     'sep',
     { icon: ICON.direction, label: 'جهت سند', sub: [
-      { label: 'راست‌به‌چپ', run: () => list.forEach((t) => setTabDir(t, 'rtl')) },
-      { label: 'چپ‌به‌راست', run: () => list.forEach((t) => setTabDir(t, 'ltr')) },
+      { label: 'راست‌چین اجباری', run: () => list.forEach((t) => setTabDir(t, 'rtl')) },
+      { label: 'خودکار', tag: 'بر اساس متن', run: () => list.forEach((t) => setTabDir(t, 'auto')) },
+      { label: 'چپ‌چین اجباری', run: () => list.forEach((t) => setTabDir(t, 'ltr')) },
       'sep',
       { label: 'پیش‌فرض تنظیمات', run: () => list.forEach((t) => setTabDir(t, null)) },
     ] },
@@ -1350,10 +1381,11 @@ function tabMenu(t, x, y) {
     'sep',
     { icon: ICON.edit, label: 'تغییر نام', key: 'F2', run: () => startRename(t) },
     { icon: ICON.direction, label: 'جهت سند', sub: [
-      { label: 'راست‌به‌چپ', checked: tabDir(t) === 'rtl', run: () => setTabDir(t, 'rtl') },
-      { label: 'چپ‌به‌راست', checked: tabDir(t) === 'ltr', run: () => setTabDir(t, 'ltr') },
+      { label: 'راست‌چین اجباری', checked: tabAlign(t) === 'rtl', run: () => setTabDir(t, 'rtl') },
+      { label: 'خودکار', tag: 'بر اساس متن', checked: tabAlign(t) === 'auto', run: () => setTabDir(t, 'auto') },
+      { label: 'چپ‌چین اجباری', checked: tabAlign(t) === 'ltr', run: () => setTabDir(t, 'ltr') },
       'sep',
-      { label: 'پیش‌فرض تنظیمات', disabled: !t.dir, run: () => setTabDir(t, null) },
+      { label: 'پیش‌فرض تنظیمات', disabled: !t.align, run: () => setTabDir(t, null) },
     ] },
     'sep',
     { icon: ICON.group, label: 'افزودن به گروه تازه', run: () => addToNewGroup(t) },
@@ -1419,11 +1451,48 @@ function translateSelection(t, anchor = null) {
   const s = selectedText(t);
   if (!s || !s.text.trim()) { toast('اول بخشی از متن را انتخاب کنید', 'info'); return true; }
   openTranslate({
-    view: s.v, text: s.text, from: s.from, to: s.to, anchor, api, toast, settings,
+    view: s.v, text: s.text, from: s.from, to: s.to, anchor, api, toast, settings, align: tabAlign(t),
     setSettings: (patch) => updateSettings(patch),
     guard: () => { if (t.locked) { showLockedToast(); return true; } return false; },
   });
   return true;
+}
+/**
+ * Ctrl+Shift+C: the selection as bare text (no bold, links, colours or Markdown signs), so it pastes
+ * into any app without formatting. Paragraphs are separated by an empty line, list items and table
+ * cells by a single line, Shift+Enter breaks stay as line breaks. Works in safe mode too.
+ */
+function plainSelection(t) {
+  const ae = document.activeElement;
+  // inside a code block or the source view: the selected characters as they are
+  if ((ae && ae.closest && ae.closest('.cm-editor') && t.wys.contains(ae)) || t.mode === 'source') {
+    if (t.mode === 'source' && t.cm) {
+      const { from, to } = t.cm.state.selection.main;
+      return from === to ? '' : plainForClipboard(t.cm.state.doc.sliceString(from, to));
+    }
+    return String(window.getSelection() || '');
+  }
+  const v = getView(t.crepe);
+  const { from, to, empty } = v.state.selection;
+  if (empty) return '';
+  const parts = [];
+  v.state.doc.nodesBetween(from, to, (node, pos, parent) => {
+    if (!node.isTextblock) return true;
+    const a = Math.max(from, pos + 1) - pos - 1, b = Math.min(to, pos + node.nodeSize - 1) - pos - 1;
+    if (b < a) return false;
+    const text = node.textBetween(a, b, '\n', (leaf) => (/break/i.test(leaf.type.name) ? '\n' : ''));
+    const tight = parent && /list_item|table_cell|table_header/.test(parent.type.name);
+    parts.push({ text, tight });
+    return false;
+  });
+  return parts.map((x, i) => (i ? (x.tight && parts[i - 1].tight ? '\n' : '\n\n') : '') + x.text).join('').replace(/\s+$/, '');
+}
+async function copyPlainText(t) {
+  if (!t) return;
+  const text = plainSelection(t);
+  if (!text.trim()) { toast('اول بخشی از متن را انتخاب کنید', 'info'); return; }
+  try { await navigator.clipboard.writeText(text); toast('به‌صورت متن ساده کپی شد', 'ok'); }
+  catch { toast('کپی نشد؛ دوباره امتحان کنید', 'err'); }
 }
 function searchSelection(t) {
   if (!t || settings.extGoogle === false) return;
@@ -1611,7 +1680,7 @@ let winRole = 'main';
 function tabPayload(t) {
   const content = t.mode === 'source' && t.cm ? t.cm.state.doc.toString() : t.md;
   const g = t.groupId ? groups.get(t.groupId) : null;
-  return { path: t.path, content, dirty: t.dirty, mode: t.mode, locked: !!t.locked, group: g ? { name: g.name, color: g.color } : null, title: t.title || null, dir: t.dir || null };
+  return { path: t.path, content, dirty: t.dirty, mode: t.mode, locked: !!t.locked, group: g ? { name: g.name, color: g.color } : null, title: t.title || null, align: t.align || null };
 }
 async function detachTabs(list, alwaysOnTop, at) {
   if (!list.length) return;
@@ -1647,14 +1716,14 @@ async function receiveTabs(payloads, at) {
       t = await openPath(p.path);
       if (t && p.dirty && p.content !== t.md) setContent(t, p.content);
     } else {
-      t = await newTab({ content: p.content, title: p.title, dir: p.dir });
+      t = await newTab({ content: p.content, title: p.title, align: p.align });
       t.baseline = '';
       t.dirty = !!p.content.trim();
       contentChanged(t, t.md);
       saveTabMeta(t);
     }
     if (!t) continue;
-    if (p.dir && t.dir !== p.dir) { t.dir = p.dir; applyTabDir(t); }
+    if (p.align && t.align !== p.align) { t.align = p.align; applyTabDir(t); }
     if (slot != null) {
       const i = tabs.indexOf(t);
       tabs.splice(i, 1);
@@ -1947,7 +2016,7 @@ async function exportTo(t, list) {
   const made = [];
   for (const { kind, path: p } of list) {
     try {
-      const out = await exportDocument({ kind, layout: settings.pdfLayout || 'continuous', html: getEditorHTML(t.crepe), title: basename(p).replace(/\.[^.]+$/, ''), baseDir: tabDir(t), docPath: p, directPath: p });
+      const out = await exportDocument({ kind, layout: settings.pdfLayout || 'continuous', html: getEditorHTML(t.crepe), title: basename(p).replace(/\.[^.]+$/, ''), baseDir: tabDir(t), align: tabAlign(t), docPath: p, directPath: p });
       if (out) made.push(out);
     } catch (e) { toast(`ساخت ${kind.toUpperCase()} ممکن نشد: ` + (e.message || e), 6000, null, 'err'); }
   }
@@ -2309,6 +2378,7 @@ function updateStatus(savedMsg) {
   $('#st-lock').innerHTML = (t.locked ? ICON.lock : ICON.unlock) + `<span>${t.locked ? 'حالت امن روشن است' : 'حالت امن'}</span>`;
   $('#st-lock').classList.toggle('on', !!t.locked);
   $('#st-zoom').textContent = `${fa(Math.round((settings.zoom || 1) * 100))}٪`;
+  paintDirSeg(t);
   paintMiniBars();
 }
 function updateTitle() {
@@ -2611,7 +2681,7 @@ const PAGE_WIDTHS = [[720, 'باریک'], [860, 'متوسط'], [1040, 'پهن']]
 const KEY_LIST = [
   [['سند تازه', 'Ctrl+T'], ['پنجره‌ی جدید', 'Ctrl+N'], ['باز کردن', 'Ctrl+O'], ['باز کردن سریع', 'Ctrl+P'], ['باز کردن پوشه', 'Ctrl+Shift+O'], ['ذخیره', 'Ctrl+S'], ['ذخیره با نام', 'Ctrl+Shift+S'], ['ذخیره‌ی همه', 'Ctrl+Alt+S'],
     ['بستن تب', 'Ctrl+W'], ['بازکردن تب بسته‌شده', 'Ctrl+Shift+T'], ['تغییر نام تب', 'F2'], ['تب بعدی', 'Ctrl+Tab'], ['تاریخچه‌ی نسخه‌ها', 'Ctrl+Shift+H'], ['تنظیمات', 'Ctrl+,'], ['تمام‌صفحه', 'F11']],
-  [['جستجو', 'Ctrl+F'], ['جایگزینی', 'Ctrl+H'], ['چسباندن متن ساده', 'Ctrl+Shift+V'], ['خط‌خورده', 'Alt+Shift+5'], ['منوی درج بلوک', '/'], ['باز کردن لینک', 'Ctrl+کلیک'], ['کد منبع', 'Ctrl+/'], ['نوار کناری', 'Ctrl+Shift+L'],
+  [['جستجو', 'Ctrl+F'], ['جایگزینی', 'Ctrl+H'], ['کپی متن ساده', 'Ctrl+Shift+C'], ['چسباندن متن ساده', 'Ctrl+Shift+V'], ['خط‌خورده', 'Alt+Shift+5'], ['منوی درج بلوک', '/'], ['باز کردن لینک', 'Ctrl+کلیک'], ['کد منبع', 'Ctrl+/'], ['نوار کناری', 'Ctrl+Shift+L'],
     ['سرفصل‌ها', 'Ctrl+Shift+1'], ['ترجمه‌ی متن انتخاب‌شده', 'Alt+T'], ['ترجمه‌ی فوری کلمه', 'Alt+دابل‌کلیک'], ['حالت امن', 'F8'], ['بزرگ‌نمایی', 'Ctrl+='], ['کوچک‌نمایی', 'Ctrl+-'], ['اندازه‌ی واقعی', 'Ctrl+0']],
 ];
 let settingsOpen = null;
@@ -2751,7 +2821,7 @@ async function openSettings(section = 'look') {
         toggle('autoPair', 'بستن خودکار جفت‌ها', 'گیومه، پرانتز، کروشه و آکولاد'),
         toggle('pasteLink', 'پیوند با چسباندن آدرس', 'وقتی متنی انتخاب شده باشد'),
         toggle('plainAfterPaste', 'تایپ معمولی بعد از چسباندن', 'سبک متن چسبانده‌شده به نوشته‌ی بعدی نمی‌رسد'),
-        row('جهت پیش‌فرض متن', null, seg([['rtl', 'راست‌به‌چپ'], ['ltr', 'چپ‌به‌راست']], () => settings.baseDir, (v) => updateSettings({ baseDir: v })))),
+        row('جهت پیش‌فرض سند', 'هر تب را می‌شود از نوار پایین جدا عوض کرد', seg([['rtl', 'راست‌چین'], ['auto', 'خودکار'], ['ltr', 'چپ‌چین']], () => settings.dirMode || 'auto', (v) => updateSettings({ dirMode: v })))),
       label('ابزارها'), group(
         toggle('spellcheck', 'غلط‌یابی املایی|فقط انگلیسی'),
         row('حالت امن', 'فایل فقط خواندنی می‌شود، برای هر فایل جدا', el('span', { class: 'row-end' }, kbd('F8'),
@@ -3122,7 +3192,7 @@ async function doExport(kind) {
   if (t.mode === 'source') setMode(t, 'wysiwyg');
   const name = (t.path ? basename(t.path) : suggestedName(t)).replace(/\.[^.]+$/, '');
   try {
-    const out = await exportDocument({ kind, layout, html: getEditorHTML(t.crepe), title: name, baseDir: tabDir(t), docPath: t.path });
+    const out = await exportDocument({ kind, layout, html: getEditorHTML(t.crepe), title: name, baseDir: tabDir(t), align: tabAlign(t), docPath: t.path });
     if (out) toast('خروجی ساخته شد: ' + basename(out), 8000, [
       { label: 'باز کردن فایل', run: () => api.openExternal(out) },
       { label: 'نمایش در پوشه', run: () => api.reveal(out) },
@@ -3698,7 +3768,7 @@ let restoring = false;
 function saveSession() {
   if (restoring) return Promise.resolve();
   const list = tabs.filter((t) => t.path || t.draftId).map((t) => ({
-    ...(t.path ? { path: t.path } : { draft: t.draftId }), mode: t.mode, group: t.groupId || null, dir: t.dir || null,
+    ...(t.path ? { path: t.path } : { draft: t.draftId }), mode: t.mode, group: t.groupId || null, align: t.align || null,
   }));
   const used = new Set(list.map((x) => x.group).filter(Boolean));
   const a = active();
@@ -3731,12 +3801,12 @@ async function restoreWindow(entry, drafts, claimed) {
         used.add(d.id);
         if (!d.content.trim()) { api.draftDelete(d.id); continue; }
         const meta = (settings.draftMeta || {})[d.id] || {};
-        t = await newTab({ content: d.content, draftId: d.id, activate: false, dir: meta.dir, title: meta.title, group: st.group });
+        t = await newTab({ content: d.content, draftId: d.id, activate: false, align: meta.align, title: meta.title, group: st.group });
         t.baseline = ''; t.dirty = true; restoredDrafts++;
       }
       if (!t) continue;
       if (st.mode === 'source') setMode(t, 'source');
-      if (st.dir) { t.dir = st.dir; applyTabDir(t); }
+      if (st.align) { t.align = st.align; applyTabDir(t); }
     }
     // unsaved documents nobody claims (e.g. after a crash) come back in the main window, as before
     if (claimed) {
@@ -3744,7 +3814,7 @@ async function restoreWindow(entry, drafts, claimed) {
         if (used.has(d.id) || claimed.has(d.id)) continue;
         if (!d.content.trim()) { api.draftDelete(d.id); continue; }
         const meta = (settings.draftMeta || {})[d.id] || {};
-        const t = await newTab({ content: d.content, draftId: d.id, activate: false, dir: meta.dir, title: meta.title });
+        const t = await newTab({ content: d.content, draftId: d.id, activate: false, align: meta.align, title: meta.title });
         t.baseline = ''; t.dirty = true; restoredDrafts++;
       }
     }
@@ -3776,6 +3846,7 @@ function onKey(e) {
   if (e.key === 'Escape' && splitOn() && !$('#split-pick').hidden && !document.querySelector('.menu, .overlay')) { handled(); endSplit(); return; }
   if (e.key === 'Escape' && tabSel.size > 1 && !document.querySelector('.menu, .overlay')) { handled(); clearTabSel(); return; }
   if (e.key === 'F8') { handled(); if (t) setLocked(t, !t.locked); return; }
+  if (ctrl && e.shiftKey && !e.altKey && code === 'KeyC' && t && !isTypingField()) { handled(); copyPlainText(t); return; }
   if (t && t.locked && isEditKey(e)) { handled(); showLockedToast(); return; }
   if (ctrl && !e.shiftKey && !e.altKey && e.code === 'KeyA' && t && !isTypingField()) { handled(); selectAllDoc(t); return; }
   if (e.altKey && !ctrl && !e.shiftKey && code === 'KeyH' && t && t.mode === 'wysiwyg' && settings.extColor !== false) { handled(); applyLastColor(t); return; }

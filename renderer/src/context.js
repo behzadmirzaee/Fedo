@@ -212,7 +212,7 @@ export function openColorPanel(crepe, anchor, color) {
   for (const n of [anchor, m]) { n.addEventListener('mouseleave', later); n.addEventListener('mouseenter', stay); }
 }
 
-export function openEditorMenu(crepe, x, y, { insertImage, edit, color, emoji }) {
+export function openEditorMenu(crepe, x, y, { insertImage, edit, color, emoji, copyPlain }) {
   const v = view(crepe);
   const st = v.state;
   const inTable = isInTable(st);
@@ -259,6 +259,7 @@ export function openEditorMenu(crepe, x, y, { insertImage, edit, color, emoji })
       { icon: I.paste, label: 'چسباندن', title: 'Ctrl+V', run: () => edit('paste') },
       { icon: I.del, label: 'حذف', title: 'Delete', disabled: !hasSel, run: () => { v.dispatch(v.state.tr.deleteSelection()); v.focus(); } },
     ] },
+    { icon: I.copyPlain, label: 'کپی متن ساده', key: 'Ctrl+Shift+C', disabled: !hasSel || !copyPlain, run: () => copyPlain() },
     { icon: I.pastePlain, label: 'چسباندن متن ساده', key: 'Ctrl+Shift+V', run: () => edit('pastePlain') },
     'sep',
     { grid: [

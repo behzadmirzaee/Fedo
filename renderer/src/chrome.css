@@ -1150,3 +1150,15 @@ body.no-ext-translate.no-ext-google .milkdown-toolbar .divider:has(+ [data-toolb
 .tr-lf .kb { display: inline-flex; gap: 2px; direction: ltr; margin-inline-start: 6px; }
 .tr-lf .kb:first-child { margin-inline-start: 0; }
 .tr-lf kbd { font: 500 10.5px/1 'Segoe UI', system-ui, sans-serif; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; display: grid; place-items: center; border-radius: 5px; background: var(--ctl); color: var(--muted); }
+
+/* ---------- document direction (status bar): forced right · automatic · forced left ---------- */
+.dirseg { display: flex; align-items: center; gap: 1px; background: var(--ctl); border-radius: 999px; padding: 2px; margin-inline-end: 2px; }
+.dirseg .sg { height: 24px; min-width: 28px; padding: 0 6px; border: 0; background: none; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 5px; color: var(--muted); cursor: pointer; font: inherit; }
+.dirseg .sg:hover { background: var(--ctl); color: var(--fg); }
+.dirseg .sg .ic { display: grid; }
+.dirseg .sg svg { width: 15px; height: 15px; }
+.dirseg .sg .sg-l { display: none; }
+.dirseg .sg.on { background: var(--sheet); color: var(--fg); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); font-weight: 600; padding-inline: 8px 9px; }
+.dirseg .sg.on .sg-l { display: inline; }
+.dirseg .sg:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@container sheet (max-width: 460px) { .dirseg .sg.on .sg-l { display: none; } .dirseg .sg.on { padding-inline: 6px; } }
