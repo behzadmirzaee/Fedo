@@ -1,4 +1,4 @@
-# Fedo i18n glossary (draft)
+# Fedo i18n glossary
 
 Status: **approved by Behzad, Nov 24 2026**. Based on `main` @ f02cb21 (3.0.0).
 English mockups: https://claude.ai/artifact/S2KAPCJ1TTBHqLH7ZhFzQZ (page «En - Fedo»).
