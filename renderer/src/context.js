@@ -1,3 +1,4 @@
+import { TRANSLATE_ICON } from './translate.js';
 // Right-click menu for the editor, with full table tools (Typora-style)
 import { callCommand, insert } from '@milkdown/kit/utils';
 import { editorViewCtx, serializerCtx, schemaCtx } from '@milkdown/kit/core';
@@ -212,7 +213,7 @@ export function openColorPanel(crepe, anchor, color) {
   for (const n of [anchor, m]) { n.addEventListener('mouseleave', later); n.addEventListener('mouseenter', stay); }
 }
 
-export function openEditorMenu(crepe, x, y, { insertImage, edit, color, emoji, copyPlain }) {
+export function openEditorMenu(crepe, x, y, { insertImage, edit, color, emoji, copyPlain, ai, translate }) {
   const v = view(crepe);
   const st = v.state;
   const inTable = isInTable(st);
@@ -262,6 +263,10 @@ export function openEditorMenu(crepe, x, y, { insertImage, edit, color, emoji, c
     { icon: I.copyPlain, label: 'کپی متن ساده', key: 'Ctrl+Shift+C', disabled: !hasSel || !copyPlain, run: () => copyPlain() },
     { icon: I.pastePlain, label: 'چسباندن متن ساده', key: 'Ctrl+Shift+V', run: () => edit('pastePlain') },
     'sep',
+    // the assistant and Google Translate, on the selected text
+    ai ? { icon: `<span class="ctx-ai">${ai.icon}</span>`, label: ai.name, key: 'Ctrl+J', disabled: !hasSel, run: ai.run } : null,
+    translate ? { icon: TRANSLATE_ICON, label: 'ترجمه با گوگل', key: 'Alt+T', disabled: !hasSel, run: translate.run } : null,
+    ai || translate ? 'sep' : null,
     { grid: [
       { html: I.bold, title: 'پررنگ (Ctrl+B)', active: markActive(st, 'strong'), run: run(crepe, toggleStrongCommand) },
       { html: I.italic, title: 'کج (Ctrl+I)', active: markActive(st, 'emphasis'), run: run(crepe, toggleEmphasisCommand) },

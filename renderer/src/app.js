@@ -17,6 +17,8 @@ import { themePalette, ensure, mix } from './contrast.js';
 import { installSelectionBar } from './selbar.js';
 import { installKeyboardLang } from './kbdlang.js';
 import { openTranslate, closeTranslate, googleSearch, LANGS } from './translate.js';
+import { initFedora, aiOn, openFedora, openTopFedora, closeFedora, marksPlugin, toolbarIcon, aiName, aiIconHTML, paintBrand, loadMarks, persistMarks,
+  markCount, marksPanel, noteDocChange, noteChangeForName, nameChips, RENAME_AI_ICON, aiRenameOn, openDocFedora, reviewPlugin, outIcon, registerSlot, runSlot, settingsSection as fedoraSettings } from './fedora.js';
 const LOGOS = Object.entries(import.meta.glob('../logos/*.png', { eager: true, query: '?url', import: 'default' }))
   .map(([k, url]) => ({ id: k.match(/(\w+)\.png$/)[1], url })).sort((a, b) => a.id.localeCompare(b.id))
   .map((l) => ({ ...l, fun: l.id.startsWith('m'), name: l.id.startsWith('m') ? `آیکن دنیای موازی ${fa(Number(l.id.slice(1)))}` : `آیکن ${fa(Number(l.id))}` }));
@@ -106,6 +108,9 @@ const DEFAULTS = {
   extColor: true, lastColor: { color: '#D93A3A', bg: null }, extImage: true,
   extTranslate: true, extGoogle: true, trTo: 'auto', trAlts: true, trAltClick: true, trRecent: [],
   updateAuto: true, updateDownload: false, updateInstallOnQuit: true,
+  // Fedora (AI assistant)
+  aiProvider: 'gemini', aiName: '', aiIcon: 0, aiIconCustom: null, aiPreview: true, aiMarks: true, aiLang: 'same', aiTabNames: true,
+  aiNoticeOk: false, aiLevel: 'simple', aiExample: true, aiModelCache: {}, aiBaseUrl: '', aiOaiModel: '', aiOaiFallback: '', aiManual: false,
 };
 
 let settings = { ...DEFAULTS };
@@ -139,7 +144,10 @@ function buildLayout() {
       el('button', { class: 'icon-btn', id: 'btn-pin', title: 'پنجره‌ی همیشه‌رو', 'aria-label': 'پنجره‌ی همیشه‌رو', 'aria-pressed': 'false', html: ICON.pin, onclick: () => togglePin() }),
       el('button', { class: 'icon-btn', id: 'btn-history', title: 'تاریخچه‌ی نسخه‌ها (Ctrl+Shift+H)', html: ICON.history, onclick: () => historyPanel.toggle() }),
       el('button', { class: 'icon-btn', id: 'btn-find', title: 'جستجو و جایگزینی (Ctrl+F)', html: ICON.search, onclick: () => ($('#findbar').hidden ? openFind(false) : closeFind()) }),
-      el('button', { class: 'icon-btn', id: 'btn-copyall', title: 'کپی کل سند', html: ICON.copy, onclick: () => copyWholeDoc() })));
+      el('button', { class: 'icon-btn', id: 'btn-copyall', title: 'کپی کل سند', html: ICON.copy, onclick: () => copyWholeDoc() })),
+    // the assistant for the whole document
+    el('button', { class: 'fd-pill', id: 'btn-fedora', title: 'دستیار: متن انتخاب‌شده یا کل سند', onclick: (e) => openTopFedora(active(), e.currentTarget) },
+      el('span', { class: 'ic', html: aiIconHTML(settings) }), el('span', { class: 'nm' }, aiName(settings))));
 
   const sidebar = el('div', { id: 'sidebar' },
     el('div', { class: 'side-tabs' },
@@ -212,6 +220,7 @@ function buildLayout() {
     getTab: active,
     getContent: () => (active() ? active().md : ''),
     restore: restoreVersion,
+    ai: { count: (t) => (t && t.crepe ? markCount(t) : 0), icon: () => aiIconHTML(settings), name: () => aiName(settings), render: (t, repaint) => marksPanel(t, repaint) },
     snapshotNow: async () => {
       const t = active();
       if (!t || !t.path) { toast('اول سند را ذخیره کنید'); return false; }
@@ -334,7 +343,9 @@ async function newTab({ path = null, content = '', activate = true, mode = 'wysi
     }
     const imgBlk = e.target.closest('.milkdown-image-block, .milkdown-image-inline');
     if (imgBlk && imgBlk.querySelector('img') && openImageMenu(t, imgBlk, e.clientX, e.clientY)) return;
-    openEditorMenu(t.crepe, e.clientX, e.clientY, { insertImage: () => insertImageFromDisk(t), edit: (op) => api.edit(op), color: colorTools(t), emoji: emojiTools(), copyPlain: () => copyPlainText(t) });
+    openEditorMenu(t.crepe, e.clientX, e.clientY, { insertImage: () => insertImageFromDisk(t), edit: (op) => api.edit(op), color: colorTools(t), emoji: emojiTools(), copyPlain: () => copyPlainText(t),
+      ai: aiOn(settings) ? { icon: aiIconHTML(settings), name: aiName(settings), run: () => openFedora(t) } : null,
+      translate: settings.extTranslate !== false ? { run: () => translateSelection(t) } : null });
   });
   // image editor: an «ویرایش» button on hover, and double-click, open it
   wys.addEventListener('mouseover', (e) => {
@@ -403,6 +414,7 @@ async function newTab({ path = null, content = '', activate = true, mode = 'wysi
   t.md = t.crepe.getMarkdown();
   t.baseline = t.md;
   t.lastSnap = t.md;
+  if (path) loadMarks(t);
   if (index != null) tabs.splice(index, 0, t); else tabs.push(t);
   renderTabs();
   if (mode === 'source') setMode(t, 'source');
@@ -426,6 +438,11 @@ function editorHooks(t) {
     colorMenu: (anchor) => setTimeout(() => openColorPanel(t.crepe, anchor, colorTools(t)), 0),
     translate: (anchor) => translateSelection(t, anchor),
     googleSearch: () => searchSelection(t),
+    ai: (anchor) => openFedora(t, anchor),
+    aiIcon: () => toolbarIcon(),
+    promptSlot: { register: registerSlot, run: (i) => runSlot(t, i) },
+    aiName: () => aiName(settings),
+    plugins: [marksPlugin, reviewPlugin],
   };
 }
 // code block «کپی» turns into «کپی شد» for two seconds, then back
@@ -436,6 +453,38 @@ document.addEventListener('click', (e) => {
   clearTimeout(b._nvT);
   b._nvT = setTimeout(() => b.classList.remove('nv-copied'), 2000);
 });
+// Fedora, the AI assistant
+initFedora({
+  api,
+  settings: () => settings,
+  updateSettings: (patch) => updateSettings(patch),
+  toast,
+  openSettings: (id) => openSettings(id),
+  showLocked: () => showLockedToast(),
+  openHistoryAt: (t, id) => { if (t.id !== activeId) activateTab(t.id); historyPanel.showAt(id); },
+  renderTabs: () => renderTabs(),
+  marksChanged: (t) => { if (t && t.id === activeId && historyPanel.visible()) historyPanel.refreshAi(); },
+  refreshViews: () => refreshAiViews(),
+  tabOf: (node) => tabs.find((x) => x.pane.contains(node) && x.crepe),
+  newTab: (opts) => newTab(opts),
+  // a tab made from another one (assistant outputs): right after it, the two in one group
+  newTabBeside: async (src, opts) => {
+    if (!src.groupId || !groups.has(src.groupId)) {
+      const g = { id: 'g' + Date.now().toString(36), name: '', color: nextColor(), collapsed: false };
+      groups.set(g.id, g);
+      src.groupId = g.id;
+    }
+    const t = await newTab({ ...opts, index: Math.max(0, tabs.indexOf(src)) + 1, group: src.groupId });
+    normalizeGroups(); renderTabs(); saveSessionSoon();
+    return t;
+  },
+  activate: (t) => { if (tabs.includes(t)) activateTab(t.id); else toast('سند اصلی بسته شده است', 'info'); },
+  tabTitle: (t) => tabTitle(t),
+});
+/** markers are decorations: a change of name, icon or the on/off switch draws them again */
+function refreshAiViews() {
+  for (const t of tabs) if (t.crepe) { const v = getView(t.crepe); v.dispatch(v.state.tr.setMeta('nv-ai-refresh', true).setMeta('addToHistory', false)); }
+}
 // the selection toolbar stays out of the way while dragging; its colour button opens its panel on hover too
 installSelectionBar((node) => {
   const t = node && tabs.find((x) => x.pane.contains(node) && x.crepe);
@@ -497,6 +546,8 @@ async function uploadImage(t, file) {
 
 function contentChanged(t, md) {
   t.md = md;
+  noteDocChange(t);
+  noteChangeForName(t);
   const wasDirty = t.dirty;
   t.dirty = t.md !== t.baseline;
   if (wasDirty !== t.dirty) { renderTabs(); updateTitle(); }
@@ -706,6 +757,7 @@ function tabNode(t, vertical) {
     class: 'tab' + (t.id === activeId ? ' active' : '') + (t.dirty ? ' dirty' : '') + (g ? ' grouped' : '') + (tabSel.size > 1 && tabSel.has(t.id) ? ' ms' : ''),
     title: t.path || tabTitle(t), 'data-id': t.id, style: g ? `--g:${colorOf(g)}` : null,
   }, t.locked ? el('span', { class: 't-lock', title: 'حالت امن', html: ICON.lock }) : null,
+    t.aiOut ? (t.aiOut.working ? el('span', { class: 't-ai busy', role: 'img', 'aria-label': 'در حال ساخت' }) : el('span', { class: 't-ai', html: outIcon(t.aiOut.kind, t.aiOut.icon) })) : null,
     el('span', { class: 't-title', dir: bidi(tabTitle(t)) }, tabTitle(t)),
     t.mode === 'source' ? el('span', { class: 't-ind' }, 'کد') : null, close);
   node.addEventListener('pointerdown', (e) => {
@@ -747,9 +799,11 @@ function startRename(t) {
   node.classList.add('renaming');
   node.replaceChildren(inp);
   let done = false;
+  let dropChips = () => {};
   const finish = (ok) => {
     if (done) return;
     done = true;
+    dropChips();
     if (ok) commitRename(t, inp.value, ext); else renderTabs();
     focusEditor(t);
   };
@@ -760,7 +814,10 @@ function startRename(t) {
   });
   inp.addEventListener('blur', () => finish(true));
   for (const ev of ['pointerdown', 'mousedown', 'click', 'dblclick']) inp.addEventListener(ev, (e) => e.stopPropagation());
-  requestAnimationFrame(() => { inp.focus(); inp.select(); });
+  requestAnimationFrame(() => {
+    inp.focus(); inp.select();
+    dropChips = nameChips(t, inp, (v) => { inp.value = v; finish(true); });
+  });
 }
 async function commitRename(t, value, ext) {
   const name = cleanName(value || '');
@@ -787,6 +844,7 @@ async function commitRename(t, value, ext) {
   t.path = target;
   api.watch(target);
   api.historyMove(old, target).catch(() => {});
+  api.aiMarksMove(old, target).catch(() => {});
   const pos = settings.positions && settings.positions[posKey(old)];
   if (pos) { settings.positions[posKey(target)] = pos; delete settings.positions[posKey(old)]; }
   settings.recent = (settings.recent || []).map((x) => (samePath(x.path, old) ? { ...x, path: target } : x));
@@ -1008,6 +1066,7 @@ $('#app') && document.addEventListener('wheel', (e) => {
 
 function activateTab(id, { keepFocus = false } = {}) {
   closeTranslate();
+  closeFedora();
   const t = tabs.find((x) => x.id === id);
   if (!t) return;
   if (t.groupId && groups.get(t.groupId)?.collapsed) { groups.get(t.groupId).collapsed = false; setTimeout(renderTabs, 0); }
@@ -1379,7 +1438,7 @@ function tabMenu(t, x, y) {
       : t !== cur && cur ? { icon: ICON_SPLIT, label: 'باز کردن کنار تب فعلی', key: 'Ctrl+\\', run: () => openSplit(cur, t) }
         : { icon: ICON_SPLIT, label: 'باز کردن کنار سند دیگر…', key: 'Ctrl+\\', run: () => pickSplit() },
     'sep',
-    { icon: ICON.edit, label: 'تغییر نام', key: 'F2', run: () => startRename(t) },
+    { icon: aiRenameOn() ? RENAME_AI_ICON : ICON.edit, label: 'تغییر نام', key: 'F2', run: () => startRename(t) },
     { icon: ICON.direction, label: 'جهت سند', sub: [
       { label: 'راست‌چین اجباری', checked: tabAlign(t) === 'rtl', run: () => setTabDir(t, 'rtl') },
       { label: 'خودکار', tag: 'بر اساس متن', checked: tabAlign(t) === 'auto', run: () => setTabDir(t, 'auto') },
@@ -2076,7 +2135,7 @@ async function save(t = active(), as = false, silent = false) {
     toast('ذخیره ممکن نشد: ' + (e.message || e), 5000, null, 'err');
     return false;
   }
-  if (oldPath && !samePath(oldPath, p)) { await api.historyMove(oldPath, p); api.unwatch(oldPath); }
+  if (oldPath && !samePath(oldPath, p)) { await api.historyMove(oldPath, p); api.aiMarksMove(oldPath, p, true).catch(() => {}); api.unwatch(oldPath); }
   if (!samePath(oldPath, p)) api.watch(p);
   t.path = p;
   t.md = content;
@@ -2084,6 +2143,8 @@ async function save(t = active(), as = false, silent = false) {
   t.diskContent = content;
   t.dirty = false;
   dropDraft(t);
+  t.aiNames = null;
+  if (!oldPath && markCount(t)) persistMarks(t);
   await api.historyAdd(p, content, 'save');
   t.lastSnap = content;
   t.lastSnapTime = Date.now();
@@ -2466,6 +2527,8 @@ function updateSettings(patch) {
   Object.assign(settings, patch);
   applyAll();
   persistSettings();
+  if (['aiName', 'aiIcon', 'aiIconCustom', 'aiChar', 'aiCharFace', 'aiCharFull', 'aiEnabled', 'aiShowName'].some((k) => k in patch)) { paintBrand(); renderTabs(); refreshAiViews(); }
+  if ('aiMarks' in patch) refreshAiViews();
 }
 function toggleSetting(k) {
   updateSettings({ [k]: !settings[k] });
@@ -2678,11 +2741,12 @@ function translatorDetails() {
 // ---------- settings window: sections on the right, changes apply at once ----------
 const THEME_SWATCH = { light: ['#ffffff', '#1d1d1f'], dark: ['#1e1f22', '#dcdde1'], sepia: ['#f7f1e3', '#3b2f22'], nord: ['#2e3440', '#e5e9f0'], garden: ['#fbfdf9', '#1d2a20'] };
 const PAGE_WIDTHS = [[720, 'باریک'], [860, 'متوسط'], [1040, 'پهن']];
+const AI_SPARK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 4l1.6 4.4L16.5 10l-4.4 1.6L10.5 16l-1.6-4.4L4.5 10l4.4-1.6zM17.5 14.5l.8 2.2l2.2.8l-2.2.8l-.8 2.2l-.8-2.2l-2.2-.8l2.2-.8z"/></svg>';
 const KEY_LIST = [
   [['سند تازه', 'Ctrl+T'], ['پنجره‌ی جدید', 'Ctrl+N'], ['باز کردن', 'Ctrl+O'], ['باز کردن سریع', 'Ctrl+P'], ['باز کردن پوشه', 'Ctrl+Shift+O'], ['ذخیره', 'Ctrl+S'], ['ذخیره با نام', 'Ctrl+Shift+S'], ['ذخیره‌ی همه', 'Ctrl+Alt+S'],
     ['بستن تب', 'Ctrl+W'], ['بازکردن تب بسته‌شده', 'Ctrl+Shift+T'], ['تغییر نام تب', 'F2'], ['تب بعدی', 'Ctrl+Tab'], ['تاریخچه‌ی نسخه‌ها', 'Ctrl+Shift+H'], ['تنظیمات', 'Ctrl+,'], ['تمام‌صفحه', 'F11']],
   [['جستجو', 'Ctrl+F'], ['جایگزینی', 'Ctrl+H'], ['کپی متن ساده', 'Ctrl+Shift+C'], ['چسباندن متن ساده', 'Ctrl+Shift+V'], ['خط‌خورده', 'Alt+Shift+5'], ['منوی درج بلوک', '/'], ['باز کردن لینک', 'Ctrl+کلیک'], ['کد منبع', 'Ctrl+/'], ['نوار کناری', 'Ctrl+Shift+L'],
-    ['سرفصل‌ها', 'Ctrl+Shift+1'], ['ترجمه‌ی متن انتخاب‌شده', 'Alt+T'], ['ترجمه‌ی فوری کلمه', 'Alt+دابل‌کلیک'], ['حالت امن', 'F8'], ['بزرگ‌نمایی', 'Ctrl+='], ['کوچک‌نمایی', 'Ctrl+-'], ['اندازه‌ی واقعی', 'Ctrl+0']],
+    ['سرفصل‌ها', 'Ctrl+Shift+1'], ['ترجمه‌ی متن انتخاب‌شده', 'Alt+T'], ['ترجمه‌ی فوری کلمه', 'Alt+دابل‌کلیک'], ['حالت امن', 'F8'], ['دستیار هوش مصنوعی', 'Ctrl+J'], ['دستیار برای کل سند', 'Ctrl+Shift+J'], ['بزرگ‌نمایی', 'Ctrl+='], ['کوچک‌نمایی', 'Ctrl+-'], ['اندازه‌ی واقعی', 'Ctrl+0']],
 ];
 let settingsOpen = null;
 async function openSettings(section = 'look') {
@@ -2827,6 +2891,7 @@ async function openSettings(section = 'look') {
         row('حالت امن', 'فایل فقط خواندنی می‌شود، برای هر فایل جدا', el('span', { class: 'row-end' }, kbd('F8'),
           sw(lockNow, () => { const a = active(); if (a) setLocked(a, !a.locked, true); }, 'حالت امن')))),
     ] },
+    { id: 'ai', name: 'هوش مصنوعی', icon: AI_SPARK, color: 'linear-gradient(135deg, #5B6CF0, #C04BD8 55%, #F0557A)', body: () => fedoraSettings({ row, group, label, sw, seg }) },
     { id: 'font', name: 'فونت', icon: ICON.textSize, color: '#8E5BD9', body: () => (defHints.length = 0, [
       group(
         row('فونت متن', null, fontSel('textFont')),
@@ -2939,7 +3004,7 @@ async function openSettings(section = 'look') {
     ov.remove(); document.removeEventListener('keydown', onEsc, true); settingsOpen = null; updListeners.clear();
     for (const n of built.values()) { n.hidden = false; n.querySelectorAll('[data-sh]').forEach((x) => { x.hidden = false; delete x.dataset.sh; }); }
   };
-  const onEsc = (e) => { if (e.key === 'Escape' && !document.querySelector('.menu')) { e.preventDefault(); e.stopPropagation(); close(); } };
+  const onEsc = (e) => { if (e.key === 'Escape' && !document.querySelector('.menu, .fd-mpop')) { e.preventDefault(); e.stopPropagation(); close(); } };
   const box = el('div', { class: 'modal set-modal', dir: 'rtl', role: 'dialog', 'aria-label': 'تنظیمات' }, nav,
     el('div', { class: 'set-main' }, el('button', { class: 'set-close', title: 'بستن (Esc)', html: ICON.x, onclick: close }), content));
   const ov = el('div', { class: 'overlay' }, box);
@@ -3851,6 +3916,8 @@ function onKey(e) {
   if (ctrl && !e.shiftKey && !e.altKey && e.code === 'KeyA' && t && !isTypingField()) { handled(); selectAllDoc(t); return; }
   if (e.altKey && !ctrl && !e.shiftKey && code === 'KeyH' && t && t.mode === 'wysiwyg' && settings.extColor !== false) { handled(); applyLastColor(t); return; }
   if (e.altKey && !ctrl && !e.shiftKey && code === 'KeyT' && t && t.mode === 'wysiwyg' && settings.extTranslate !== false) { handled(); translateSelection(t); return; }
+  if (ctrl && !e.shiftKey && !e.altKey && code === 'KeyJ' && t && !isTypingField()) { handled(); openFedora(t); return; }
+  if (ctrl && e.shiftKey && !e.altKey && code === 'KeyJ' && t) { handled(); openDocFedora(t, $('#btn-fedora')); return; }
   if (e.key === 'F11') { handled(); api.fullscreen(); return; }
   if (e.key === 'F2' && !ctrl && !e.altKey && t && !isTypingField()) { handled(); startRename(t); return; }
   if (e.key === 'F12' || (ctrl && e.shiftKey && code === 'KeyI')) { handled(); api.devtools(); return; }

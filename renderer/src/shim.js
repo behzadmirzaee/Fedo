@@ -3,7 +3,7 @@ export function installShim() {
   const files = new Map();
   const hist = new Map();
   const drafts = new Map();
-  let settings = {};
+  let settings = window.__nvSettings || {};
   let session = null;
   const listeners = {};
   const on = (n) => (fn) => { (listeners[n] = listeners[n] || []).push(fn); };
@@ -62,5 +62,30 @@ export function installShim() {
     updateDownload: async () => {}, updateInstall: async () => { window.__installed = true; return true; }, updateOpenPage: async () => {},
     updateConfig: async () => true, onUpdateState: on('update-state'),
     onOpenPath: on('open-path'), onRequestClose: on('request-close'), onFileChanged: on('file-changed'),
+    // AI: a fake service. window.__ai = { key, reply(job) → text | { error }, delay } steers it in tests
+    aiKeyInfo: async () => { const k = (window.__ai || {}).key; return { has: !!k, mask: k ? k.slice(0, 4) + '••••••••' + k.slice(-4) : '' }; },
+    aiKeySet: async (_p, k) => { window.__ai = { ...(window.__ai || {}), key: k }; return window.api.aiKeyInfo(); },
+    aiModels: async () => ((window.__ai || {}).key ? { ok: true, models: [{ id: 'gemini-flash-latest' }, { id: 'gemini-flash-lite-latest' }], noList: false } : { ok: false, error: { kind: 'nokey' } }),
+    aiRun: async (id, cfg, job) => {
+      const ai = window.__ai || {};
+      window.__aiJobs = [...(window.__aiJobs || []), { cfg, job }];
+      const r = ai.reply ? ai.reply(job) : 'OK';
+      if (r && r.error) { setTimeout(() => emit('ai-chunk', id, { error: r.error }), 10); return; }
+      const parts = String(r).match(/[\s\S]{1,12}/g) || [''];
+      let i = 0;
+      const tick = () => {
+        if (window.__aiCancel === id) { emit('ai-chunk', id, { cancelled: true }); return; }
+        if (i < parts.length) { emit('ai-chunk', id, { delta: parts[i++] }); setTimeout(tick, ai.delay || 5); }
+        else emit('ai-chunk', id, { done: true, text: String(r), model: cfg.model, fallback: !!ai.fallback });
+      };
+      setTimeout(tick, ai.delay || 5);
+    },
+    aiCancel: async (id) => { window.__aiCancel = id; },
+    onAiChunk: on('ai-chunk'),
+    aiMarksLoad: async (p) => (window.__marks || {})[p] || [],
+    aiMarksSave: async (p, m) => { window.__marks = { ...(window.__marks || {}), [p]: m }; },
+    aiMarksMove: async (a, b, keep) => { const m = window.__marks || {}; if (m[a]) { m[b] = m[a]; if (!keep) delete m[a]; } },
   };
+  // anything newer than this stand-in: listeners register, other calls resolve to nothing
+  window.api = new Proxy(window.api, { get: (o, k) => (k in o ? o[k] : typeof k === 'string' && /^on[A-Z]/.test(k) ? on(k) : async () => undefined) });
 }

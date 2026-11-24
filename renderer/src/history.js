@@ -3,9 +3,9 @@ import { diffLines } from 'diff';
 import { el, ICON, fa, faTime, faDay, faDayRel, faClock, modal, toast, relTime } from './ui.js';
 import { dirOfText } from './editor.js';
 
-const KIND = { save: 'ذخیره', auto: 'ذخیره‌ی خودکار', open: 'باز کردن فایل', restore: 'قبل از بازگردانی', manual: 'نسخه‌ی دستی', external: 'تغییر بیرونی' };
+const KIND = { save: 'ذخیره', auto: 'ذخیره‌ی خودکار', open: 'باز کردن فایل', restore: 'قبل از بازگردانی', manual: 'نسخه‌ی دستی', external: 'تغییر بیرونی', ai: 'هوش مصنوعی' };
 
-export function createHistoryPanel(root, { getTab, getContent, restore, snapshotNow }) {
+export function createHistoryPanel(root, { getTab, getContent, restore, snapshotNow, ai = null }) {
   let versions = [];
   let selected = null;
   let compare = 'current'; // 'current' | 'prev'
@@ -22,15 +22,40 @@ export function createHistoryPanel(root, { getTab, getContent, restore, snapshot
   const seg = el('div', { class: 'seg' }, segCur, segPrev);
   const actions = el('div', { class: 'h-actions' }, btnRestore, btnLabel, btnCopy, el('span', { class: 'grow' }), btnDel);
   const detail = el('div', { class: 'h-detail' }, seg, diffBox, actions);
+  // two views: the saved versions, and the assistant's changes in this file (with their markers)
+  let view = 'versions';
+  const vTabs = el('div', { class: 'h-tabs', role: 'tablist', hidden: !ai });
+  const aiBox = el('div', { class: 'h-ai', hidden: true });
+  const snapBtn = el('button', { class: 'hb', onclick: async () => { const r = await snapshotNow(); if (r) refresh(); } }, 'ثبت نسخه');
+  const paintTabs = () => {
+    if (!ai) return;
+    const n = ai.count(getTab());
+    vTabs.replaceChildren(
+      el('button', { class: view === 'versions' ? 'on' : '', role: 'tab', 'aria-selected': String(view === 'versions'), onclick: () => setView('versions') }, 'نسخه‌ها'),
+      el('button', { class: view === 'ai' ? 'on' : '', role: 'tab', 'aria-selected': String(view === 'ai'), onclick: () => setView('ai') },
+        el('span', { class: 'ic', html: ai.icon() }), `تغییرهای ${ai.name()}`, n ? el('span', { class: 'n' }, fa(n)) : null));
+  };
+  function setView(v) {
+    view = v;
+    paintTabs();
+    const isAi = v === 'ai';
+    list.hidden = isAi; aiBox.hidden = !isAi; snapBtn.hidden = isAi;
+    if (isAi) { detail.style.display = 'none'; paintAi(); } else refresh();
+  }
+  function paintAi() { if (view === 'ai' && visible()) aiBox.replaceChildren(...ai.render(getTab(), paintAi)); }
   root.append(
-    el('div', { class: 'h-head' }, el('span', { class: 'grow' }, 'تاریخچه‌ی نسخه‌ها'),
-      el('button', { class: 'hb', onclick: async () => { const r = await snapshotNow(); if (r) refresh(); } }, 'ثبت نسخه'),
+    el('div', { class: 'h-head' }, el('span', { class: 'grow' }, 'تاریخچه'),
+      snapBtn,
       el('button', { class: 'icon-btn', title: 'بستن', html: ICON.x, onclick: () => hide() })),
-    list, detail);
+    vTabs, list, aiBox, detail);
 
   function visible() { return !root.hidden; }
   function hide() { root.hidden = true; root.dispatchEvent(new Event('toggle')); }
   async function show() { root.hidden = false; root.dispatchEvent(new Event('toggle')); await refresh(); }
+  /** opens the panel with one version selected (e.g. «the version before this AI change») */
+  async function showAt(id) { selected = id; if (view !== 'versions') { view = 'versions'; list.hidden = false; aiBox.hidden = true; snapBtn.hidden = false; } if (visible()) await refresh(); else await show(); }
+  /** the assistant's changes changed (added, reverted, cleared) */
+  function refreshAi() { paintTabs(); paintAi(); }
 
   async function read(id) {
     const tab = getTab();
@@ -40,6 +65,8 @@ export function createHistoryPanel(root, { getTab, getContent, restore, snapshot
 
   async function refresh() {
     if (!visible()) return;
+    paintTabs();
+    if (view === 'ai') { paintAi(); return; }
     const tab = getTab();
     list.innerHTML = '';
     diffBox.innerHTML = '';
@@ -62,7 +89,7 @@ export function createHistoryPanel(root, { getTab, getContent, restore, snapshot
       const delta = prev ? v.size - prev.size : v.size;
       const item = el('button', { class: 'h-item' + (selected === v.id ? ' sel' : ''), 'data-id': v.id, title: `${faDay(v.time)}، ${faTime(v.time)} · ${fa(v.size)} نویسه`, onclick: () => select(v.id) },
         el('span', { class: 'h-time' }, faClock(v.time)),
-        el('span', { class: 'h-kind' }, KIND[v.kind] || v.kind),
+        el('span', { class: 'h-kind' + (v.kind === 'ai' ? ' ai' : '') }, KIND[v.kind] || v.kind),
         el('span', { class: 'h-label', dir: dirOfText(v.label || '') || 'auto' }, v.label || ''),
         el('span', { class: 'h-delta ' + (delta > 0 ? 'plus' : delta < 0 ? 'minus' : 'zero'), dir: 'ltr' }, delta > 0 ? `+${fa(delta)}` : delta < 0 ? `−${fa(-delta)}` : fa(0)));
       list.append(item);
@@ -154,5 +181,5 @@ export function createHistoryPanel(root, { getTab, getContent, restore, snapshot
     refresh();
   }
 
-  return { show, hide, visible, refresh, toggle: () => (visible() ? hide() : show()) };
+  return { show, showAt, hide, visible, refresh, refreshAi, toggle: () => (visible() ? hide() : show()) };
 }

@@ -31,7 +31,7 @@ const naturalAlign = (schema) => schema.extendSchema((prev) => (ctx) => {
   };
 });
 import { $prose, replaceAll, getHTML } from '@milkdown/kit/utils';
-import { editorViewCtx } from '@milkdown/kit/core';
+import { editorViewCtx, parserCtx, serializerCtx } from '@milkdown/kit/core';
 import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state';
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view';
 import { closeHistory } from '@milkdown/kit/prose/history';
@@ -124,8 +124,8 @@ const wordUndo = $prose(() => new Plugin({
   },
 }));
 const dirKey = new PluginKey('nv-dir');
-// A tab can force every block to one side ('rtl' / 'ltr'); 'auto' keeps the per-block rule above.
-// Forced blocks only move their start side: the words inside keep their own order (unicode-bidi: plaintext).
+// A tab can force one side ('rtl' / 'ltr'). Lines keep the automatic direction (so words keep their order
+// exactly as in «خودکار»); only their alignment moves to that side, and lists, quotes and tables start there.
 const dirPlugin = $prose(() => new Plugin({
   key: dirKey,
   state: {
@@ -158,7 +158,7 @@ function buildDirDecos(doc, force) {
       return false;
     }
     if (DIR_BLOCKS.has(t)) {
-      const d = force || dirOfNode(node);
+      const d = force && !node.isTextblock ? force : dirOfNode(node);
       const attrs = d ? { dir: d } : {};
       // a short paragraph that is entirely bold works as a sub-heading: give it heading spacing
       if (t === 'paragraph' && node.childCount && node.textContent.trim().length && node.textContent.length < 140) {
@@ -325,13 +325,29 @@ export async function createEditor(root, markdownText, hooks) {
           }
           if (hooks.translate) {
             // Google search and translate sit in the middle: after the text styles, before code / formula / link
-            b.addGroup('nv-web', 'وب')
-              .addItem('nv-google', { icon: GOOGLE_ICON, label: 'جستجو در گوگل', active: () => false, onRun: () => hooks.googleSearch() })
+            const web = b.addGroup('nv-web', 'وب');
+            // the assistant (icon only; its name is the tooltip) sits right before Google
+            if (hooks.ai) {
+              web.addItem('nv-ai', { icon: hooks.aiIcon(), label: hooks.aiName ? hooks.aiName() : 'فدورا', shortcut: 'Ctrl+J', active: () => false,
+                onRun: () => hooks.ai(root.querySelector('.milkdown-toolbar[data-show="true"] [data-toolbar-item="nv-ai"]')) });
+            }
+            // up to three of the user's own prompts, filled in from the settings (unused ones are hidden)
+            if (hooks.promptSlot) {
+              for (let i = 0; i < 3; i++) {
+                web.addItem('nv-p' + i, { icon: '', label: '', active: () => false,
+                  onRun: () => hooks.promptSlot.run(i) });
+              }
+            }
+            web.addItem('nv-google', { icon: GOOGLE_ICON, label: 'جستجو در گوگل', active: () => false, onRun: () => hooks.googleSearch() })
               .addItem('nv-translate', {
                 icon: TRANSLATE_ICON, label: 'ترجمه', shortcut: 'Alt+T', active: () => false,
                 onRun: () => hooks.translate(root.querySelector('.milkdown-toolbar[data-show="true"] [data-toolbar-item="nv-translate"]')),
               });
             const groups = b.build();
+            if (hooks.promptSlot) {
+              const w = groups.find((g) => g.key === 'nv-web');
+              for (const it of w.items) { const m = /^nv-p(\d)$/.exec(it.key); if (m) hooks.promptSlot.register(+m[1], it); }
+            }
             const at = groups.findIndex((g) => g.key === 'formatting');
             groups.splice(at + 1, 0, groups.pop());
           }
@@ -341,6 +357,7 @@ export async function createEditor(root, markdownText, hooks) {
   });
   crepe.editor.use(wordUndo).use(dirPlugin).use(focusPlugin).use(autoPair).use(pairBackspace).use(pasteBehaviour).use(ltrIslands).use(pmSearchPlugin).use(noPointerScroll)
     .use(naturalAlign(tableCellSchema)).use(naturalAlign(tableHeaderSchema)).use(textColorPlugins);
+  for (const p of hooks.plugins || []) crepe.editor.use(p);
   crepe.on((api) => {
     api.markdownUpdated((_ctx, md) => hooks.onChange(md));
     api.selectionUpdated(() => hooks.onSelection && hooks.onSelection());
@@ -351,6 +368,34 @@ export async function createEditor(root, markdownText, hooks) {
 
 export function getView(crepe) {
   return crepe.editor.ctx.get(editorViewCtx);
+}
+
+/** Markdown of part of the document: a range inside one paragraph (inline) or whole blocks */
+export function markdownOf(crepe, from, to) {
+  const view = getView(crepe);
+  const { doc, schema } = view.state;
+  const ser = crepe.editor.ctx.get(serializerCtx);
+  const $a = doc.resolve(from);
+  const $b = doc.resolve(to);
+  let content;
+  if ($a.parent === $b.parent && $a.parent.isTextblock) {
+    content = schema.nodes.paragraph.create(null, doc.slice(from, to).content);
+    return ser(schema.topNodeType.create(null, content)).trim();
+  }
+  content = doc.slice(from, to).content;
+  try { return ser(schema.topNodeType.create(null, content)).trim(); } catch { return doc.textBetween(from, to, '\n\n', ' '); }
+}
+/** Markdown of one block node (from a parsed document) */
+export function markdownOfNode(crepe, node) {
+  const view = getView(crepe);
+  const ser = crepe.editor.ctx.get(serializerCtx);
+  return ser(view.state.schema.topNodeType.create(null, node)).trim();
+}
+/** a whole ProseMirror document → Markdown */
+export function markdownOfDoc(crepe, doc) { return crepe.editor.ctx.get(serializerCtx)(doc).trim(); }
+/** Markdown → a ProseMirror document (same schema as the editor) */
+export function parseMarkdown(crepe, md) {
+  return crepe.editor.ctx.get(parserCtx)(md);
 }
 
 export function setMarkdown(crepe, md) {

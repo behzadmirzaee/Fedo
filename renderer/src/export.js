@@ -109,7 +109,7 @@ function renderMath(doc) {
 
 /** a tab with a forced direction: every block starts on that side, words keep their own order */
 const FORCED_CSS = (side) => `
-p, h1, h2, h3, h4, h5, h6, li, td, th, figcaption { unicode-bidi: plaintext; text-align: ${side === 'rtl' ? 'right' : 'left'}; }
+p, h1, h2, h3, h4, h5, h6, li, td, th, figcaption { text-align: ${side === 'rtl' ? 'right' : 'left'}; }
 pre.nv-text { text-align: ${side === 'rtl' ? 'right' : 'left'}; }
 pre.nv-text code { unicode-bidi: plaintext; }
 `;
@@ -119,7 +119,9 @@ export async function exportDocument({ kind, layout, html, title, baseDir, align
   doc.querySelectorAll(AUTO).forEach((n) => {
     const c = n.cloneNode(true);
     c.querySelectorAll('code, pre').forEach((x) => x.remove());
-    const d = force || dirOfText(c.textContent);
+    // forced: lists, quotes and tables start on that side; lines keep their own direction and only align there
+    const box = /^(UL|OL|BLOCKQUOTE|TABLE)$/.test(n.nodeName) || (/^(LI|TD|TH)$/.test(n.nodeName) && n.querySelector(':scope > p'));
+    const d = force && box ? force : dirOfText(c.textContent);
     if (d) n.setAttribute('dir', d);
   });
   // code blocks: real code stays LTR; plain-text blocks follow their text. Nothing scrolls on paper.

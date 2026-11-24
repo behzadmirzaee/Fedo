@@ -24,6 +24,9 @@ function placeBelow(bar) {
   const r = lastLineRect(view);
   if (!r) return;
   const box = bar.getBoundingClientRect();
+  // a hidden toolbar (e.g. while the assistant's card is open) measures as 0 × 0: moving it would never
+  // settle, and every move triggers this again
+  if (!box.width || !box.height) return;
   const want = r.bottom + 10;
   if (want + box.height > window.innerHeight - 8) return; // no room under it: keep the place it chose
   const cur = parseFloat(bar.style.top) || 0;

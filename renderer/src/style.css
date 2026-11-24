@@ -168,7 +168,6 @@ html.kbd-fa .milkdown .ProseMirror > p.crepe-placeholder { direction: rtl; text-
    Every block starts on the forced side; the words inside a line keep their own order (plaintext),
    so an English sentence pushed to the right keeps its full stop at the end. Code in a programming
    language is untouched; plain-text code blocks follow the tab. */
-.pane .wysiwyg[data-align] .milkdown .ProseMirror :is(p, h1, h2, h3, h4, h5, h6, td, th) { unicode-bidi: plaintext; }
 .pane .wysiwyg[data-align='rtl'] .milkdown .ProseMirror [dir]:not(pre):not(.nv-code-text) { text-align: right; }
 .pane .wysiwyg[data-align='ltr'] .milkdown .ProseMirror [dir]:not(pre):not(.nv-code-text) { text-align: left; }
 .pane .wysiwyg[data-align='rtl'] .milkdown .ProseMirror :is(p, h1, h2, h3, h4, h5, h6) { text-align: right; }

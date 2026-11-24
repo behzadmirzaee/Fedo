@@ -1,5 +1,5 @@
 // Fedo: main process
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, net } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, net, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
@@ -696,6 +696,9 @@ ipcMain.handle('file:unwatch', (e, p) => {
   cur.users.delete(e.sender.id);
   if (!cur.users.size) { cur.w.close(); watchers.delete(p); }
 });
+
+// ---------- Fedora (AI assistant) ----------
+require('./ai').setup({ ipcMain, net, safeStorage, app, BrowserWindow });
 
 // ---------- IPC: version history ----------
 // layout: userData/history/<key>/index.json + <id>.md
