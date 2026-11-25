@@ -490,8 +490,13 @@ ipcMain.on('tab:drag-end', (_e, sx, sy) => {
 
 ipcMain.handle('win:set-on-top', (e, on) => { const w = W(e); if (!w) return false; w.setAlwaysOnTop(!!on, 'floating'); return w.isAlwaysOnTop(); });
 ipcMain.handle('win:info', (e) => { const w = W(e); const st = stateOf(w); return { role: st ? st.role : 'main', alwaysOnTop: w ? w.isAlwaysOnTop() : false, count: windows.size }; });
+async function isEnUi() {
+  const s = await readJSON(settingsFile(), {});
+  return s && s.uiLang === 'en';
+}
 ipcMain.handle('file:pick-image', async (e, docPath) => {
-  const r = await dialog.showOpenDialog(W(e), { properties: ['openFile'], filters: [{ name: 'تصویر', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif'] }] });
+  const en = await isEnUi();
+  const r = await dialog.showOpenDialog(W(e), { properties: ['openFile'], filters: [{ name: en ? 'Images' : 'تصویر', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif'] }] });
   if (r.canceled) return null;
   const src = r.filePaths[0];
   if (!docPath) return { absolute: src };
@@ -515,13 +520,13 @@ ipcMain.handle('win:zoom', (e, delta) => {
 });
 
 // ---------- IPC: files ----------
-const MD_FILTERS = [
+const mdFilters = (en) => [
   { name: 'Markdown', extensions: ['md', 'markdown', 'mdown', 'mkd', 'txt'] },
-  { name: 'همه‌ی فایل‌ها', extensions: ['*'] },
+  { name: en ? 'All files' : 'همه‌ی فایل‌ها', extensions: ['*'] },
 ];
 
 ipcMain.handle('file:open-dialog', async (e) => {
-  const r = await dialog.showOpenDialog(W(e), { properties: ['openFile', 'multiSelections'], filters: MD_FILTERS });
+  const r = await dialog.showOpenDialog(W(e), { properties: ['openFile', 'multiSelections'], filters: mdFilters(await isEnUi()) });
   return r.canceled ? [] : r.filePaths;
 });
 ipcMain.handle('file:open-folder-dialog', async (e) => {
@@ -529,7 +534,8 @@ ipcMain.handle('file:open-folder-dialog', async (e) => {
   return r.canceled ? null : r.filePaths[0];
 });
 ipcMain.handle('file:save-dialog', async (e, suggested) => {
-  const r = await dialog.showSaveDialog(W(e), { defaultPath: suggested || 'بدون عنوان.md', filters: MD_FILTERS });
+  const en = await isEnUi();
+  const r = await dialog.showSaveDialog(W(e), { defaultPath: suggested || (en ? 'Untitled.md' : 'بدون عنوان.md'), filters: mdFilters(en) });
   return r.canceled ? null : r.filePath;
 });
 ipcMain.handle('file:read', async (_e, p) => {

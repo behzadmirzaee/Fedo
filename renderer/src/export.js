@@ -138,7 +138,7 @@ export async function exportDocument({ kind, layout, html, title, baseDir, align
   await renderMermaidBlocks(doc);
   const fonts = await fontFaces();
   const page = `<!doctype html>
-<html lang="fa" dir="${baseDir}">
+<html lang="${baseDir === 'ltr' ? 'en' : 'fa'}" dir="${baseDir}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

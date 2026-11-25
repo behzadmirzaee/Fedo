@@ -36,6 +36,7 @@ import { Slice } from '@milkdown/kit/prose/model';
 import { el, ICON, modal, fa, relTime } from './ui.js';
 import { getView, markdownOf, markdownOfNode, markdownOfDoc, parseMarkdown, dirOfText, setMarkdown } from './editor.js';
 import { LANGS } from './translate.js';
+import { t as tr, getLang, langDir, langLocale } from './i18n.js';
 import GEMINI_LOGO from './ai-logos/gemini-color.svg?raw';
 import CLAUDE_LOGO from './ai-logos/claude-color.svg?raw';
 import OPENAI_LOGO from './ai-logos/openai.svg?raw';
@@ -47,14 +48,14 @@ const PERSONAL = import.meta.glob('./chars/personal/*.webp', { eager: true, quer
 // ---------- name and icon ----------
 const S = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
 export const AI_ICONS = [
-  ['ستاره‌ی جادویی', 'M10.5 4l1.6 4.4L16.5 10l-4.4 1.6L10.5 16l-1.6-4.4L4.5 10l4.4-1.6zM17.5 14.5l.8 2.2l2.2.8l-2.2.8l-.8 2.2l-.8-2.2l-2.2-.8l2.2-.8z'],
-  ['ستاره', 'M12 3.5l2.6 5.3l5.9.9l-4.25 4.1l1 5.8L12 16.9l-5.25 2.7l1-5.8L3.5 9.7l5.9-.9z'],
-  ['لامپ', 'M9.5 18.5h5M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.2v.5h5V16c0-.9.4-1.7 1.1-2.2A6 6 0 0 0 12 3z'],
-  ['پر', 'M5 19L15.5 8.5M19.5 4.5C13 4.5 7 9 7 17h4c5.5 0 8.5-6 8.5-12.5zM8.5 15.5h5'],
-  ['ماه', 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z'],
-  ['ربات', 'M12 4v3M7 7h10a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3zM9.5 12.5h.01M14.5 12.5h.01M9.5 16h5'],
-  ['گفت‌وگو', 'M8 10.5h.01M12 10.5h.01M16 10.5h.01M4 7.5C4 5 5.5 4 8 4h8c2.5 0 4 1 4 3.5v5C20 15 18.5 16 16 16h-2.5L9 20v-4H8c-2.5 0-4-1-4-3.5z'],
-  ['قلب', 'M12 20s-7.5-4.6-7.5-10.1A4.4 4.4 0 0 1 12 7.2a4.4 4.4 0 0 1 7.5 2.7C19.5 15.4 12 20 12 20z'],
+  ['ai.icon.magicStar', 'M10.5 4l1.6 4.4L16.5 10l-4.4 1.6L10.5 16l-1.6-4.4L4.5 10l4.4-1.6zM17.5 14.5l.8 2.2l2.2.8l-2.2.8l-.8 2.2l-.8-2.2l-2.2-.8l2.2-.8z'],
+  ['ai.icon.star', 'M12 3.5l2.6 5.3l5.9.9l-4.25 4.1l1 5.8L12 16.9l-5.25 2.7l1-5.8L3.5 9.7l5.9-.9z'],
+  ['ai.icon.bulb', 'M9.5 18.5h5M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.2v.5h5V16c0-.9.4-1.7 1.1-2.2A6 6 0 0 0 12 3z'],
+  ['ai.icon.feather', 'M5 19L15.5 8.5M19.5 4.5C13 4.5 7 9 7 17h4c5.5 0 8.5-6 8.5-12.5zM8.5 15.5h5'],
+  ['ai.icon.moon', 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z'],
+  ['ai.icon.robot', 'M12 4v3M7 7h10a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3zM9.5 12.5h.01M14.5 12.5h.01M9.5 16h5'],
+  ['ai.icon.chat', 'M8 10.5h.01M12 10.5h.01M16 10.5h.01M4 7.5C4 5 5.5 4 8 4h8c2.5 0 4 1 4 3.5v5C20 15 18.5 16 16 16h-2.5L9 20v-4H8c-2.5 0-4-1-4-3.5z'],
+  ['ai.icon.heart', 'M12 20s-7.5-4.6-7.5-10.1A4.4 4.4 0 0 1 12 7.2a4.4 4.4 0 0 1 7.5 2.7C19.5 15.4 12 20 12 20z'],
 ];
 const I = {
   clean: S('M5 19l9-9M14 4l1 2.5L17.5 7.5L15 8.5L14 11L13 8.5L10.5 7.5L13 6.5zM19 12l.6 1.4L21 14l-1.4.6L19 16l-.6-1.4L17 14l1.4-.6z'),
@@ -76,8 +77,8 @@ const set = () => C.settings();
 // ---------- the assistant's character: a face for small places, a full figure for big moments ----------
 const pc = (n) => PERSONAL['./chars/personal/' + n + '.webp'];
 export const CHARS = [
-  { id: 'fedora', name: 'فدورا', face: FEDORA_FACE, full: FEDORA_FULL },
-  pc('mikasa-face') ? { id: 'mikasa', name: 'میکاسا', face: pc('mikasa-face'), full: pc('mikasa-full') || pc('mikasa-face') } : null,
+  { id: 'fedora', get name() { return tr('ai.defaultName'); }, face: FEDORA_FACE, full: FEDORA_FULL },
+  pc('mikasa-face') ? { id: 'mikasa', get name() { return tr('ai.char.mikasa'); }, face: pc('mikasa-face'), full: pc('mikasa-full') || pc('mikasa-face') } : null,
   pc('2b-face') ? { id: '2b', name: '2B', face: pc('2b-face'), full: pc('2b-full') || pc('2b-face') } : null,
 ].filter(Boolean);
 /** the chosen character; { id: 'plain' } is the simple icon (earlier versions: a picked or uploaded icon) */
@@ -91,7 +92,7 @@ export function charOf(st = set()) {
   }
   return CHARS.find((c) => c.id === id) || CHARS[0];
 }
-export const aiName = (st = set()) => String(st.aiName || '').trim() || charOf(st).name || (charOf(st).own ? 'دستیار' : 'فدورا');
+export const aiName = (st = set()) => String(st.aiName || '').trim() || charOf(st).name || (charOf(st).own ? tr('ai.assistantGeneric') : tr('ai.defaultName'));
 const imgHTML = (src, cls) => `<img class="${cls}" src="${src}" alt="" draggable="false">`;
 /** the full figure (or the face when there is none, or the plain icon) */
 export function fullHTML(st = set(), cls = '') {
@@ -117,9 +118,9 @@ export function paintBrand() {
   document.querySelectorAll('.fd-workfig').forEach((n) => { n.innerHTML = fullHTML(set(), 'fd-bob'); });
   document.querySelectorAll('[data-toolbar-item="nv-ai"]').forEach((n) => { n.setAttribute('aria-label', aiName()); n.title = `${aiName()} (Ctrl+J)`; });
 }
-// ---------- «{name} داره … می‌کنه»: one shape for every job that is running ----------
-const VERB = { rewrite: 'بازنویسی می‌کنه', summary: 'خلاصه می‌کنه', translate: 'ترجمه می‌کنه', explain: 'توضیح می‌ده', think: 'فکر می‌کنه', prompt: 'روش کار می‌کنه' };
-export const workText = (kind) => `${aiName()} داره ${VERB[kind] || VERB.think}`;
+// ---------- "{name} is ...ing": one shape for every job that is running ----------
+const WORK_KEY = { rewrite: 'ai.working.rewrite', summary: 'ai.working.summary', translate: 'ai.working.translate', explain: 'ai.working.explain', think: 'ai.working.think', prompt: 'ai.working.prompt' };
+export const workText = (kind) => tr(WORK_KEY[kind] || WORK_KEY.think, { name: aiName() });
 const dots = () => el('span', { class: 'fd-dots', 'aria-hidden': 'true' }, el('i'), el('i'), el('i'));
 /** the full figure, bobbing, inside a pulsing ring */
 const workFig = (size = 44) => el('span', { class: 'fd-wring', style: `width:${size}px;height:${size}px` }, el('span', { class: 'fd-workfig', html: fullHTML(set(), 'fd-bob') }));
@@ -128,7 +129,7 @@ const workLine = (kind) => [el('span', { class: 'fd-work-tx', 'data-kind': kind 
 function startWork(t, kind, stop) {
   if (!t || !t.pane) return () => {};
   const bar = el('div', { class: 'fd-workbar', role: 'status', 'aria-live': 'polite' }, workFig(44), ...workLine(kind),
-    el('button', { class: 'fd-btn sm', onclick: () => stop && stop() }, 'توقف'));
+    el('button', { class: 'fd-btn sm', onclick: () => stop && stop() }, tr('common.stop')));
   floatBox(t).append(bar);
   return () => bar.remove();
 }
@@ -139,7 +140,7 @@ const modelShort = () => {
 };
 /** the head of a chat card: face, name and what it is doing; a click opens the quick character switch */
 function charHead(sub, onSwitched) {
-  const b = el('button', { class: 'fd-chd', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'عوض کردن کاراکتر' },
+  const b = el('button', { class: 'fd-chd', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': tr('ai.char.switchLabel') },
     el('span', { class: 'fc', html: aiIconHTML() }),
     el('span', { class: 'tx' }, el('b', {}, aiName()), el('small', {}, [sub, modelShort()].filter(Boolean).join(' · '))),
     CHARS.length + (charOf().own ? 1 : 0) > 1 ? el('span', { class: 'cv', html: ICON.chevDown }) : null);
@@ -150,14 +151,14 @@ function charHead(sub, onSwitched) {
     if (old) { old.remove(); b.setAttribute('aria-expanded', 'false'); return; }
     const st = set();
     const list = [...CHARS];
-    if (st.aiCharFace || st.aiIconCustom) list.push({ id: 'own', name: (st.aiChar === 'own' && st.aiName) || 'کاراکتر خودم', face: st.aiCharFace || st.aiIconCustom });
+    if (st.aiCharFace || st.aiIconCustom) list.push({ id: 'own', name: (st.aiChar === 'own' && st.aiName) || tr('ai.char.own'), face: st.aiCharFace || st.aiIconCustom });
     const curId = charOf().id;
-    const menu = el('div', { class: 'fd-chmenu', role: 'menu', 'aria-label': 'کاراکتر دستیار' },
+    const menu = el('div', { class: 'fd-chmenu', role: 'menu', 'aria-label': tr('ai.char.title') },
       list.map((c) => el('button', { class: 'mi' + (c.id === curId ? ' on' : ''), role: 'menuitemradio', 'aria-checked': String(c.id === curId),
         onclick: () => { pickChar(c.id); menu.remove(); onSwitched && onSwitched(); } },
         el('span', { class: 'fc', html: imgHTML(c.face, 'fd-face') }), el('span', { class: 't' }, c.name), c.id === curId ? el('span', { class: 'ck', html: ICON.check }) : null)),
       el('div', { class: 'sep' }),
-      el('div', { class: 'ft' }, el('span', {}, 'فقط ظاهر عوض می‌شود'), el('button', { class: 'fd-link', onclick: () => { closeFedora(); openCharSettings(); } }, 'مدیریت کاراکترها')));
+      el('div', { class: 'ft' }, el('span', {}, tr('ai.char.onlyLookChanges')), el('button', { class: 'fd-link', onclick: () => { closeFedora(); openCharSettings(); } }, tr('ai.char.manage'))));
     b.after(menu);
     b.setAttribute('aria-expanded', 'true');
     const off = (ev) => { if (!menu.contains(ev.target) && ev.target !== b) { menu.remove(); b.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', off, true); } };
@@ -172,7 +173,7 @@ export function pickChar(id) {
   const patch = { aiChar: id };
   if (c) patch.aiName = c.name;
   else if (id === 'own') patch.aiName = st.aiCharName || '';
-  else if (id === 'plain') patch.aiName = 'فدورا';
+  else if (id === 'plain') patch.aiName = tr('ai.defaultName');
   C.updateSettings(patch);
   paintBrand();
 }
@@ -217,9 +218,10 @@ let listening = false;
  *  fetched from that server the moment it is shown, and the address could carry text from the document */
 function safeImages(text, sent) {
   const ok = (u) => !/^(https?:)?\/\//i.test(u) || sent.includes(u);
+  const imgWord = tr('editor.slash.image');
   return String(text)
-    .replace(/!\[([^\]]*)\]\(\s*<?([^)\s>]+)>?([^)]*)\)/g, (m, alt, u) => (ok(u) ? m : `[${alt || 'تصویر'}](${u})`))
-    .replace(/<img\b[^>]*\bsrc\s*=\s*["']?([^"'\s>]+)["']?[^>]*>/gi, (m, u) => (ok(u) ? m : `[تصویر](${u})`));
+    .replace(/!\[([^\]]*)\]\(\s*<?([^)\s>]+)>?([^)]*)\)/g, (m, alt, u) => (ok(u) ? m : `[${alt || imgWord}](${u})`))
+    .replace(/<img\b[^>]*\bsrc\s*=\s*["']?([^"'\s>]+)["']?[^>]*>/gi, (m, u) => (ok(u) ? m : `[${imgWord}](${u})`));
 }
 
 export function runJob(job, onDelta) {
@@ -246,41 +248,42 @@ export function runJob(job, onDelta) {
   return { promise, cancel: () => C.api.aiCancel(id) };
 }
 
-/** Persian text for an error; actions: [{ label, run }] */
+/** localized text for an error; actions: [{ label, run }] */
 function errorText(e, retry) {
   const st = set();
   const gem = cfgOf(st).provider === 'gemini';
-  const goSet = { label: 'تنظیمات', run: () => C.openSettings('ai') };
+  const goSet = { label: tr('settings.title'), run: () => C.openSettings('ai') };
+  const retryAct = { label: tr('common.tryAgain'), run: retry };
+  const changeProv = { label: tr('ai.err.changeProvider'), run: () => C.openSettings('ai') };
   switch (e && e.kind) {
-    case 'nokey': return ['هنوز کلیدی وارد نشده', 'کلید API را در تنظیمات وارد کنید.', [goSet]];
-    case 'badkey': return ['کلید API معتبر نیست', gem ? 'کلید را دوباره از AI Studio کپی کنید یا یک کلید تازه بسازید.' : 'کلید را از همان سرویس دوباره کپی کنید.', [goSet]];
-    case 'region': return [gem ? 'Gemini در منطقه‌ی شما در دسترس نیست' : 'سرویس در منطقه‌ی شما در دسترس نیست',
-      'با فیلترشکن دوباره امتحان کنید، یا در تنظیمات یک سرویس سازگار با OpenAI انتخاب کنید که بدون فیلترشکن کار می‌کند.', [{ label: 'دوباره امتحان کن', run: retry }, { label: 'تغییر سرویس', run: () => C.openSettings('ai') }]];
+    case 'nokey': return [tr('ai.err.nokeyTitle'), tr('ai.err.nokeyText'), [goSet]];
+    case 'badkey': return [tr('ai.err.badkeyTitle'), gem ? tr('ai.err.badkeyGemini') : tr('ai.err.badkeyOther'), [goSet]];
+    case 'region': return [gem ? tr('ai.err.regionGemini') : tr('ai.err.regionOther'), tr('ai.err.regionText'), [retryAct, changeProv]];
     case 'quota': return e.day
-      ? ['سهمیه‌ی رایگان امروز تمام شده', 'مدل اصلی و پشتیبان هر دو سهمیه‌ی امروزشان را مصرف کرده‌اند. در تنظیمات «آزمایش مدل‌ها» را بزنید و یک مدل فعال انتخاب کنید.', [goSet]]
-      : ['به سقف درخواست‌ها رسیدید', e.retry ? `سهمیه‌ی این دقیقه تمام شده. ${fa(e.retry)} ثانیه‌ی دیگر دوباره امتحان کنید.` : 'سهمیه‌ی رایگان تمام شده. کمی بعد دوباره امتحان کنید.', [{ label: 'دوباره امتحان کن', run: retry }]];
-    case 'notfree': return ['این مدل در پلن رایگان نیست', 'برای کلید رایگان، در تنظیمات یک مدل دیگر انتخاب کنید.', [goSet]];
-    case 'busy': return ['سرویس شلوغ است', 'همه‌ی مدل‌ها چند بار امتحان شدند و جواب ندادند. چند ثانیه بعد دوباره امتحان کنید.', [{ label: 'دوباره امتحان کن', run: retry }]];
-    case 'nomodel': return ['هنوز مدلی انتخاب نشده', 'در تنظیمات › هوش مصنوعی › مدل، یک مدل انتخاب کنید یا نامش را بنویسید.', [goSet]];
-    case 'model': return ['این مدل در دسترس نیست', 'سرویس این مدل را برای کلید شما نمی‌شناسد. در تنظیمات مدل دیگری انتخاب کنید.', [goSet]];
+      ? [tr('ai.err.quotaDayTitle'), tr('ai.err.quotaDayText'), [goSet]]
+      : [tr('ai.err.quotaMinTitle'), e.retry ? tr('ai.err.quotaMinRetry', { n: fa(e.retry) }) : tr('ai.err.quotaMinText'), [retryAct]];
+    case 'notfree': return [tr('ai.err.notfreeTitle'), tr('ai.err.notfreeText'), [goSet]];
+    case 'busy': return [tr('ai.err.busyTitle'), tr('ai.err.busyText'), [retryAct]];
+    case 'nomodel': return [tr('ai.err.nomodelTitle'), tr('ai.err.nomodelText'), [goSet]];
+    case 'model': return [tr('ai.err.modelTitle'), tr('ai.err.modelText'), [goSet]];
     case 'blocked': return e.input
-      ? [gem ? 'گوگل این درخواست را نپذیرفت' : 'سرویس این درخواست را نپذیرفت', 'فیلتر محتوای سرویس جلوی متن یا دستور را گرفت و از این‌جا خاموش نمی‌شود. اگر دستور یا نمونه‌های اسکیل کلمه‌های تند یا حساس دارند، ملایم‌ترشان کنید؛ یا با یک سرویس سازگار با OpenAI امتحان کنید.', [{ label: 'دوباره امتحان کن', run: retry }, { label: 'تغییر سرویس', run: () => C.openSettings('ai') }]]
-      : ['سرویس به این متن جواب نداد', 'فیلتر محتوای سرویس جلوی جواب را گرفت؛ مدل پشتیبان هم امتحان شد. دوباره امتحان کنید یا دستور را کمی تغییر دهید.', [{ label: 'دوباره امتحان کن', run: retry }]];
-    case 'url': return ['نشانی سرویس درست نیست', 'نشانی باید با https:// شروع شود.', [goSet]];
-    case 'timeout': return ['جوابی نیامد', 'اتصال خیلی طول کشید. دوباره امتحان کنید.', [{ label: 'دوباره امتحان کن', run: retry }]];
-    default: return ['به سرویس وصل نشد', 'اینترنت یا فیلترشکن را بررسی کنید.', [{ label: 'دوباره امتحان کن', run: retry }]];
+      ? [gem ? tr('ai.err.blockedInGemini') : tr('ai.err.blockedInOther'), tr('ai.err.blockedInText'), [retryAct, changeProv]]
+      : [tr('ai.err.blockedOutTitle'), tr('ai.err.blockedOutText'), [retryAct]];
+    case 'url': return [tr('ai.err.urlTitle'), tr('ai.err.urlText'), [goSet]];
+    case 'timeout': return [tr('ai.err.timeoutTitle'), tr('ai.err.timeoutText'), [retryAct]];
+    default: return [tr('ai.err.offlineTitle'), tr('translate.connErrHint'), [retryAct]];
   }
 }
 
 // ---------- prompts ----------
 const TONES = [
-  ['formal', 'رسمی', 'نامه و گزارش', 'formal (as in official letters and reports)'],
-  ['admin', 'اداری', 'مکاتبه‌ی سازمانی', 'administrative, as used in official organisational correspondence'],
-  ['friendly', 'صمیمی', 'گفت‌وگوی دوستانه', 'warm, friendly and casual'],
-  ['polite', 'مؤدبانه و کوتاه', 'پیام کاری', 'polite and concise, like a short work message'],
-  ['academic', 'علمی', 'مقاله و پژوهش', 'academic and precise'],
+  ['formal', 'ai.tone.formal', 'ai.tone.formalDesc', 'formal (as in official letters and reports)'],
+  ['admin', 'ai.tone.admin', 'ai.tone.adminDesc', 'administrative, as used in official organisational correspondence'],
+  ['friendly', 'ai.tone.friendly', 'ai.tone.friendlyDesc', 'warm, friendly and casual'],
+  ['polite', 'ai.tone.polite', 'ai.tone.politeDesc', 'polite and concise, like a short work message'],
+  ['academic', 'ai.tone.academic', 'ai.tone.academicDesc', 'academic and precise'],
 ];
-const LEVELS = [['simple', 'ساده'], ['medium', 'متوسط'], ['expert', 'تخصصی']];
+const LEVELS = [['simple', 'ai.level.simple'], ['medium', 'ai.level.medium'], ['expert', 'ai.level.expert']];
 const LEVEL_EN = { simple: 'simple: everyday words, no jargon, as if to a curious teenager', medium: 'medium: clear, with the key terms briefly explained', expert: 'expert: precise terminology for a specialist reader' };
 
 function langRule() {
@@ -314,11 +317,11 @@ const FREE_SYSTEM_TAIL = [
 ].join('\n');
 
 const ACTIONS = {
-  clean: { kind: 'rewrite', label: 'تمیز کردن متن', instr: 'Fix typos, spelling, spacing, punctuation and half-spaces only. Keep every word, number and digit style exactly as written (do not turn words into digits or the other way round), and do not change the tone or meaning.' },
-  shorter: { kind: 'rewrite', label: 'کوتاه‌تر', instr: 'Make it clearly shorter (about half) while keeping the key points and facts.' },
-  longer: { kind: 'rewrite', label: 'بلندتر', instr: 'Expand it with a little more detail and smoother flow, without inventing facts.' },
+  clean: { kind: 'rewrite', get label() { return tr('ai.action.clean'); }, instr: 'Fix typos, spelling, spacing, punctuation and half-spaces only. Keep every word, number and digit style exactly as written (do not turn words into digits or the other way round), and do not change the tone or meaning.' },
+  shorter: { kind: 'rewrite', get label() { return tr('ai.action.shorter'); }, instr: 'Make it clearly shorter (about half) while keeping the key points and facts.' },
+  longer: { kind: 'rewrite', get label() { return tr('ai.action.longer'); }, instr: 'Expand it with a little more detail and smoother flow, without inventing facts.' },
 };
-const toneAction = (t) => ({ kind: 'rewrite', label: 'لحن: ' + t[1], instr: `Rewrite it in a ${t[3]} tone. Keep the meaning and every fact.` });
+const toneAction = (t) => ({ kind: 'rewrite', label: tr('ai.tone.actionLabel', { tone: tr(t[1]) }), instr: `Rewrite it in a ${t[3]} tone. Keep the meaning and every fact.` });
 
 // ---------- the document side ----------
 /** the range to work on: the selection, widened to whole blocks when it crosses blocks */
@@ -442,7 +445,7 @@ export const marksPlugin = $prose(() => new Plugin({
         const $in = doc.resolve(at);
         if ($in.parent.isTextblock && $in.depth >= 1) decos.push(Decoration.node($in.before(), $in.after(), { class: 'fd-rel' }));
         decos.push(Decoration.widget(at, () => {
-          const b = el('button', { class: 'fd-mk', contenteditable: 'false', title: `${fa(list.length)} تغییر ${aiName()}`, 'aria-label': `${fa(list.length)} تغییر ${aiName()} در این بخش`, 'data-ids': ids, html: aiIconHTML() });
+          const b = el('button', { class: 'fd-mk', contenteditable: 'false', title: tr('ai.marks.countTip', { n: fa(list.length), name: aiName() }), 'aria-label': tr('ai.marks.countAria', { n: fa(list.length), name: aiName() }), 'data-ids': ids, html: aiIconHTML() });
           if (list.length > 1) b.append(el('span', { class: 'n' }, fa(list.length)));
           return el('span', { class: 'fd-gut', contenteditable: 'false' }, b);
         }, { side: -1, key: 'fd' + at + ':' + ids + ':' + set().aiIcon + charOf().id + (charOf().face || '').length + aiName(), ignoreSelection: true, stopEvent: () => true }));
@@ -538,7 +541,7 @@ function card(cls, label, t, range, onEsc) {
   closeFedora();
   const view = getView(t.crepe);
   if (!range.doc) { try { view.dispatch(view.state.tr.setMeta(markKey, { sel: { from: range.from, to: range.to } }).setMeta('addToHistory', false)); } catch {} }
-  const box = el('div', { class: 'fd-card ' + cls, dir: 'rtl', role: 'dialog', 'aria-label': label });
+  const box = el('div', { class: 'fd-card ' + cls, dir: langDir(), role: 'dialog', 'aria-label': label });
   document.body.append(box);
   document.body.classList.add('fd-open');
   // a card for the whole document hangs under its button; one for a selection follows the text
@@ -599,11 +602,9 @@ async function noticeOk() {
   if (st.aiNoticeOk) return true;
   const gem = cfgOf(st).provider === 'gemini';
   const ok = await modal({
-    title: `${aiName()} متن شما را به سرویس می‌فرستد`,
-    text: 'فقط متنی که انتخاب می‌کنید فرستاده می‌شود. ' + (gem
-      ? 'در پلن رایگان Gemini، گوگل ممکن است از آن برای بهبود مدل‌هایش استفاده کند؛ برای متن محرمانه از پلن پولی یا سرویس دیگری استفاده کنید.'
-      : 'درباره‌ی نگهداری داده‌ها، قوانین همان سرویسی را ببینید که انتخاب کرده‌اید.'),
-    buttons: [{ label: 'انصراف', value: false }, { label: 'متوجه شدم', value: true, primary: true }],
+    title: tr('ai.notice.title', { name: aiName() }),
+    text: tr('ai.notice.prefix') + ' ' + (gem ? tr('ai.notice.gemini') : tr('ai.notice.other')),
+    buttons: [{ label: tr('common.cancel'), value: false }, { label: tr('ai.notice.ok'), value: true, primary: true }],
   });
   if (ok) C.updateSettings({ aiNoticeOk: true });
   return !!ok;
@@ -611,7 +612,6 @@ async function noticeOk() {
 
 // ---------- the menu (selection toolbar / Ctrl+J) ----------
 export const aiOn = (st = set()) => st.aiEnabled !== false;
-/** «متن انتخاب‌شده | کل سند» at the top of both menus: the user always sees what the assistant will work on */
 function scopeSeg(t, which, anchor) {
   const v = getView(t.crepe);
   const r = rangeOf(v);
@@ -625,10 +625,10 @@ function scopeSeg(t, which, anchor) {
       if (k === 'sel') openFedora(t, a, { atButton: true }); else openDocFedora(t, a);
     } }, label, extra || null);
   return [
-    el('div', { class: 'fd-scope', role: 'radiogroup', 'aria-label': `${aiName()} روی چه کار کند` },
-      btn('sel', 'متن انتخاب‌شده', hasSel ? el('small', {}, `${fa(words)} کلمه`) : null, !hasSel),
-      btn('doc', 'کل سند')),
-    hasSel ? null : el('div', { class: 'fd-scope-hint' }, 'برای کار روی یک بخش، اول آن را انتخاب کنید.'),
+    el('div', { class: 'fd-scope', role: 'radiogroup', 'aria-label': tr('ai.scope.aria', { name: aiName() }) },
+      btn('sel', tr('ai.scope.selection'), hasSel ? el('small', {}, tr('status.words', { n: fa(words) })) : null, !hasSel),
+      btn('doc', tr('ai.scope.wholeDoc'))),
+    hasSel ? null : el('div', { class: 'fd-scope-hint' }, tr('ai.scope.hint')),
   ];
 }
 /** the button at the top of the window: the selected text when there is one, otherwise the whole document */
@@ -641,11 +641,11 @@ export function openTopFedora(t, anchor) {
 export async function openFedora(t, anchor = null, opts = {}) {
   if (!t || !t.crepe || !aiOn()) return;
   if (openCard && openCard.anchor && openCard.anchor === anchor && !opts.atButton) { closeFedora(); return; }
-  if (t.mode === 'source') { C.toast(`${aiName()} در حالت کد منبع در دسترس نیست`, 'info'); return; }
+  if (t.mode === 'source') { C.toast(tr('ai.toast.noSource', { name: aiName() }), 'info'); return; }
   const view = getView(t.crepe);
   const range = rangeOf(view);
-  if (!range) { C.toast('اول بخشی از متن را انتخاب کنید', 'info'); return; }
-  if (range.code) { C.toast(`${aiName()} روی بلوک کد کار نمی‌کند`, 'info'); return; }
+  if (!range) { C.toast(tr('toast.selectTextFirst'), 'info'); return; }
+  if (range.code) { C.toast(tr('ai.toast.noCode', { name: aiName() }), 'info'); return; }
   const info = await C.api.aiKeyInfo(cfgOf()).catch(() => ({ has: false }));
   // opened from the top button, the menu sits under it; the work itself still happens at the selection
   const c = card('fd-menu', aiName(), t, opts.atButton && anchor ? { ...range, anchor } : range);
@@ -656,17 +656,17 @@ export async function openFedora(t, anchor = null, opts = {}) {
     const gem = cfgOf().provider === 'gemini';
     c.box.classList.add('fd-nokey');
     c.box.append(
-      el('div', { class: 'fd-nk-h' }, el('span', { class: 'ic', html: aiIconHTML() }), el('b', {}, `${aiName()} هنوز وصل نیست`)),
-      el('p', {}, 'برای شروع، کلید API از Google AI Studio یا یک سرویس سازگار با OpenAI را در تنظیمات وارد کنید. یک بار کافی است.'),
+      el('div', { class: 'fd-nk-h' }, el('span', { class: 'ic', html: aiIconHTML() }), el('b', {}, tr('ai.nokey.title', { name: aiName() }))),
+      el('p', {}, tr('ai.nokey.body')),
       el('div', { class: 'fd-foot end' },
-        gem ? el('button', { class: 'fd-btn', onclick: () => C.api.openUrl('https://aistudio.google.com/apikey') }, 'دریافت کلید رایگان') : null,
-        el('button', { class: 'fd-btn primary', onclick: () => { closeFedora(); C.openSettings('ai'); } }, 'رفتن به تنظیمات')));
+        gem ? el('button', { class: 'fd-btn', onclick: () => C.api.openUrl('https://aistudio.google.com/apikey') }, tr('ai.getFreeKey')) : null,
+        el('button', { class: 'fd-btn primary', onclick: () => { closeFedora(); C.openSettings('ai'); } }, tr('ai.goToSettings'))));
     c.place();
     return;
   }
 
-  const input = el('input', { type: 'text', placeholder: 'با این متن چه کنم؟', 'aria-label': 'دستور برای متن انتخاب‌شده', spellcheck: 'false' });
-  const send = el('button', { class: 'fd-send', 'aria-label': 'فرستادن', title: 'فرستادن (Enter)', html: I.send });
+  const input = el('input', { type: 'text', placeholder: tr('ai.menu.selPlaceholder'), 'aria-label': tr('ai.menu.selAria'), spellcheck: 'false' });
+  const send = el('button', { class: 'fd-send', 'aria-label': tr('ai.send'), title: tr('ai.send'), html: I.send });
   const ask = el('label', { class: 'fd-ask' }, el('span', { class: 'ic', html: aiIconHTML() }), input, send);
   const go = (fn) => () => { fn(); };
   let sub = null;
@@ -697,8 +697,11 @@ export async function openFedora(t, anchor = null, opts = {}) {
     const br = b.getBoundingClientRect();
     const cr = c.box.getBoundingClientRect();
     sub.style.top = br.top - cr.top - 6 + 'px';
-    // in RTL submenus open to the left; with no room there, to the right
-    if (cr.left - sub.offsetWidth - 6 < 8) sub.style.left = 'calc(100% + 6px)';
+    // in RTL submenus open to the left; in LTR to the right (flip if no room)
+    if (langDir() === 'ltr') {
+      if (cr.right + sub.offsetWidth + 6 > innerWidth - 8) sub.style.right = 'calc(100% + 6px)';
+      else sub.style.left = 'calc(100% + 6px)';
+    } else if (cr.left - sub.offsetWidth - 6 < 8) sub.style.left = 'calc(100% + 6px)';
     else sub.style.right = 'calc(100% + 6px)';
   };
   const st = set();
@@ -706,47 +709,47 @@ export async function openFedora(t, anchor = null, opts = {}) {
   // translate: into Persian, or into English when the text already is Persian
   const selText = view.state.doc.textBetween(range.from, range.to, ' ', ' ');
   const toFa = !/[\u0600-\u06FF]/.test(selText);
-  const trAction = { kind: 'translate', label: toFa ? 'ترجمه به فارسی' : 'ترجمه به انگلیسی', instr: `Translate it into ${toFa ? 'Persian (natural, fluent Persian with correct half-spaces)' : 'English (natural, fluent English)'}. Keep the Markdown formatting. Reply with only the translation.` };
+  const trAction = { kind: 'translate', label: toFa ? tr('ai.action.translateToFa') : tr('ai.action.translateToEn'), instr: `Translate it into ${toFa ? 'Persian (natural, fluent Persian with correct half-spaces)' : 'English (natural, fluent English)'}. Keep the Markdown formatting. Reply with only the translation.` };
   const explainSub = (b, toggle) => openSub(b, () => {
       let level = st.aiLevel || 'simple';
       let example = st.aiExample !== false;
-      const seg = el('div', { class: 'fd-lv', role: 'radiogroup', 'aria-label': 'سطح توضیح' });
+      const seg = el('div', { class: 'fd-lv', role: 'radiogroup', 'aria-label': tr('ai.explain.level') });
       const paint = () => seg.querySelectorAll('button').forEach((x) => { const on = x.dataset.v === level; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(on)); });
-      for (const [v, l] of LEVELS) seg.append(el('button', { 'data-v': v, role: 'radio', onclick: () => { level = v; paint(); } }, l));
+      for (const [v, lk] of LEVELS) seg.append(el('button', { 'data-v': v, role: 'radio', onclick: () => { level = v; paint(); } }, tr(lk)));
       paint();
-      const ck = el('button', { class: 'fd-ck' + (example ? ' on' : ''), role: 'checkbox', 'aria-checked': String(example) }, el('span', { class: 'bx', html: ICON.check }), 'همراه با مثال');
+      const ck = el('button', { class: 'fd-ck' + (example ? ' on' : ''), role: 'checkbox', 'aria-checked': String(example) }, el('span', { class: 'bx', html: ICON.check }), tr('ai.explain.withExample'));
       ck.addEventListener('click', () => { example = !example; ck.classList.toggle('on', example); ck.setAttribute('aria-checked', String(example)); });
-      const goBtn = el('button', { class: 'fd-btn primary wide' }, 'توضیح بده');
+      const goBtn = el('button', { class: 'fd-btn primary wide' }, tr('ai.action.explain'));
       goBtn.addEventListener('click', () => {
         C.updateSettings({ aiLevel: level, aiExample: example });
         closeFedora();
         runAnswer(t, range, { kind: 'explain', level, example });
       });
-      return [el('div', { class: 'fd-mh' }, 'سطح توضیح'), seg, ck, el('div', { class: 'fd-hint' }, 'سطح و مثال برای دفعه‌ی بعد هم می‌ماند.'), goBtn];
+      return [el('div', { class: 'fd-mh' }, tr('ai.explain.level')), seg, ck, el('div', { class: 'fd-hint' }, tr('ai.explain.rememberHint')), goBtn];
     }, toggle);
   const builtItems = [
     builtOn('translate') ? item(I.translate, trAction.label, go(() => doEdit(trAction))) : null,
-    builtOn('explain') ? item(I.explain, 'توضیح بده', explainSub, null, true) : null,
-    builtOn('clean') ? item(I.clean, 'تمیز کردن متن', go(() => doEdit(ACTIONS.clean)), 'غلط تایپی و علائم') : null,
-    builtOn('tone') ? item(I.tone, 'تغییر لحن', (b, toggle) => openSub(b, () => TONES.map((x) => {
-      const r = el('button', { class: 'fd-mi', role: 'menuitem' }, el('span', { class: 't' }, x[1]), el('small', {}, x[2]));
+    builtOn('explain') ? item(I.explain, tr('ai.action.explain'), explainSub, null, true) : null,
+    builtOn('clean') ? item(I.clean, tr('ai.action.clean'), go(() => doEdit(ACTIONS.clean)), tr('ai.action.cleanHint')) : null,
+    builtOn('tone') ? item(I.tone, tr('ai.action.changeTone'), (b, toggle) => openSub(b, () => TONES.map((x) => {
+      const r = el('button', { class: 'fd-mi', role: 'menuitem' }, el('span', { class: 't' }, tr(x[1])), el('small', {}, tr(x[2])));
       r.addEventListener('click', () => doEdit(toneAction(x)));
       return r;
     }), toggle), null, true) : null,
-    builtOn('length') ? item(I.shorter, 'کوتاه‌تر کن', go(() => doEdit(ACTIONS.shorter))) : null,
-    builtOn('length') ? item(I.longer, 'بلندتر کن', go(() => doEdit(ACTIONS.longer))) : null,
+    builtOn('length') ? item(I.shorter, tr('ai.action.makeShorter'), go(() => doEdit(ACTIONS.shorter))) : null,
+    builtOn('length') ? item(I.longer, tr('ai.action.makeLonger'), go(() => doEdit(ACTIONS.longer))) : null,
   ].filter(Boolean);
   const mine = prompts().filter(forSel);
   c.box.append(...[
     ...scopeSeg(t, 'sel', anchor),
     ask,
-    builtItems.length ? el('div', { class: 'fd-mh' }, 'کارهای آماده') : null,
+    builtItems.length ? el('div', { class: 'fd-mh' }, tr('ai.quickActions')) : null,
     ...builtItems,
     mine.length && builtItems.length ? el('div', { class: 'fd-sep' }) : null,
-    mine.length ? el('div', { class: 'fd-mh' }, 'پرامپت‌های من') : null,
+    mine.length ? el('div', { class: 'fd-mh' }, tr('ai.myPrompts')) : null,
     ...mine.map((p) => promptItem(p, () => { closeFedora(); runPrompt(t, range, p); }, closeSub, () => clearTimeout(hoverT))),
-    el('div', { class: 'fd-foot' }, el('span', { class: 'fd-k' }, kb('Ctrl', 'J'), 'روی متن انتخاب‌شده'),
-      el('button', { class: 'fd-link', onclick: () => { closeFedora(); openPromptSettings(); } }, 'مدیریت پرامپت‌ها')),
+    el('div', { class: 'fd-foot' }, el('span', { class: 'fd-k' }, kb('Ctrl', 'J'), tr('ai.onSelection')),
+      el('button', { class: 'fd-link', onclick: () => { closeFedora(); openPromptSettings(); } }, tr('ai.managePrompts'))),
   ].filter(Boolean));
   const free = () => {
     const q = input.value.trim();
@@ -784,12 +787,12 @@ async function runEdit(t, range, action, preset = null) {
   let lastInstr = '';
   const diffCache = new Map();
 
-  const c = card('fd-diff', 'پیش‌نمایش تغییر', t, range, () => { if (job && state === 'loading') { job.cancel(); return false; } return true; });
+  const c = card('fd-diff', tr('ai.diff.title'), t, range, () => { if (job && state === 'loading') { job.cancel(); return false; } return true; });
   const head = el('div', { class: 'fd-head' });
   const body = el('div', { class: 'fd-body fd-thread' });
   const foot = el('div', { class: 'fd-foot' });
   c.box.append(head, body, foot);
-  const fu = el('input', { type: 'text', placeholder: 'اصلاحش کنم؟ مثلاً کوتاه‌ترش کن', 'aria-label': 'اصلاح نتیجه', spellcheck: 'false' });
+  const fu = el('input', { type: 'text', placeholder: tr('ai.diff.refinePlaceholder'), 'aria-label': tr('ai.diff.refineAria'), spellcheck: 'false' });
   fu.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); refine(fu.value.trim()); } });
 
   const stillThere = () => {
@@ -799,12 +802,12 @@ async function runEdit(t, range, action, preset = null) {
   };
   const resultNode = (v, i) => {
     const on = i === cur;
-    const box = el('div', { class: 'fd-res' + (on ? ' on' : ''), dir: dirOfText(v.text) || 'auto', title: on ? '' : 'انتخاب همین نسخه' });
+    const box = el('div', { class: 'fd-res' + (on ? ' on' : ''), dir: dirOfText(v.text) || 'auto', title: on ? '' : tr('ai.diff.pickVersion') });
     if (on && mode === 'diff') {
       if (!diffCache.has(i)) diffCache.set(i, beforeText === v.text ? 'same' : wordDiff(beforeText, v.text));
       const parts = diffCache.get(i);
-      if (parts === 'same') box.append(el('span', { class: 'fd-same' }, 'تغییری پیشنهاد نشد؛ متن همین‌طور خوب است.'));
-      else if (!parts) box.append(el('div', { class: 'fd-note' }, 'متن تقریباً کامل عوض شده؛ تفاوت کلمه‌به‌کلمه معنایی ندارد.'), document.createTextNode(v.text));
+      if (parts === 'same') box.append(el('span', { class: 'fd-same' }, tr('ai.diff.noChanges')));
+      else if (!parts) box.append(el('div', { class: 'fd-note' }, tr('ai.diff.mostlyChanged')), document.createTextNode(v.text));
       else for (const p of parts) box.append(p.added ? el('ins', {}, p.value) : p.removed ? el('del', {}, p.value) : document.createTextNode(p.value));
     } else box.append(v.text);
     if (!on) box.addEventListener('click', () => { cur = i; paint(); });
@@ -816,8 +819,8 @@ async function runEdit(t, range, action, preset = null) {
     const first = versions[0];
     head.replaceChildren(charHead((first && first.cmd) || action.label, paint), el('span', { class: 'sp' }));
     if (state === 'ready') {
-      const seg = el('div', { class: 'fd-vw', role: 'radiogroup', 'aria-label': 'نمایش' });
-      for (const [k, l] of [['new', 'متن تازه'], ['diff', 'تفاوت‌ها']]) seg.append(el('button', { class: mode === k ? 'on' : '', role: 'radio', 'aria-checked': String(mode === k), onclick: () => { mode = k; paint(); } }, l));
+      const seg = el('div', { class: 'fd-vw', role: 'radiogroup', 'aria-label': tr('ai.diff.viewAria') });
+      for (const [k, l] of [['new', tr('ai.diff.result')], ['diff', tr('ai.diff.changes')]]) seg.append(el('button', { class: mode === k ? 'on' : '', role: 'radio', 'aria-checked': String(mode === k), onclick: () => { mode = k; paint(); } }, l));
       head.append(seg);
     }
     body.replaceChildren();
@@ -831,16 +834,16 @@ async function runEdit(t, range, action, preset = null) {
     if (state === 'err') body.append(errBox(err, () => (pendingInstr ? refine(pendingInstr) : start())));
     foot.replaceChildren();
     if (state === 'loading') {
-      foot.append(el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: () => job && job.cancel() }, el('span', { class: 'ic', html: I.stop }), 'توقف', kb('Esc')));
+      foot.append(el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: () => job && job.cancel() }, el('span', { class: 'ic', html: I.stop }), tr('common.stop'), kb('Esc')));
     } else if (state === 'err' && !versions.length) {
-      foot.append(el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: closeFedora }, 'بستن'));
+      foot.append(el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: closeFedora }, tr('common.close')));
     } else {
       fu.value = '';
       foot.append(
         el('label', { class: 'fd-fu' }, el('span', { class: 'ic', html: aiIconHTML() }), fu),
-        el('button', { class: 'fd-btn ghost', title: 'دوباره بنویس', 'aria-label': 'دوباره بنویس', onclick: () => (versions.length > 1 ? refine(lastInstr || 'Write a different version.') : start()) }, el('span', { class: 'ic', html: ICON.refresh })),
-        el('button', { class: 'fd-btn', onclick: () => { closeFedora(); getView(t.crepe).focus(); } }, 'رد', kb('Esc')),
-        el('button', { class: 'fd-btn primary', onclick: accept }, 'قبول', kb('Enter')));
+        el('button', { class: 'fd-btn ghost', title: tr('ai.diff.rewrite'), 'aria-label': tr('ai.diff.rewrite'), onclick: () => (versions.length > 1 ? refine(lastInstr || 'Write a different version.') : start()) }, el('span', { class: 'ic', html: ICON.refresh })),
+        el('button', { class: 'fd-btn', onclick: () => { closeFedora(); getView(t.crepe).focus(); } }, tr('common.reject'), kb('Esc')),
+        el('button', { class: 'fd-btn primary', onclick: accept }, tr('common.accept'), kb('Enter')));
     }
     c.place();
     body.scrollTop = body.scrollHeight;
@@ -873,7 +876,7 @@ async function runEdit(t, range, action, preset = null) {
     pendingInstr = null;
     cur = versions.length - 1;
     state = 'ready';
-    if (r.fallback) C.toast(`مدل اصلی شلوغ بود؛ این بار با ${r.model} انجام شد`, 'info');
+    if (r.fallback) C.toast(tr('ai.toast.fallbackBusy', { model: r.model }), 'info');
     paint();
     if (set().aiPreview === false) accept();
   };
@@ -908,7 +911,7 @@ async function runEdit(t, range, action, preset = null) {
     const v = versions[cur];
     if (!v) return;
     if (t.locked) { C.showLocked(); return; }
-    if (!stillThere()) { C.toast('متن انتخاب‌شده عوض شده است', 'warn'); return; }
+    if (!stillThere()) { C.toast(tr('translate.selectionChanged'), 'warn'); return; }
     closeFedora();
     const cmd = v.instr ? `${versions[0].cmd} · ${v.instr.length > 24 ? v.instr.slice(0, 24) + '…' : v.instr}` : v.cmd;
     await applyChange(t, range, { cmd, beforeMd, beforeText, afterMd: v.md });
@@ -928,7 +931,7 @@ async function applyChange(t, range, { cmd, beforeMd, beforeText, afterMd }) {
   const view = getView(t.crepe);
   const { tr, from, to } = replaceRange(t, range, afterMd);
   const afterText = tr.doc.textBetween(from, to, '\n', ' ').trim();
-  const mark = { id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), time: Date.now(), cmd, scope: 'انتخاب',
+  const mark = { id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), time: Date.now(), cmd, scope: tr('ai.scope.shortSel'),
     inline: !!range.inline && tr.doc.resolve(from).parent.isTextblock, from, to, beforeMd, afterMd, beforeText, afterText, hist };
   closeHistory(tr);
   view.dispatch(tr.setMeta(markKey, { add: mark }).scrollIntoView());
@@ -980,27 +983,28 @@ function mdLite(md) {
 async function runAnswer(t, range, { kind, level, example, question, answer, system, userText, name }) {
   if (!(await noticeOk())) return;
   const text = kind === 'prompt' ? '' : selectionMd(t, range);
-  const label = kind === 'prompt' ? name : kind === 'explain' ? `توضیح ${(LEVELS.find((x) => x[0] === level) || LEVELS[0])[1]}${example ? ' · همراه با مثال' : ''}` : `«${question.length > 40 ? question.slice(0, 40) + '…' : question}»`;
+  const levelName = tr((LEVELS.find((x) => x[0] === level) || LEVELS[0])[1]);
+  const label = kind === 'prompt' ? name : kind === 'explain' ? (example ? tr('ai.explain.labelWithEx', { level: levelName }) : tr('ai.explain.label', { level: levelName })) : tr('common.quote', { text: question.length > 40 ? question.slice(0, 40) + '…' : question });
   const convo = [{ role: 'user', text: kind === 'prompt' ? userText : kind === 'explain' ? `Explain this text:\n\n${text}` : `Question about the text below: ${question}\n\nText:\n${text}` }];
   const turns = []; // { q, a }
   let state = 'loading'; let err = null; let job = null; let stream = '';
   const workKind = kind === 'explain' ? 'explain' : kind === 'prompt' ? 'prompt' : 'think';
-  const firstQ = kind === 'question' || kind === 'free-answer' ? (question || label) : kind === 'explain' ? `این بخش رو ${label.replace(/^توضیح\s*/, '')} توضیح بده` : label;
-  const c = card('fd-answer', 'جواب ' + aiName(), t, range, () => { if (job && state === 'loading') { job.cancel(); return false; } return true; });
+  const firstQ = kind === 'question' || kind === 'free-answer' ? (question || label) : kind === 'explain' ? tr('ai.explain.firstQ', { level: example ? tr('ai.explain.levelWithEx', { level: levelName }) : levelName }) : label;
+  const c = card('fd-answer', tr('ai.answer.title', { name: aiName() }), t, range, () => { if (job && state === 'loading') { job.cancel(); return false; } return true; });
   c.onClose = () => { if (job && state === 'loading') job.cancel(); };
   const head = el('div', { class: 'fd-head' });
   const body = el('div', { class: 'fd-body' });
   const foot = el('div', { class: 'fd-foot' });
   c.box.append(head, body, foot);
-  const fu = el('input', { type: 'text', placeholder: 'سؤال بعدی…', 'aria-label': 'سؤال بعدی', spellcheck: 'false' });
+  const fu = el('input', { type: 'text', placeholder: tr('ai.answer.followPlaceholder'), 'aria-label': tr('ai.answer.followAria'), spellcheck: 'false' });
   fu.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); follow(fu.value.trim()); } });
   const lastAnswer = () => (turns.length ? turns[turns.length - 1].a : '');
   const copyBtn = () => {
-    const b = el('button', { class: 'fd-btn' }, el('span', { class: 'ic', html: ICON.copy }), el('span', { class: 'l' }, 'کپی'));
+    const b = el('button', { class: 'fd-btn' }, el('span', { class: 'ic', html: ICON.copy }), el('span', { class: 'l' }, tr('common.copy')));
     b.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(lastAnswer()); } catch { C.toast('کپی ممکن نشد', 'err'); return; }
-      b.classList.add('ok'); b.querySelector('.ic').innerHTML = ICON.check; b.querySelector('.l').textContent = 'کپی شد';
-      setTimeout(() => { if (!b.isConnected) return; b.classList.remove('ok'); b.querySelector('.ic').innerHTML = ICON.copy; b.querySelector('.l').textContent = 'کپی'; }, 1600);
+      try { await navigator.clipboard.writeText(lastAnswer()); } catch { C.toast(tr('translate.copyFailed'), 'err'); return; }
+      b.classList.add('ok'); b.querySelector('.ic').innerHTML = ICON.check; b.querySelector('.l').textContent = tr('common.copied');
+      setTimeout(() => { if (!b.isConnected) return; b.classList.remove('ok'); b.querySelector('.ic').innerHTML = ICON.copy; b.querySelector('.l').textContent = tr('common.copy'); }, 1600);
     });
     return b;
   };
@@ -1020,7 +1024,7 @@ async function runAnswer(t, range, { kind, level, example, question, answer, sys
   };
   const paint = () => {
     head.replaceChildren(charHead(label.replace(/^«|»$/g, ''), paint), el('span', { class: 'sp' }),
-      el('button', { class: 'fd-x', 'aria-label': 'بستن', title: 'بستن (Esc)', html: ICON.x, onclick: closeFedora }));
+      el('button', { class: 'fd-x', 'aria-label': tr('common.close'), title: tr('common.close'), html: ICON.x, onclick: closeFedora }));
     body.replaceChildren();
     body.classList.add('fd-chat');
     // the user on the right, the character on the left with its face at the edge of the bubble
@@ -1039,11 +1043,11 @@ async function runAnswer(t, range, { kind, level, example, question, answer, sys
     }
     if (state === 'err') body.append(errBox(err, retry));
     foot.replaceChildren();
-    if (state === 'loading') foot.append(el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: () => job && job.cancel() }, el('span', { class: 'ic', html: I.stop }), 'توقف', kb('Esc')));
+    if (state === 'loading') foot.append(el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: () => job && job.cancel() }, el('span', { class: 'ic', html: I.stop }), tr('common.stop'), kb('Esc')));
     else {
       fu.value = '';
       foot.append(el('label', { class: 'fd-fu' }, el('span', { class: 'ic', html: aiIconHTML() }), fu));
-      if (turns.length) foot.append(copyBtn(), el('button', { class: 'fd-btn' + (kind === 'prompt' ? ' primary' : ''), onclick: insertBelow }, el('span', { class: 'ic', html: I.below }), range.doc ? 'درج در پایان سند' : 'درج زیر متن'));
+      if (turns.length) foot.append(copyBtn(), el('button', { class: 'fd-btn' + (kind === 'prompt' ? ' primary' : ''), onclick: insertBelow }, el('span', { class: 'ic', html: I.below }), range.doc ? tr('ai.answer.insertEnd') : tr('ai.answer.insertBelow')));
     }
     c.place();
     body.scrollTop = body.scrollHeight;
@@ -1065,7 +1069,7 @@ async function runAnswer(t, range, { kind, level, example, question, answer, sys
       turns.push({ q: pendingQ || '', a });
       pendingQ = null;
       state = 'done'; paint();
-      if (r.fallback) C.toast(`مدل اصلی شلوغ بود؛ این بار با ${r.model} انجام شد`, 'info');
+      if (r.fallback) C.toast(tr('ai.toast.fallbackBusy', { model: r.model }), 'info');
       requestAnimationFrame(() => fu.focus());
     }).catch((e) => {
       if (e && e.kind === 'cancelled') {
@@ -1102,7 +1106,7 @@ async function runFree(t, range, q) {
   const paintWait = (s) => {
     c.box.replaceChildren(brandHead(el('span', { class: 'fd-q' }, `«${short}»`)),
       el('div', { class: 'fd-body' }, el('div', { class: 'fd-txt stream', dir: 'auto' }, cleanReply(s || ''), el('span', { class: 'fd-cur' }))),
-      el('div', { class: 'fd-foot' }, el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: () => job && job.cancel() }, el('span', { class: 'ic', html: I.stop }), 'توقف', kb('Esc'))));
+      el('div', { class: 'fd-foot' }, el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: () => job && job.cancel() }, el('span', { class: 'ic', html: I.stop }), tr('common.stop'), kb('Esc'))));
     c.place();
   };
   paintWait('');
@@ -1125,7 +1129,7 @@ async function runFree(t, range, q) {
     }).catch((e) => {
       if (e && e.kind === 'cancelled') { closeFedora(); return; }
       c.box.replaceChildren(brandHead(el('span', { class: 'fd-q' }, `«${short}»`)), el('div', { class: 'fd-body' }, errBox(e, go)),
-        el('div', { class: 'fd-foot' }, el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: closeFedora }, 'بستن')));
+        el('div', { class: 'fd-foot' }, el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: closeFedora }, tr('common.close'))));
       c.place();
     });
   };
@@ -1137,7 +1141,7 @@ let popEl = null;
 function closePop() { if (popEl) { const p = popEl; popEl = null; p._cleanup(); } }
 function pop(cls, label, anchorRect, build, side = 'left') {
   closePop();
-  const box = el('div', { class: 'fd-pop ' + cls, dir: 'rtl', role: 'dialog', 'aria-label': label });
+  const box = el('div', { class: 'fd-pop ' + cls, dir: langDir(), role: 'dialog', 'aria-label': label });
   document.body.append(box);
   const paint = () => { box.replaceChildren(...build(paint)); position(); };
   const position = () => {
@@ -1166,12 +1170,12 @@ function markRow(t, m, { onDetail, full }) {
   const edited = editedSince(t, m);
   const ex = m.beforeText && m.beforeText.length > 60 ? m.beforeText.slice(0, 60) + '…' : (m.beforeText || '');
   return el('div', { class: 'fd-it', onmouseenter: () => focusMark(t, m.id) },
-    el('div', { class: 'ir' }, el('b', {}, m.cmd), el('span', { class: 'sc' }, m.scope || 'انتخاب'), el('span', { class: 'tm' }, relTime(m.time))),
+    el('div', { class: 'ir' }, el('b', {}, m.cmd), el('span', { class: 'sc' }, m.scope || tr('ai.scope.shortSel')), el('span', { class: 'tm' }, relTime(m.time))),
     el('div', { class: 'ex', dir: 'auto' }, ex),
     el('div', { class: 'acts' },
-      full ? el('button', { class: 'fd-btn ghost sm', onclick: () => showInText(t, m) }, el('span', { class: 'ic', html: ICON.search }), 'نمایش در متن') : null,
-      el('button', { class: 'fd-btn ghost sm', onclick: () => onDetail(m) }, 'قبل و بعد'),
-      edited ? null : el('button', { class: 'fd-btn sm', onclick: () => revert(t, m) }, el('span', { class: 'ic', html: I.undo }), 'برگرداندن')));
+      full ? el('button', { class: 'fd-btn ghost sm', onclick: () => showInText(t, m) }, el('span', { class: 'ic', html: ICON.search }), tr('ai.marks.showInText')) : null,
+      el('button', { class: 'fd-btn ghost sm', onclick: () => onDetail(m) }, tr('ai.marks.beforeAfter')),
+      edited ? null : el('button', { class: 'fd-btn sm', onclick: () => revert(t, m) }, el('span', { class: 'ic', html: I.undo }), tr('common.restore'))));
 }
 function showInText(t, m) {
   const v = getView(t.crepe);
@@ -1188,27 +1192,27 @@ function detail(t, m, back, inPanel = false) {
   const parts = wordDiff(m.beforeText || '', m.afterText || '') || [{ value: m.beforeText || '', removed: true }, { value: '\n' }, { value: m.afterText || '', added: true }];
   for (const p of parts) dd.append(p.added ? el('ins', {}, p.value) : p.removed ? el('del', {}, p.value) : document.createTextNode(p.value));
   return [
-    el('div', { class: 'fd-ph' }, back ? el('button', { class: 'fd-x', 'aria-label': 'بازگشت', html: S('M8.5 5l7 7l-7 7'), onclick: back }) : null,
-      el('b', {}, m.cmd), el('small', {}, relTime(m.time)), el('span', { class: 'sp' }), inPanel ? null : el('button', { class: 'fd-x', 'aria-label': 'بستن', html: ICON.x, onclick: closePop })),
+    el('div', { class: 'fd-ph' }, back ? el('button', { class: 'fd-x', 'aria-label': tr('common.back'), html: S('M8.5 5l7 7l-7 7'), onclick: back }) : null,
+      el('b', {}, m.cmd), el('small', {}, relTime(m.time)), el('span', { class: 'sp' }), inPanel ? null : el('button', { class: 'fd-x', 'aria-label': tr('common.close'), html: ICON.x, onclick: closePop })),
     el('div', { class: 'fd-it' }, dd,
-      edited ? el('div', { class: 'fd-warn' }, el('span', { class: 'ic', html: ICON.warn }), el('span', {}, 'این بخش بعد از این تغییر دوباره ویرایش شده، پس نمی‌شود فقط همین تغییر را برگرداند.')) : null,
+      edited ? el('div', { class: 'fd-warn' }, el('span', { class: 'ic', html: ICON.warn }), el('span', {}, tr('ai.marks.editedWarn'))) : null,
       el('div', { class: 'acts' },
-        el('button', { class: 'fd-btn sm', disabled: edited, 'aria-disabled': String(edited), onclick: () => revert(t, m) }, el('span', { class: 'ic', html: I.undo }), 'برگرداندن همین تغییر'),
-        m.hist && t.path ? el('button', { class: 'fd-btn sm', onclick: () => { closePop(); C.openHistoryAt(t, m.hist); } }, el('span', { class: 'ic', html: ICON.history }), 'نسخه‌ی قبل از این تغییر') : null)),
+        el('button', { class: 'fd-btn sm', disabled: edited, 'aria-disabled': String(edited), onclick: () => revert(t, m) }, el('span', { class: 'ic', html: I.undo }), tr('ai.marks.revertThis')),
+        m.hist && t.path ? el('button', { class: 'fd-btn sm', onclick: () => { closePop(); C.openHistoryAt(t, m.hist); } }, el('span', { class: 'ic', html: ICON.history }), tr('ai.marks.versionBefore')) : null)),
   ];
 }
 function revert(t, m) {
   if (t.locked) { C.showLocked(); return; }
-  if (editedSince(t, m)) { C.toast('این بخش بعداً ویرایش شده است', 'warn'); return; }
+  if (editedSince(t, m)) { C.toast(tr('ai.marks.editedToast'), 'warn'); return; }
   const view = getView(t.crepe);
-  const { tr } = replaceRange(t, { from: m.from, to: m.to, inline: m.inline }, m.beforeMd || m.beforeText);
-  closeHistory(tr);
-  view.dispatch(tr.setMeta(markKey, { remove: m.id }).scrollIntoView());
+  const { tr: tx } = replaceRange(t, { from: m.from, to: m.to, inline: m.inline }, m.beforeMd || m.beforeText);
+  closeHistory(tx);
+  view.dispatch(tx.setMeta(markKey, { remove: m.id }).scrollIntoView());
   view.dispatch(closeHistory(view.state.tr));
   closePop();
   persistMarks(t);
   C.marksChanged(t);
-  C.toast('تغییر برگردانده شد', 'ok');
+  C.toast(tr('ai.marks.revertedToast'), 'ok');
 }
 function openBlockPop(t, btn) {
   const ids = (btn.dataset.ids || '').split(',');
@@ -1216,10 +1220,10 @@ function openBlockPop(t, btn) {
   if (!list().length) return;
   let showing = null;
   btn.classList.add('on');
-  const box = pop('fd-blockpop', `تغییرهای ${aiName()} در این بخش`, btn.getBoundingClientRect(), (repaint) => {
+  const box = pop('fd-blockpop', tr('ai.marks.blockPopAria', { name: aiName() }), btn.getBoundingClientRect(), (repaint) => {
     if (showing) return detail(t, showing, () => { showing = null; repaint(); });
     const l = list();
-    return [el('div', { class: 'fd-ph' }, el('b', {}, `${fa(l.length)} تغییر در این بخش`), el('span', { class: 'sp' }), el('button', { class: 'fd-x', 'aria-label': 'بستن', html: ICON.x, onclick: closePop })),
+    return [el('div', { class: 'fd-ph' }, el('b', {}, tr('ai.marks.blockCount', { n: fa(l.length) })), el('span', { class: 'sp' }), el('button', { class: 'fd-x', 'aria-label': tr('common.close'), html: ICON.x, onclick: closePop })),
       ...l.map((m) => markRow(t, m, { onDetail: (x) => { showing = x; repaint(); } }))];
   });
   focusMark(t, ids[0]);
@@ -1228,16 +1232,16 @@ function openBlockPop(t, btn) {
 /** the assistant's changes in this file, inside the version history panel */
 let panelShowing = null;
 export function marksPanel(t, repaint) {
-  if (!t || !t.crepe) return [el('div', { class: 'h-empty' }, 'این تب سندی ندارد.')];
+  if (!t || !t.crepe) return [el('div', { class: 'h-empty' }, tr('ai.marks.noDoc'))];
   const l = [...marksOf(t)].sort((a, b) => b.time - a.time);
   if (panelShowing && !l.some((m) => m.id === panelShowing)) panelShowing = null;
   if (panelShowing) return [el('div', { class: 'fd-pop fd-inpanel' }, detail(t, l.find((m) => m.id === panelShowing), () => { panelShowing = null; repaint(); }, true))];
   if (!l.length) {
-    return [el('div', { class: 'h-empty' }, `هنوز تغییری از ${aiName()} در این فایل نیست. هر تغییری که قبول کنید این‌جا با «قبل و بعد» و «برگرداندن» می‌آید.`)];
+    return [el('div', { class: 'h-empty' }, tr('ai.marks.empty', { name: aiName() }))];
   }
   return [
-    el('div', { class: 'h-aihead' }, el('span', {}, `${fa(l.length)} تغییر، `, t.path ? 'با بستن فایل هم می‌مانند' : 'بعد از ذخیره، با بستن فایل هم می‌مانند'),
-      el('button', { class: 'hb', onclick: () => clearMarks(t) }, 'پاک کردن نشانه‌ها')),
+    el('div', { class: 'h-aihead' }, el('span', {}, t.path ? tr('ai.marks.persistSaved', { n: fa(l.length) }) : tr('ai.marks.persistUnsaved', { n: fa(l.length) })),
+      el('button', { class: 'hb', onclick: () => clearMarks(t) }, tr('ai.marks.clear'))),
     el('div', { class: 'fd-pop fd-inpanel h-ailist' }, l.map((m) => markRow(t, m, { full: true, onDetail: (x) => { panelShowing = x.id; repaint(); } }))),
   ];
 }
@@ -1273,14 +1277,14 @@ async function suggestNames(t) {
 export function nameChips(t, input, pick) {
   if (!aiRenameOn()) return () => {};
   let alive = true;
-  const btn = el('button', { class: 'fd-namebtn' }, el('span', { class: 'ic', html: aiIconHTML() }), `پیشنهاد نام با ${aiName()}`);
+  const btn = el('button', { class: 'fd-namebtn' }, el('span', { class: 'ic', html: aiIconHTML() }), tr('ai.rename.suggestWith', { name: aiName() }));
   const cs = el('div', { class: 'cs' });
-  const box = el('div', { class: 'fd-names', dir: 'rtl' }, btn, cs);
+  const box = el('div', { class: 'fd-names', dir: langDir() }, btn, cs);
   const place = () => {
     const r = input.getBoundingClientRect();
     const w = box.offsetWidth;
     box.style.top = r.bottom + 8 + 'px';
-    box.style.left = Math.max(10, Math.min(r.right - w, innerWidth - w - 10)) + 'px';
+    box.style.left = Math.max(10, Math.min(langDir() === 'rtl' ? r.right - w : r.left, innerWidth - w - 10)) + 'px';
   };
   const show = (names) => {
     cs.replaceChildren(...names.map((n) => {
@@ -1295,22 +1299,22 @@ export function nameChips(t, input, pick) {
     e.preventDefault(); e.stopPropagation();
     if (btn.disabled) return;
     const info = await C.api.aiKeyInfo(cfgOf()).catch(() => ({ has: false }));
-    if (!info.has) { cs.replaceChildren(el('span', { class: 'fd-nmsg' }, 'اول کلید API را در تنظیمات وارد کنید.')); place(); return; }
+    if (!info.has) { cs.replaceChildren(el('span', { class: 'fd-nmsg' }, tr('ai.rename.needKey'))); place(); return; }
     if (!(await noticeOk())) { input.focus(); return; }
     input.focus();
     btn.disabled = true;
-    btn.replaceChildren(el('span', { class: 'fd-spin' }), 'در حال پیشنهاد…');
+    btn.replaceChildren(el('span', { class: 'fd-spin' }), tr('ai.rename.suggesting'));
     try {
       const names = await suggestNames(t);
       if (!alive) return;
       btn.remove();
       show(names.length ? names : []);
-      if (!names.length) cs.replaceChildren(el('span', { class: 'fd-nmsg' }, 'پیشنهادی پیدا نشد.'));
+      if (!names.length) cs.replaceChildren(el('span', { class: 'fd-nmsg' }, tr('ai.rename.none')));
     } catch (err) {
       if (!alive) return;
       btn.disabled = false;
-      btn.replaceChildren(el('span', { class: 'ic', html: aiIconHTML() }), 'دوباره امتحان کن');
-      cs.replaceChildren(el('span', { class: 'fd-nmsg' }, err && err.kind === 'short' ? 'سند هنوز متنی ندارد.' : errorText(err, () => {})[0]));
+      btn.replaceChildren(el('span', { class: 'ic', html: aiIconHTML() }), tr('common.tryAgain'));
+      cs.replaceChildren(el('span', { class: 'fd-nmsg' }, err && err.kind === 'short' ? tr('ai.rename.emptyDoc') : errorText(err, () => {})[0]));
       place();
     }
   });
@@ -1321,20 +1325,20 @@ export function nameChips(t, input, pick) {
 }
 
 // ---------- model picker: a searchable list in the app's own style ----------
-const MODEL_TAG = { ok: ['فعال', 'ok'], minute: ['محدود', 'warn'], busy: ['شلوغ', 'warn'], day: ['سهمیه‌ی امروز تمام', 'bad'], gone: ['نیست', 'bad'] };
+const MODEL_TAG = { ok: ['ai.model.tag.ok', 'ok'], minute: ['ai.model.tag.minute', 'warn'], busy: ['ai.model.tag.busy', 'warn'], day: ['ai.model.tag.day', 'bad'], gone: ['ai.model.tag.gone', 'bad'] };
 function modelPicker({ label, value, list, none, onPick }) {
   const tested = list.some((m) => m.status);
   const cur = list.find((m) => m.id === value);
   // in the list every tested model gets its tag, «فعال» too; on the button only a problem is worth showing
-  const tagOf = (m, all) => (m && m.status && MODEL_TAG[m.status] && (all || m.status !== 'ok') ? el('span', { class: 'fd-mt ' + MODEL_TAG[m.status][1] }, MODEL_TAG[m.status][0]) : null);
+  const tagOf = (m, all) => (m && m.status && MODEL_TAG[m.status] && (all || m.status !== 'ok') ? el('span', { class: 'fd-mt ' + MODEL_TAG[m.status][1] }, tr(MODEL_TAG[m.status][0])) : null);
   const btn = el('button', { class: 'fd-mp', 'aria-haspopup': 'listbox', 'aria-label': label },
-    el('span', { class: 'nm', dir: value ? 'ltr' : 'rtl' }, value || none || 'انتخاب مدل'), tagOf(cur), el('span', { class: 'cv', html: ICON.chevDown }));
+    el('span', { class: 'nm', dir: value ? 'ltr' : langDir() }, value || none || tr('ai.model.choose')), tagOf(cur), el('span', { class: 'cv', html: ICON.chevDown }));
   btn.addEventListener('click', () => {
     if (document.querySelector('.fd-mpop')) { document.querySelector('.fd-mpop')._close(); return; }
-    const q = el('input', { type: 'text', placeholder: `جستجو در ${fa(list.length)} مدل`, 'aria-label': 'جستجوی مدل', spellcheck: 'false' });
+    const q = el('input', { type: 'text', placeholder: tr('ai.model.searchPh', { count: fa(list.length) }), 'aria-label': tr('ai.model.searchLabel'), spellcheck: 'false' });
     const rows = el('div', { class: 'fd-mlist', role: 'listbox', 'aria-label': label });
-    const manual = el('button', { class: 'fd-mman' }, el('span', { class: 'ic', html: ICON.edit }), 'نام مدل را دستی بنویسید');
-    const box = el('div', { class: 'fd-mpop', dir: 'rtl' }, el('label', { class: 'fd-ms' }, el('span', { class: 'ic', html: ICON.search }), q), rows, manual);
+    const manual = el('button', { class: 'fd-mman' }, el('span', { class: 'ic', html: ICON.edit }), tr('ai.model.manualBtn'));
+    const box = el('div', { class: 'fd-mpop', dir: langDir() }, el('label', { class: 'fd-ms' }, el('span', { class: 'ic', html: ICON.search }), q), rows, manual);
     document.body.append(box);
     let items = []; let focus = -1;
     const pick = (v) => { close(); onPick(v); };
@@ -1343,7 +1347,7 @@ function modelPicker({ label, value, list, none, onPick }) {
       // tags first, on the right; the model id after them
       const b = el('button', { class: 'fd-mr' + (on ? ' on' : ''), role: 'option', 'aria-selected': String(on) },
         el('span', { class: 'ck', html: ICON.check }), tagOf(m, true),
-        m.free ? el('span', { class: 'fd-mt ok' }, 'رایگان') : null, el('span', { class: 'id', dir: 'ltr' }, m.id));
+        m.free ? el('span', { class: 'fd-mt ok' }, tr('ai.model.free')) : null, el('span', { class: 'id', dir: 'ltr' }, m.id));
       b.addEventListener('click', () => pick(m.id));
       b.addEventListener('mousemove', () => setFocus(items.indexOf(b)));
       items.push(b);
@@ -1361,15 +1365,15 @@ function modelPicker({ label, value, list, none, onPick }) {
       }
       const group = (title, arr) => { if (!arr.length) return; rows.append(el('div', { class: 'fd-mh' }, title)); arr.forEach((m) => rows.append(row(m))); };
       if (tested) {
-        group('فعال، همین الان جواب می‌دهند', hit.filter((m) => m.status === 'ok' || m.status === 'minute'));
-        group('فعلاً جواب نمی‌دهند', hit.filter((m) => !(m.status === 'ok' || m.status === 'minute')));
-      } else group(list.length ? 'مدل‌ها' : '', hit);
-      if (!hit.length) rows.append(el('div', { class: 'fd-mempty' }, f ? `مدلی با «${q.value.trim()}» پیدا نشد` : 'فهرستی نیست؛ نام مدل را دستی بنویسید.'));
+        group(tr('ai.model.groupActive'), hit.filter((m) => m.status === 'ok' || m.status === 'minute'));
+        group(tr('ai.model.groupInactive'), hit.filter((m) => !(m.status === 'ok' || m.status === 'minute')));
+      } else group(list.length ? tr('ai.model.groupAll') : '', hit);
+      if (!hit.length) rows.append(el('div', { class: 'fd-mempty' }, f ? tr('ai.model.notFound', { query: q.value.trim() }) : tr('ai.model.noList')));
       focus = -1;
     };
     const toManual = () => {
-      const inp = el('input', { type: 'text', class: 'ltr', value: value || '', placeholder: 'نام مدل، مثلاً gpt-mini', 'aria-label': 'نام مدل', spellcheck: 'false' });
-      const ok = el('button', { class: 'fd-btn primary sm' }, 'تأیید');
+      const inp = el('input', { type: 'text', class: 'ltr', value: value || '', placeholder: tr('ai.model.manualPh'), 'aria-label': tr('ai.model.manualLabel'), spellcheck: 'false' });
+      const ok = el('button', { class: 'fd-btn primary sm' }, tr('common.confirm'));
       const done = () => { const v = inp.value.trim(); if (v) pick(v); };
       ok.addEventListener('click', done);
       inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); done(); } });
@@ -1412,9 +1416,9 @@ export function settingsSection(h) {
   const st = set();
   const wrap = el('div', { class: 'fd-set' });
   let sub = 'conn';
-  const tabs = el('div', { class: 'fd-subtabs', role: 'tablist', 'aria-label': 'بخش‌های هوش مصنوعی' });
+  const tabs = el('div', { class: 'fd-subtabs', role: 'tablist', 'aria-label': tr('settings.ai.tabsLabel') });
   const pane = el('div', {});
-  const SUBS = [['conn', 'اتصال'], ['id', 'کاراکتر'], ['rules', 'رفتار'], ['prompts', 'پرامپت‌ها و اسکیل‌ها']];
+  const SUBS = [['conn', tr('settings.ai.tab.conn')], ['id', tr('settings.ai.tab.char')], ['rules', tr('settings.ai.tab.rules')], ['prompts', tr('settings.ai.tab.prompts')]];
   const show = (k) => {
     sub = k;
     tabs.replaceChildren(...SUBS.map(([v, l]) => el('button', { class: v === sub ? 'on' : '', role: 'tab', 'aria-selected': String(v === sub), onclick: () => show(v) }, l)));
@@ -1458,10 +1462,10 @@ export function settingsSection(h) {
     const status = el('span', { class: 'fd-stt' });
     const setStatus = (tone, text) => { status.className = 'fd-stt ' + tone; status.replaceChildren(el('i'), el('span', {}, text)); };
     const keyBox = el('div', { class: 'fd-keybox' });
-    const checkBtn = el('button', { class: 'set-select as-btn' }, 'بررسی اتصال');
+    const checkBtn = el('button', { class: 'set-select as-btn' }, tr('settings.ai.checkConn'));
     const modelWrap = el('span', { class: 'fd-mwrap' });
     const fbWrap = el('span', { class: 'fd-mwrap' });
-    const testBtn = el('button', { class: 'sv-link' }, 'آزمایش مدل‌ها');
+    const testBtn = el('button', { class: 'sv-link' }, tr('settings.ai.testModels'));
     const modelNote = el('div', { class: 'fd-mnote', hidden: true });
     let models = (s.aiModelCache && s.aiModelCache[provider + '|' + cfgOf(s).baseUrl]) || null;
     const keyMain = oai ? 'aiOaiModel' : claude ? 'aiClaudeModel' : openai ? 'aiOpenaiModel' : 'aiModel';
@@ -1469,12 +1473,12 @@ export function settingsSection(h) {
     const curMain = () => cfgOf().model;
     const curFb = () => cfgOf().fallback;
     const listNow = () => (models && models.length ? models : (!gem ? [] : [{ id: 'gemini-flash-latest' }, { id: 'gemini-flash-lite-latest' }, { id: 'gemini-3.5-flash-lite' }]));
-    const claudeHint = el('div', { class: 'lbl plain set-free', hidden: !!curMain() }, 'بعد از ذخیره‌ی کلید، فهرست مدل‌های Claude می‌آید و یک مدل سبک خودکار انتخاب می‌شود.');
+    const claudeHint = el('div', { class: 'lbl plain set-free', hidden: !!curMain() }, tr('settings.ai.claudeHint'));
     const paintModels = () => {
       claudeHint.hidden = !!curMain();
       const list = listNow();
-      modelWrap.replaceChildren(modelPicker({ label: 'مدل اصلی', value: curMain(), list, none: null, onPick: (v) => { C.updateSettings({ [keyMain]: v }); paintModels(); } }));
-      fbWrap.replaceChildren(modelPicker({ label: 'مدل پشتیبان', value: curFb(), list, none: 'بدون پشتیبان', onPick: (v) => { C.updateSettings({ [keyFb]: v }); paintModels(); } }));
+      modelWrap.replaceChildren(modelPicker({ label: tr('settings.ai.mainModel'), value: curMain(), list, none: null, onPick: (v) => { C.updateSettings({ [keyMain]: v }); paintModels(); } }));
+      fbWrap.replaceChildren(modelPicker({ label: tr('settings.ai.fallbackModel'), value: curFb(), list, none: tr('settings.ai.noFallback'), onPick: (v) => { C.updateSettings({ [keyFb]: v }); paintModels(); } }));
       paintNote(list);
     };
     // the chosen model does not answer now: say so, and offer one that does
@@ -1484,17 +1488,17 @@ export function settingsSection(h) {
       const good = list.find((m) => m.status === 'ok');
       modelNote.hidden = !bad;
       if (!bad) return;
-      const why = { day: 'سهمیه‌ی رایگان امروزش تمام شده', busy: 'الان شلوغ است', gone: 'در دسترس نیست' }[st(bad)];
-      modelNote.replaceChildren(el('span', { class: 'ic', html: ICON.warn }), el('span', {}, `مدل اصلی ${why}.`),
-        good ? el('button', { class: 'sv-link', onclick: () => { C.updateSettings({ [keyMain]: good.id }); paintModels(); } }, 'استفاده از ', el('span', { dir: 'ltr' }, good.id)) : null);
+      const why = { day: tr('settings.ai.modelWhy.day'), busy: tr('settings.ai.modelWhy.busy'), gone: tr('settings.ai.modelWhy.gone') }[st(bad)];
+      modelNote.replaceChildren(el('span', { class: 'ic', html: ICON.warn }), el('span', {}, tr('settings.ai.modelBad', { why })),
+        good ? el('button', { class: 'sv-link', onclick: () => { C.updateSettings({ [keyMain]: good.id }); paintModels(); } }, tr('settings.ai.useModel') + ' ', el('span', { dir: 'ltr' }, good.id)) : null);
     };
     const check = async (probe = false) => {
-      setStatus('wait', probe ? 'در حال آزمایش مدل‌ها… (چند ثانیه)' : 'در حال بررسی…');
+      setStatus('wait', probe ? tr('settings.ai.status.testing') : tr('settings.ai.status.checking'));
       checkBtn.disabled = true; testBtn.disabled = true;
       const cfg = cfgOf();
       const r = await C.api.aiModels(cfg, { probe, only: [cfg.model, cfg.fallback].filter(Boolean) }).catch((e) => ({ ok: false, error: { kind: 'offline', message: String(e) } }));
       checkBtn.disabled = false; testBtn.disabled = false;
-      checkBtn.textContent = 'بررسی دوباره';
+      checkBtn.textContent = tr('settings.ai.checkAgain');
       if (r.ok) {
         // a plain refresh keeps the last test's results (and leaves out what that test found missing)
         const prev = !probe && models && models.some((m) => m.status) ? new Map(models.map((m) => [m.id, m])) : null;
@@ -1508,7 +1512,7 @@ export function settingsSection(h) {
         if (claude && !cfgOf().model && models.length) C.updateSettings({ aiClaudeModel: (models.find((m) => /haiku/i.test(m.id)) || models[0]).id });
         if (openai && !cfgOf().model && models.length) C.updateSettings({ aiOpenaiModel: (models.find((m) => /mini/i.test(m.id) && !/nano/i.test(m.id)) || models[0]).id });
         const live = models.filter((m) => m.status === 'ok' || m.status === 'minute').length;
-        setStatus('ok', r.noList ? 'متصل · فهرست مدل در دسترس نیست' : r.probed && gem ? `متصل · ${fa(live)} مدل فعال از ${fa(models.length)}` : `متصل · ${fa(models.length)} مدل در دسترس`);
+        setStatus('ok', r.noList ? tr('settings.ai.status.connectedNoList') : r.probed && gem ? tr('settings.ai.status.connectedActive', { live: fa(live), total: fa(models.length) }) : tr('settings.ai.status.connectedModels', { count: fa(models.length) }));
         paintModels();
       } else {
         const [title] = errorText(r.error, check);
@@ -1521,14 +1525,14 @@ export function settingsSection(h) {
       const info = await C.api.aiKeyInfo(cfgOf()).catch(() => ({ has: false }));
       keyBox.replaceChildren();
       if (info.has && info.local) {
-        keyBox.append(el('span', { class: 'fd-mask' }, 'سرور محلی، کلید لازم نیست'));
-        if (!status.textContent) { setStatus('', 'بدون کلید'); check(false); }
+        keyBox.append(el('span', { class: 'fd-mask' }, tr('settings.ai.localNoKey')));
+        if (!status.textContent) { setStatus('', tr('settings.ai.status.noKeyNeeded')); check(false); }
       } else if (info.has) {
         keyBox.append(el('span', { class: 'fd-mask', dir: 'ltr' }, info.mask),
-          el('button', { class: 'fd-link', onclick: () => editKey() }, 'تغییر'),
-          el('button', { class: 'fd-link danger', onclick: async () => { await C.api.aiKeySet(cfgOf(), ''); setStatus('', 'هنوز کلیدی وارد نشده'); paintKey(); } }, 'حذف'));
+          el('button', { class: 'fd-link', onclick: () => editKey() }, tr('settings.ai.changeKey')),
+          el('button', { class: 'fd-link danger', onclick: async () => { await C.api.aiKeySet(cfgOf(), ''); setStatus('', tr('settings.ai.status.noKey')); paintKey(); } }, tr('common.delete')));
         if (!status.textContent) {
-          setStatus('', 'کلید ذخیره شده است');
+          setStatus('', tr('settings.ai.status.keySaved'));
           // a fresh test at most twice a day (each tested model costs one tiny request of its quota)
           const cached = models && models.length && models.some((m) => m.status);
           const old = !(set().aiProbedAt && Date.now() - set().aiProbedAt < 12 * 3600e3);
@@ -1536,12 +1540,12 @@ export function settingsSection(h) {
         }
       } else {
         editKey();
-        setStatus('', 'هنوز کلیدی وارد نشده');
+        setStatus('', tr('settings.ai.status.noKey'));
       }
     };
     const editKey = () => {
-      const inp = el('input', { type: 'password', class: 'fd-in ltr', placeholder: 'کلید را اینجا بچسبانید', 'aria-label': 'کلید API', spellcheck: 'false', autocomplete: 'off' });
-      const save = el('button', { class: 'set-select as-btn primary' }, 'ذخیره');
+      const inp = el('input', { type: 'password', class: 'fd-in ltr', placeholder: tr('settings.ai.pasteKey'), 'aria-label': tr('settings.ai.apiKey'), spellcheck: 'false', autocomplete: 'off' });
+      const save = el('button', { class: 'set-select as-btn primary' }, tr('common.save'));
       const doSave = async () => {
         const v = inp.value.trim();
         if (!v) return;
@@ -1556,39 +1560,39 @@ export function settingsSection(h) {
     };
     paintKey();
     paintModels();
-    const base = el('input', { type: 'text', class: 'fd-in ltr wide', value: s.aiBaseUrl || '', placeholder: 'مثلاً https://openrouter.ai/api/v1', 'aria-label': 'نشانی سرویس', spellcheck: 'false' });
+    const base = el('input', { type: 'text', class: 'fd-in ltr wide', value: s.aiBaseUrl || '', placeholder: tr('settings.ai.baseUrlPh'), 'aria-label': tr('settings.ai.baseUrl'), spellcheck: 'false' });
     // another address is another service: its own key and models
     const setBase = (u) => { C.updateSettings({ aiBaseUrl: u, aiOaiModel: '', aiOaiFallback: '' }); show('conn'); };
     base.addEventListener('change', () => setBase(base.value.trim().replace(/\/+$/, '')));
-    const chips = el('div', { class: 'fd-presets', role: 'radiogroup', 'aria-label': 'سرویس‌های آماده' },
+    const chips = el('div', { class: 'fd-presets', role: 'radiogroup', 'aria-label': tr('settings.ai.presets') },
       PRESETS.map(([n, u]) => el('button', { class: 'fd-preset' + (preset && preset[1] === u ? ' on' : ''), role: 'radio', 'aria-checked': String(!!preset && preset[1] === u), dir: 'ltr', onclick: () => setBase(u) }, n)));
     return [
-      label('سرویس'),
-      el('div', { class: 'fd-pv set-free', role: 'radiogroup', 'aria-label': 'سرویس' },
-        prov('gemini', 'Gemini', 'کلید رایگان AI Studio', GEM, true),
-        prov('anthropic', 'Claude', 'کلید Anthropic', CLA, true),
-        prov('openai', 'OpenAI', 'کلید OpenAI', OPN, true),
-        prov('oai', 'سایر تأمین‌کننده‌ها', 'DeepSeek، Groq و…', OAI)),
-      oai ? el('div', { class: 'lbl' }, 'سرویس‌های آماده') : null,
+      label(tr('settings.ai.provider')),
+      el('div', { class: 'fd-pv set-free', role: 'radiogroup', 'aria-label': tr('settings.ai.provider') },
+        prov('gemini', 'Gemini', tr('settings.ai.provider.geminiHint'), GEM, true),
+        prov('anthropic', 'Claude', tr('settings.ai.provider.claudeHint'), CLA, true),
+        prov('openai', 'OpenAI', tr('settings.ai.provider.openaiHint'), OPN, true),
+        prov('oai', tr('settings.ai.provider.other'), tr('settings.ai.provider.otherHint'), OAI)),
+      oai ? el('div', { class: 'lbl' }, tr('settings.ai.presets')) : null,
       oai ? el('div', { class: 'set-free fd-presetw' }, chips) : null,
-      label('اتصال'),
+      label(tr('settings.ai.tab.conn')),
       group(
-        oai ? row('نشانی سرویس', 'Base URL که سرویس به شما داده', base) : null,
-        row('کلید API', isLocal ? 'برای سرور روی همین رایانه لازم نیست' : 'فقط روی همین رایانه، رمزگذاری‌شده', keyBox),
-        el('div', { class: 'row', 'data-s': 'بررسی اتصال' }, status, el('span', { class: 'row-end' },
-          keyUrl ? el('button', { class: 'sv-link', onclick: () => C.api.openUrl(keyUrl) }, gem ? 'دریافت کلید رایگان' : 'دریافت کلید') : null,
+        oai ? row(tr('settings.ai.baseUrl'), tr('settings.ai.baseUrlHint'), base) : null,
+        row(tr('settings.ai.apiKey'), isLocal ? tr('settings.ai.apiKeyLocalHint') : tr('settings.ai.apiKeyHint'), keyBox),
+        el('div', { class: 'row', 'data-s': tr('settings.ai.checkConn') }, status, el('span', { class: 'row-end' },
+          keyUrl ? el('button', { class: 'sv-link', onclick: () => C.api.openUrl(keyUrl) }, gem ? tr('ai.noKey.getFree') : tr('settings.ai.getKey')) : null,
           checkBtn))),
-      el('div', { class: 'lbl lbl-act' }, el('span', {}, 'مدل'), testBtn),
+      el('div', { class: 'lbl lbl-act' }, el('span', {}, tr('settings.ai.model')), testBtn),
       claude ? claudeHint : null,
       group(
-        row('مدل اصلی', null, modelWrap),
-        row('مدل پشتیبان', 'وقتی مدل اصلی جواب ندهد', fbWrap),
+        row(tr('settings.ai.mainModel'), null, modelWrap),
+        row(tr('settings.ai.fallbackModel'), tr('settings.ai.fallbackHint'), fbWrap),
         modelNote),
-      el('div', { class: 'lbl plain set-free' }, isLocal ? 'متن از این رایانه بیرون نمی‌رود؛ مدل روی خود رایانه اجرا می‌شود.' : oai
-        ? 'متن فقط به نشانی بالا فرستاده می‌شود. درباره‌ی نگهداری داده‌ها، قوانین همان سرویس را ببینید.'
-        : claude ? `متنی که به ${aiName()} می‌دهید به Anthropic فرستاده می‌شود. درباره‌ی نگهداری داده‌ها، قوانین Anthropic را ببینید.`
-        : openai ? `متنی که به ${aiName()} می‌دهید به OpenAI فرستاده می‌شود. درباره‌ی نگهداری داده‌ها، قوانین OpenAI را ببینید.`
-        : `متنی که به ${aiName()} می‌دهید به گوگل فرستاده می‌شود. در پلن رایگان، گوگل ممکن است از آن برای بهبود مدل‌هایش استفاده کند.`),
+      el('div', { class: 'lbl plain set-free' }, isLocal ? tr('settings.ai.privacy.local') : oai
+        ? tr('settings.ai.privacy.oai')
+        : claude ? tr('settings.ai.privacy.claude', { name: aiName() })
+        : openai ? tr('settings.ai.privacy.openai', { name: aiName() })
+        : tr('settings.ai.privacy.gemini', { name: aiName() })),
     ];
   }
 
@@ -1605,10 +1609,10 @@ export function settingsSection(h) {
         el('span', { class: 'pic' + extra, html: pic }, on ? el('span', { class: 'ok', html: ICON.check }) : null), el('b', {}, name));
     };
     const ownFace = s.aiCharFace || s.aiIconCustom;
-    const tiles = el('div', { class: 'fd-chg', role: 'radiogroup', 'aria-label': 'کاراکتر دستیار' },
+    const tiles = el('div', { class: 'fd-chg', role: 'radiogroup', 'aria-label': tr('settings.ai.char.label') },
       CHARS.map((c) => tile(c.id, c.name, imgHTML(c.full, ''))),
-      tile('plain', 'بدون کاراکتر', S((AI_ICONS[s.aiIcon | 0] || AI_ICONS[0])[1])),
-      tile('own', 'کاراکتر خودم', ownFace ? imgHTML(s.aiCharFull || ownFace, '') : S('M12 5v14M5 12h14'), ownFace ? '' : ' up'));
+      tile('plain', tr('settings.ai.char.none'), S((AI_ICONS[s.aiIcon | 0] || AI_ICONS[0])[1])),
+      tile('own', tr('settings.ai.char.own'), ownFace ? imgHTML(s.aiCharFull || ownFace, '') : S('M12 5v14M5 12h14'), ownFace ? '' : ' up'));
     // the user's own character: a face (needed) and a full figure (optional), made small on the way in
     const shrink = (file, size) => new Promise((res, rej) => {
       if (file.size > 10 * 1024 * 1024) { rej(new Error('big')); return; }
@@ -1636,25 +1640,25 @@ export function settingsSection(h) {
           const patch = { [key]: data, aiChar: 'own' };
           if (key === 'aiCharFace' && s.aiIconCustom) patch.aiIconCustom = null;
           C.updateSettings(patch); paintBrand(); again();
-        } catch (e) { C.toast(e.message === 'big' ? 'تصویر باید کمتر از ۱۰ مگابایت باشد' : 'این تصویر باز نشد', 'warn'); }
+        } catch (e) { C.toast(e.message === 'big' ? tr('settings.ai.char.imgTooBig') : tr('settings.ai.char.imgBad'), 'warn'); }
       });
       const has = !!set()[key] || (key === 'aiCharFace' && !!s.aiIconCustom);
       const src = set()[key] || (key === 'aiCharFace' ? s.aiIconCustom : null);
       return el('div', { class: 'fd-slot' },
         el('span', { class: 'drop' + (has ? ' has' : ''), html: has ? imgHTML(src, '') : S('M12 16V5M7.5 9.5L12 5l4.5 4.5M5 19h14') }),
         el('span', { class: 'tx' }, el('b', {}, title), el('small', {}, hint)),
-        has && optional ? el('button', { class: 'sv-link danger', onclick: () => { C.updateSettings({ [key]: null }); paintBrand(); again(); } }, 'حذف') : null,
-        el('button', { class: 'set-select as-btn', onclick: () => file.click() }, has ? 'عوض کردن' : 'انتخاب فایل'), file);
+        has && optional ? el('button', { class: 'sv-link danger', onclick: () => { C.updateSettings({ [key]: null }); paintBrand(); again(); } }, tr('common.delete')) : null,
+        el('button', { class: 'set-select as-btn', onclick: () => file.click() }, has ? tr('settings.ai.char.replace') : tr('settings.ai.char.chooseFile')), file);
     };
-    const nameIn = el('input', { type: 'text', class: 'fd-in', value: s.aiName || '', placeholder: isOwn ? 'اسم کاراکترت' : 'مثلاً فدورا', 'aria-label': 'نام دستیار', maxlength: '24', spellcheck: 'false' });
+    const nameIn = el('input', { type: 'text', class: 'fd-in', value: s.aiName || '', placeholder: isOwn ? tr('settings.ai.char.nameOwnPh') : tr('settings.ai.char.namePh'), 'aria-label': tr('settings.ai.char.nameLabel'), maxlength: '24', spellcheck: 'false' });
     const prev = el('div', { class: 'fd-prv2' });
     const paintPrev = () => {
       const ic = aiIconHTML(); const nm = aiName();
       prev.replaceChildren(
-        el('span', { class: 'fd-pv-tb', title: 'نوار ابزار انتخاب متن', html: ic }),
-        el('span', { class: 'fd-pv-pill', title: 'دکمه‌ی بالای پنجره' }, el('span', {}, nm), el('span', { class: 'fc', html: ic })),
-        el('span', { class: 'fd-pv-bub', title: 'چت' }, el('span', { class: 't' }, 'خلاصه‌اش آماده است'), el('span', { class: 'fc', html: ic })),
-        el('span', { class: 'fd-pv-wk', title: 'در حال کار' }, workFig(32), el('span', { class: 'fd-work-tx', 'data-kind': 'rewrite' }, workText('rewrite')), dots()));
+        el('span', { class: 'fd-pv-tb', title: tr('settings.ai.char.prevToolbar'), html: ic }),
+        el('span', { class: 'fd-pv-pill', title: tr('settings.ai.char.prevTopBtn') }, el('span', {}, nm), el('span', { class: 'fc', html: ic })),
+        el('span', { class: 'fd-pv-bub', title: tr('settings.ai.char.prevChat') }, el('span', { class: 't' }, tr('settings.ai.char.prevSample')), el('span', { class: 'fc', html: ic })),
+        el('span', { class: 'fd-pv-wk', title: tr('settings.ai.char.prevWorking') }, workFig(32), el('span', { class: 'fd-work-tx', 'data-kind': 'rewrite' }, workText('rewrite')), dots()));
     };
     nameIn.addEventListener('input', () => {
       const v = nameIn.value.trim();
@@ -1662,26 +1666,26 @@ export function settingsSection(h) {
       paintBrand(); paintPrev();
     });
     paintPrev();
-    const plainGrid = cur === 'plain' && !isOwn ? el('div', { class: 'grp set-free' }, el('div', { class: 'fd-icg', role: 'radiogroup', 'aria-label': 'آیکن دستیار' },
+    const plainGrid = cur === 'plain' && !isOwn ? el('div', { class: 'grp set-free' }, el('div', { class: 'fd-icg', role: 'radiogroup', 'aria-label': tr('settings.ai.char.iconLabel') },
       AI_ICONS.map(([n, d], i) => {
         const on = (s.aiIcon | 0) === i;
-        return el('button', { class: 'fd-icp' + (on ? ' on' : ''), role: 'radio', 'aria-checked': String(on), 'aria-label': n, title: n, html: S(d), onclick: () => { C.updateSettings({ aiIcon: i, aiChar: 'plain' }); paintBrand(); again(); } });
+        return el('button', { class: 'fd-icp' + (on ? ' on' : ''), role: 'radio', 'aria-checked': String(on), 'aria-label': tr(n), title: tr(n), html: S(d), onclick: () => { C.updateSettings({ aiIcon: i, aiChar: 'plain' }); paintBrand(); again(); } });
       }))) : null;
     return [
-      label('کاراکتر دستیار'),
+      label(tr('settings.ai.char.label')),
       el('div', { class: 'grp set-free' }, tiles),
       isOwn ? el('div', { class: 'grp set-free fd-slots' },
-        slot('aiCharFace', 'صورت', 'برای دکمه‌ها و چت؛ مربع، پس‌زمینه‌ی شفاف', 256, false),
-        slot('aiCharFull', 'تمام‌قد', 'اختیاری؛ برای «در حال کار» و پیام بار اول', 384, true)) : null,
-      plainGrid ? label('آیکن') : null,
+        slot('aiCharFace', tr('settings.ai.char.face'), tr('settings.ai.char.faceHint'), 256, false),
+        slot('aiCharFull', tr('settings.ai.char.full'), tr('settings.ai.char.fullHint'), 384, true)) : null,
+      plainGrid ? label(tr('settings.ai.char.icon')) : null,
       plainGrid,
-      label('نام'),
-      group(row('نام دستیار', 'با عوض کردن کاراکتر، نام هم عوض می‌شود', nameIn),
-        row('نام کنار صورت', 'در دکمه‌ی بالای پنجره؛ خاموش باشد فقط صورت دیده می‌شود', h.sw(() => set().aiShowName !== false, () => { C.updateSettings({ aiShowName: set().aiShowName === false }); paintBrand(); }, 'نام کنار صورت'))),
-      label('پیش‌نمایش'),
+      label(tr('settings.ai.char.nameSec')),
+      group(row(tr('settings.ai.char.nameLabel'), tr('settings.ai.char.nameHint'), nameIn),
+        row(tr('settings.ai.char.showName'), tr('settings.ai.char.showNameHint'), h.sw(() => set().aiShowName !== false, () => { C.updateSettings({ aiShowName: set().aiShowName === false }); paintBrand(); }, tr('settings.ai.char.showName')))),
+      label(tr('settings.ai.char.preview')),
       el('div', { class: 'grp set-free' }, prev),
-      isOwn ? el('div', { class: 'lbl plain set-free' }, 'تصویرها خودکار کوچک می‌شوند و فقط روی همین رایانه می‌مانند.')
-        : el('div', { class: 'lbl plain set-free' }, 'هر کاراکتر دو تصویر دارد: صورت برای جاهای کوچک، تمام‌قد برای لحظه‌های بزرگ. «بدون کاراکتر» همان آیکن‌های ساده‌ی قبلی است.'),
+      isOwn ? el('div', { class: 'lbl plain set-free' }, tr('settings.ai.char.ownNote'))
+        : el('div', { class: 'lbl plain set-free' }, tr('settings.ai.char.note')),
     ].filter(Boolean);
   }
 
@@ -1689,26 +1693,26 @@ export function settingsSection(h) {
   // --- behaviour ---
   function rules() {
     return [
-      label('تغییر متن'),
+      label(tr('settings.ai.rules.editSec')),
       group(
-        row('پیش‌نمایش قبل از اعمال', 'تفاوت‌ها را می‌بینید و قبول یا رد می‌کنید', sw(() => set().aiPreview !== false, () => C.updateSettings({ aiPreview: set().aiPreview === false }), 'پیش‌نمایش قبل از اعمال')),
-        row('نشانه‌ی تغییرات کنار متن', 'بعد از بستن و باز کردن دوباره‌ی فایل هم می‌ماند', sw(() => set().aiMarks !== false, () => { C.updateSettings({ aiMarks: set().aiMarks === false }); C.refreshViews(); }, 'نشانه‌ی تغییرات کنار متن'))),
-      label('پاسخ‌ها'),
-      group(row('زبان پاسخ', null, seg([['same', 'هم‌زبان با متن'], ['fa', 'فارسی'], ['en', 'English']], () => set().aiLang || 'same', (v) => C.updateSettings({ aiLang: v })))),
-      label('تب‌ها'),
+        row(tr('settings.ai.rules.preview'), tr('settings.ai.rules.previewHint'), sw(() => set().aiPreview !== false, () => C.updateSettings({ aiPreview: set().aiPreview === false }), tr('settings.ai.rules.preview'))),
+        row(tr('settings.ai.rules.marks'), tr('settings.ai.rules.marksHint'), sw(() => set().aiMarks !== false, () => { C.updateSettings({ aiMarks: set().aiMarks === false }); C.refreshViews(); }, tr('settings.ai.rules.marks')))),
+      label(tr('settings.ai.rules.replySec')),
+      group(row(tr('settings.ai.rules.lang'), null, seg([['same', tr('settings.ai.rules.langSame')], ['fa', 'فارسی'], ['en', 'English']], () => set().aiLang || 'same', (v) => C.updateSettings({ aiLang: v })))),
+      label(tr('settings.ai.rules.tabsSec')),
       group(
-        row('پیشنهاد نام هنگام تغییر نام', 'دکمه‌ای زیر نام تب؛ فقط با کلیک شما چیزی فرستاده می‌شود', sw(() => set().aiTabNames !== false, () => C.updateSettings({ aiTabNames: set().aiTabNames === false }), 'پیشنهاد نام هنگام تغییر نام')),
-        row(`باز کردن ${aiName()}`, 'روی متن انتخاب‌شده', kb('Ctrl', 'J'))),
+        row(tr('settings.ai.rules.tabNames'), tr('settings.ai.rules.tabNamesHint'), sw(() => set().aiTabNames !== false, () => C.updateSettings({ aiTabNames: set().aiTabNames === false }), tr('settings.ai.rules.tabNames'))),
+        row(tr('settings.ai.rules.openName', { name: aiName() }), tr('settings.ai.rules.onSelection'), kb('Ctrl', 'J'))),
     ];
   }
 
   const body = el('div', { class: 'fd-setbody', hidden: !aiOn() }, tabs, pane);
-  const master = group(row('هوش مصنوعی', 'با خاموش کردنش، امکانات هوش مصنوعی توی اپ دیده نمی‌شه.', sw(() => aiOn(), () => {
+  const master = group(row(tr('settings.section.ai'), tr('settings.ai.masterHint'), sw(() => aiOn(), () => {
     C.updateSettings({ aiEnabled: !aiOn() });
     if (!aiOn()) closeFedora();
     paintBrand();
     body.hidden = !aiOn();
-  }, 'هوش مصنوعی')));
+  }, tr('settings.section.ai'))));
   wrap.append(master, body);
   wrap._show = show;
   show(wantSub || 'conn');
@@ -1719,10 +1723,10 @@ export function settingsSection(h) {
 // =====================================================================
 // Phase 2: the whole document (button in the top bar, Ctrl+Shift+J)
 // =====================================================================
-const SUM_LEN = [['short', 'کوتاه'], ['medium', 'متوسط'], ['long', 'مفصل']];
-const SUM_FMT = [['para', 'پاراگراف'], ['bullets', 'فهرست نکته‌ها']];
+const SUM_LEN = [['short', 'ai.sum.len.short'], ['medium', 'ai.sum.len.medium'], ['long', 'ai.sum.len.long']];
+const SUM_FMT = [['para', 'ai.sum.fmt.para'], ['bullets', 'ai.sum.fmt.bullets']];
 const SKIP_BLOCK = new Set(['code_block', 'math_block', 'math_display', 'html', 'hr', 'horizontal_rule', 'image-block', 'image_block', 'table']);
-const docTitle = (t) => (C.tabTitle ? C.tabTitle(t) : 'سند').replace(/\.(md|markdown|txt)$/i, '');
+const docTitle = (t) => (C.tabTitle ? C.tabTitle(t) : tr('ai.doc.defaultTitle')).replace(/\.(md|markdown|txt)$/i, '');
 const segRow = (opts, get, setv, label) => {
   const box = el('div', { class: 'fd-lv', role: 'radiogroup', 'aria-label': label });
   const paint = () => box.querySelectorAll('button').forEach((x) => { const on = x.dataset.v === get(); x.classList.toggle('on', on); x.setAttribute('aria-checked', String(on)); });
@@ -1734,28 +1738,28 @@ const segRow = (opts, get, setv, label) => {
 export async function openDocFedora(t, anchor) {
   if (!t || !t.crepe || !aiOn()) return;
   if (openCard && openCard.anchor === anchor) { closeFedora(); return; }
-  if (t.mode === 'source') { C.toast(`${aiName()} در حالت کد منبع در دسترس نیست`, 'info'); return; }
+  if (t.mode === 'source') { C.toast(tr('ai.toast.noSource', { name: aiName() }), 'info'); return; }
   const view = getView(t.crepe);
   const range = { from: 0, to: view.state.doc.content.size, doc: true, anchor };
   const info = await C.api.aiKeyInfo(cfgOf()).catch(() => ({ has: false }));
-  const c = card('fd-menu fd-docmenu', `${aiName()} برای کل سند`, t, range);
+  const c = card('fd-menu fd-docmenu', tr('ai.doc.menuLabel', { name: aiName() }), t, range);
   c.anchor = anchor;
   anchor.classList.add('open');
   if (!info.has) {
     const gem = cfgOf().provider === 'gemini';
     c.box.classList.add('fd-nokey');
     c.box.append(
-      el('div', { class: 'fd-nk-h' }, el('span', { class: 'ic', html: aiIconHTML() }), el('b', {}, `${aiName()} هنوز وصل نیست`)),
-      el('p', {}, 'برای شروع، کلید API از Google AI Studio یا یک سرویس سازگار با OpenAI را در تنظیمات وارد کنید. یک بار کافی است.'),
+      el('div', { class: 'fd-nk-h' }, el('span', { class: 'ic', html: aiIconHTML() }), el('b', {}, tr('ai.noKey.title', { name: aiName() }))),
+      el('p', {}, tr('ai.noKey.body')),
       el('div', { class: 'fd-foot end' },
-        gem ? el('button', { class: 'fd-btn', onclick: () => C.api.openUrl('https://aistudio.google.com/apikey') }, 'دریافت کلید رایگان') : null,
-        el('button', { class: 'fd-btn primary', onclick: () => { closeFedora(); C.openSettings('ai'); } }, 'رفتن به تنظیمات')));
+        gem ? el('button', { class: 'fd-btn', onclick: () => C.api.openUrl('https://aistudio.google.com/apikey') }, tr('ai.noKey.getFree')) : null,
+        el('button', { class: 'fd-btn primary', onclick: () => { closeFedora(); C.openSettings('ai'); } }, tr('ai.noKey.openSettings'))));
     c.place();
     return;
   }
   const st = set();
-  const input = el('input', { type: 'text', placeholder: 'دستوری برای کل سند بنویسید…', 'aria-label': 'دستور برای کل سند', spellcheck: 'false' });
-  const send = el('button', { class: 'fd-send', 'aria-label': 'فرستادن', title: 'فرستادن (Enter)', html: I.send });
+  const input = el('input', { type: 'text', placeholder: tr('ai.doc.askPh'), 'aria-label': tr('ai.doc.askLabel'), spellcheck: 'false' });
+  const send = el('button', { class: 'fd-send', 'aria-label': tr('ai.send'), title: tr('ai.send'), html: I.send });
   let sub = null; let hoverT = null;
   const closeSub = () => { if (sub) { sub.remove(); sub = null; } c.box.querySelectorAll('.fd-mi.on').forEach((n) => n.classList.remove('on')); };
   const openSub = (b, build, toggle) => {
@@ -1769,7 +1773,11 @@ export async function openDocFedora(t, anchor) {
     c.box.append(sub);
     const br = b.getBoundingClientRect(); const cr = c.box.getBoundingClientRect();
     sub.style.top = Math.max(0, Math.min(br.top - cr.top - 6, innerHeight - cr.top - sub.offsetHeight - 10)) + 'px';
-    if (cr.left - sub.offsetWidth - 6 < 8) sub.style.left = 'calc(100% + 6px)'; else sub.style.right = 'calc(100% + 6px)';
+    if (langDir() === 'ltr') {
+      if (cr.right + sub.offsetWidth + 6 > innerWidth - 8) sub.style.right = 'calc(100% + 6px)';
+      else sub.style.left = 'calc(100% + 6px)';
+    } else if (cr.left - sub.offsetWidth - 6 < 8) sub.style.left = 'calc(100% + 6px)';
+    else sub.style.right = 'calc(100% + 6px)';
     const f = sub.querySelector('input'); if (f) f.focus();
   };
   const item = (icon, label, run, hasSub) => {
@@ -1786,43 +1794,44 @@ export async function openDocFedora(t, anchor) {
   };
   const go = (fn) => () => { closeFedora(); fn(); };
   const toneSub = (b, tg) => openSub(b, () => [...TONES.map((x) => {
-    const r = el('button', { class: 'fd-mi', role: 'menuitem' }, el('span', { class: 't' }, x[1]), el('small', {}, x[2]));
+    const r = el('button', { class: 'fd-mi', role: 'menuitem' }, el('span', { class: 't' }, tr(x[1])), el('small', {}, tr(x[2])));
     r.addEventListener('click', go(() => runReview(t, toneAction(x))));
     return r;
-  }), el('div', { class: 'fd-hint' }, 'هر بند جدا پیشنهاد می‌شود و می‌توانید تک‌تک قبول یا رد کنید.')], tg);
+  }), el('div', { class: 'fd-hint' }, tr('ai.doc.toneHint'))], tg);
   const sumSub = (b, tg) => openSub(b, () => {
     let len = st.aiSumLen || 'medium'; let fmt = st.aiSumFmt || 'bullets';
-    const goBtn = el('button', { class: 'fd-btn primary wide' }, 'خلاصه در تب تازه');
+    const goBtn = el('button', { class: 'fd-btn primary wide' }, tr('ai.sum.run'));
     goBtn.addEventListener('click', go(() => { C.updateSettings({ aiSumLen: len, aiSumFmt: fmt }); runOutput(t, 'summary', { len, fmt }); }));
-    return [el('div', { class: 'fd-mh' }, 'طول'), segRow(SUM_LEN, () => len, (v) => { len = v; }, 'طول خلاصه'),
-      el('div', { class: 'fd-mh' }, 'شکل'), segRow(SUM_FMT, () => fmt, (v) => { fmt = v; }, 'شکل خلاصه'),
-      el('div', { class: 'fd-hint' }, 'کوتاه: چند جمله · متوسط: حدود یک‌پنجم سند · مفصل: با تیترهای خود سند'), goBtn];
+    return [el('div', { class: 'fd-mh' }, tr('ai.sum.length')), segRow(SUM_LEN.map(([v, lk]) => [v, tr(lk)]), () => len, (v) => { len = v; }, tr('ai.sum.lengthLabel')),
+      el('div', { class: 'fd-mh' }, tr('ai.sum.format')), segRow(SUM_FMT.map(([v, lk]) => [v, tr(lk)]), () => fmt, (v) => { fmt = v; }, tr('ai.sum.formatLabel')),
+      el('div', { class: 'fd-hint' }, tr('ai.sum.hint')), goBtn];
   }, tg);
   const explSub = (b, tg) => openSub(b, () => {
     let level = st.aiLevel || 'simple'; let example = st.aiExample !== false;
-    const ck = el('button', { class: 'fd-ck' + (example ? ' on' : ''), role: 'checkbox', 'aria-checked': String(example) }, el('span', { class: 'bx', html: ICON.check }), 'همراه با مثال');
+    const ck = el('button', { class: 'fd-ck' + (example ? ' on' : ''), role: 'checkbox', 'aria-checked': String(example) }, el('span', { class: 'bx', html: ICON.check }), tr('ai.explain.withExample'));
     ck.addEventListener('click', () => { example = !example; ck.classList.toggle('on', example); ck.setAttribute('aria-checked', String(example)); });
-    const goBtn = el('button', { class: 'fd-btn primary wide' }, 'توضیح در تب تازه');
+    const goBtn = el('button', { class: 'fd-btn primary wide' }, tr('ai.doc.explainRun'));
     goBtn.addEventListener('click', go(() => { C.updateSettings({ aiLevel: level, aiExample: example }); runOutput(t, 'explain', { level, example }); }));
-    return [el('div', { class: 'fd-mh' }, 'سطح توضیح'), segRow(LEVELS, () => level, (v) => { level = v; }, 'سطح توضیح'), ck, goBtn];
+    return [el('div', { class: 'fd-mh' }, tr('ai.explain.level')), segRow(LEVELS.map(([v, lk]) => [v, tr(lk)]), () => level, (v) => { level = v; }, tr('ai.explain.level')), ck, goBtn];
   }, tg);
   const trSub = (b, tg) => openSub(b, () => {
-    const q = el('input', { type: 'text', placeholder: 'جستجوی زبان، فارسی یا English', 'aria-label': 'جستجوی زبان', spellcheck: 'false' });
+    const q = el('input', { type: 'text', placeholder: tr('translate.searchPh'), 'aria-label': tr('translate.searchLabel'), spellcheck: 'false' });
     const list = el('div', { class: 'fd-langs', role: 'listbox' });
     let rows = []; let focus = -1;
     const pick = (code) => { C.updateSettings({ aiTrRecent: [code, ...(set().aiTrRecent || []).filter((x) => x !== code)].slice(0, 3) }); closeFedora(); runOutput(t, 'translate', { lang: code }); };
-    const row = (l) => { const r = el('button', { class: 'fd-lr', role: 'option' }, el('span', { class: 'n' }, l[1]), el('span', { class: 'en', dir: 'ltr' }, l[2])); r.addEventListener('click', () => pick(l[0])); r.addEventListener('mousemove', () => setF(rows.indexOf(r))); rows.push(r); return r; };
+    const isEn = getLang() === 'en';
+    const row = (l) => { const r = el('button', { class: 'fd-lr', role: 'option' }, el('span', { class: 'n' }, isEn ? l[2] : l[1]), el('span', { class: 'en', dir: isEn ? 'rtl' : 'ltr' }, isEn ? l[1] : l[2])); r.addEventListener('click', () => pick(l[0])); r.addEventListener('mousemove', () => setF(rows.indexOf(r))); rows.push(r); return r; };
     const setF = (i) => { if (!rows.length) return; focus = (i + rows.length) % rows.length; rows.forEach((x, k) => x.classList.toggle('focus', k === focus)); rows[focus].scrollIntoView({ block: 'nearest' }); };
     const paint = () => {
       const f = q.value.trim(); const fl = f.toLowerCase();
       rows = []; list.replaceChildren(); focus = -1;
       if (!f) {
         const rec = [...new Set([...(set().aiTrRecent || []), 'en', 'fa', 'ar'])].map((cd) => LANGS.find((l) => l[0] === cd)).filter(Boolean).slice(0, 3);
-        list.append(el('div', { class: 'fd-mh' }, 'اخیر'), ...rec.map(row), el('div', { class: 'fd-mh' }, 'همه‌ی زبان‌ها'), ...LANGS.filter((l) => !rec.includes(l)).map(row));
+        list.append(el('div', { class: 'fd-mh' }, tr('ai.tr.recent')), ...rec.map(row), el('div', { class: 'fd-mh' }, tr('ai.tr.allLangs')), ...LANGS.filter((l) => !rec.includes(l)).map(row));
       } else {
         const hit = LANGS.filter((l) => l[1].includes(f) || l[2].toLowerCase().includes(fl));
         list.append(...hit.map(row));
-        if (!hit.length) list.append(el('div', { class: 'fd-mempty' }, `زبانی با «${f}» پیدا نشد`));
+        if (!hit.length) list.append(el('div', { class: 'fd-mempty' }, tr('ai.tr.notFound', { query: f })));
         if (hit.length) setF(0);
       }
     };
@@ -1833,29 +1842,29 @@ export async function openDocFedora(t, anchor) {
     });
     paint();
     return [el('label', { class: 'fd-ms' }, el('span', { class: 'ic', html: ICON.search }), q), list,
-      el('div', { class: 'fd-hint ok' }, 'تیترها، جدول‌ها، کد و پیوندها سر جایشان می‌مانند. سند بلند بخش‌به‌بخش ترجمه می‌شود.')];
+      el('div', { class: 'fd-hint ok' }, tr('ai.tr.hint'))];
   }, tg);
   const change = [
-    builtOn('clean') ? item(I.clean, 'تمیز کردن کل سند', go(() => runReview(t, ACTIONS.clean))) : null,
-    builtOn('tone') ? item(I.tone, 'تغییر لحن کل سند', toneSub, true) : null,
+    builtOn('clean') ? item(I.clean, tr('ai.doc.clean'), go(() => runReview(t, ACTIONS.clean))) : null,
+    builtOn('tone') ? item(I.tone, tr('ai.doc.tone'), toneSub, true) : null,
   ].filter(Boolean);
   const outs = [
-    builtOn('summary') ? item(S('M4 6h16M4 10h10M4 14h16M4 18h7'), 'خلاصه', sumSub, true) : null,
-    builtOn('explain') ? item(I.explain, 'توضیح فایل', explSub, true) : null,
-    builtOn('dev') ? item(S('M8 7.5L3.5 12L8 16.5M16 7.5L20.5 12L16 16.5M13.5 5l-3 14'), 'سند برای دولوپر', go(() => runOutput(t, 'dev', {}))) : null,
-    builtOn('translate') ? item(I.translate, 'ترجمه‌ی کل سند', trSub, true) : null,
+    builtOn('summary') ? item(S('M4 6h16M4 10h10M4 14h16M4 18h7'), tr('ai.doc.summary'), sumSub, true) : null,
+    builtOn('explain') ? item(I.explain, tr('ai.doc.explain'), explSub, true) : null,
+    builtOn('dev') ? item(S('M8 7.5L3.5 12L8 16.5M16 7.5L20.5 12L16 16.5M13.5 5l-3 14'), tr('ai.doc.dev'), go(() => runOutput(t, 'dev', {}))) : null,
+    builtOn('translate') ? item(I.translate, tr('ai.doc.translate'), trSub, true) : null,
   ].filter(Boolean);
   const mine = prompts().filter(forDoc);
   const blocks = [];
-  if (change.length) blocks.push([el('div', { class: 'fd-mh' }, 'تغییر همین سند', el('em', {}, ' · با پیش‌نمایش')), ...change]);
-  if (outs.length) blocks.push([el('div', { class: 'fd-mh' }, 'در تب تازه', el('em', {}, ' · سند فعلی دست نمی‌خورد')), ...outs]);
-  if (mine.length) blocks.push([el('div', { class: 'fd-mh' }, 'پرامپت‌های من'), ...mine.map((p) => promptItem(p, go(() => runPrompt(t, range, p)), closeSub, () => clearTimeout(hoverT)))]);
+  if (change.length) blocks.push([el('div', { class: 'fd-mh' }, tr('ai.doc.secEdit'), el('em', {}, tr('ai.doc.secEditSub'))), ...change]);
+  if (outs.length) blocks.push([el('div', { class: 'fd-mh' }, tr('ai.doc.secNewTab'), el('em', {}, tr('ai.doc.secNewTabSub'))), ...outs]);
+  if (mine.length) blocks.push([el('div', { class: 'fd-mh' }, tr('ai.myPrompts')), ...mine.map((p) => promptItem(p, go(() => runPrompt(t, range, p)), closeSub, () => clearTimeout(hoverT)))]);
   c.box.append(
     ...scopeSeg(t, 'doc', anchor).filter(Boolean),
     el('label', { class: 'fd-ask' }, el('span', { class: 'ic', html: aiIconHTML() }), input, send),
     ...blocks.flatMap((b, i) => (i ? [el('div', { class: 'fd-sep' }), ...b] : b)),
-    el('div', { class: 'fd-foot' }, el('span', { class: 'fd-k' }, kb('Ctrl', 'Shift', 'J'), 'روی کل سند'),
-      el('button', { class: 'fd-link', onclick: () => { closeFedora(); openPromptSettings(); } }, 'مدیریت پرامپت‌ها')));
+    el('div', { class: 'fd-foot' }, el('span', { class: 'fd-k' }, kb('Ctrl', 'Shift', 'J'), tr('ai.doc.shortcut')),
+      el('button', { class: 'fd-link', onclick: () => { closeFedora(); openPromptSettings(); } }, tr('ai.managePrompts'))));
   const free = () => { const q = input.value.trim(); if (!q) return; closeFedora(); runDocFree(t, anchor, q); };
   send.addEventListener('click', (e) => { e.preventDefault(); free(); });
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); free(); } });
@@ -1929,12 +1938,12 @@ function sugWidget(it) {
   fin.hidden = view !== 'final'; diff.hidden = view !== 'diff';
   const tab = (k, l) => el('button', { class: 'fd-sug-v' + (view === k ? ' on' : ''), role: 'tab', 'aria-selected': String(view === k), 'data-view': k, 'data-id': it.id }, l);
   box.append(
-    el('div', { class: 'fd-sug-h' }, el('span', { class: 'ic', html: aiIconHTML() }), el('span', {}, 'پیشنهاد'),
-      el('span', { class: 'fd-sug-tabs', role: 'tablist' }, tab('final', 'متن نهایی'), tab('diff', 'تغییرات')),
+    el('div', { class: 'fd-sug-h' }, el('span', { class: 'ic', html: aiIconHTML() }), el('span', {}, tr('ai.review.suggestion')),
+      el('span', { class: 'fd-sug-tabs', role: 'tablist' }, tab('final', tr('ai.review.tabResult')), tab('diff', tr('ai.review.tabChanges'))),
       el('span', { class: 'sp' }),
-      el('button', { class: 'fd-sug-b no', 'data-act': 'no', 'data-id': it.id, title: 'رد این پیشنهاد', 'aria-label': 'رد' }, el('span', { class: 'ic', html: ICON.x }), 'رد'),
-      el('button', { class: 'fd-sug-b', 'data-act': 'tab', 'data-id': it.id, title: 'سند فعلی دست نمی‌خورد' }, el('span', { class: 'ic', html: ICON.file || ICON.plus }), 'در سند جدید'),
-      el('button', { class: 'fd-sug-b ok', 'data-act': 'ok', 'data-id': it.id }, el('span', { class: 'ic', html: ICON.check }), 'اعمال در همین سند')),
+      el('button', { class: 'fd-sug-b no', 'data-act': 'no', 'data-id': it.id, title: tr('ai.review.rejectTitle'), 'aria-label': tr('common.reject') }, el('span', { class: 'ic', html: ICON.x }), tr('common.reject')),
+      el('button', { class: 'fd-sug-b', 'data-act': 'tab', 'data-id': it.id, title: tr('ai.review.untouched') }, el('span', { class: 'ic', html: ICON.file || ICON.plus }), tr('ai.review.inNewDoc')),
+      el('button', { class: 'fd-sug-b ok', 'data-act': 'ok', 'data-id': it.id }, el('span', { class: 'ic', html: ICON.check }), tr('ai.review.applyHere'))),
     fin, diff);
   return box;
 }
@@ -1950,7 +1959,7 @@ async function toNewDoc(t, ids, rv) {
   const md = docWith(t, ids);
   rejectItems(t, ids);
   const n = await C.newTabBeside(t, { content: md, title: `${rv.cmd}: ${docTitle(t)}` });
-  if (n) C.toast('نتیجه در سند جدید باز شد؛ سند اصلی دست نخورد', 'ok');
+  if (n) C.toast(tr('ai.review.openedNewDoc'), 'ok');
   return n;
 }
 
@@ -1961,24 +1970,24 @@ function acceptItems(t, ids, rv) {
   const list = items.filter((x) => ids.includes(x.id)).sort((a, b) => b.from - a.from);
   if (!list.length) return 0;
   if (t.locked) { C.showLocked(); return 0; }
-  let tr = view.state.tr;
+  let tx = view.state.tr;
   const marks = [];
   const done = [];
   for (const it of list) {
     let cur;
-    try { cur = tr.doc.textBetween(it.from, it.to, '\n', ' ').trim(); } catch { continue; }
+    try { cur = tx.doc.textBetween(it.from, it.to, '\n', ' ').trim(); } catch { continue; }
     // the user changed this part meanwhile: the suggestion no longer fits
     if (cur !== it.oldText) { done.push(it.id); continue; }
-    const r = replaceRange(t, { from: it.from, to: it.to, inline: false }, it.newMd, tr);
-    tr = r.tr;
-    marks.push({ id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), time: Date.now(), cmd: rv.cmd, scope: 'کل سند', inline: false,
+    const r = replaceRange(t, { from: it.from, to: it.to, inline: false }, it.newMd, tx);
+    tx = r.tr;
+    marks.push({ id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), time: Date.now(), cmd: rv.cmd, scope: tr('ai.scope.doc'), inline: false,
       from: r.from, to: r.to, beforeMd: it.oldMd, afterMd: it.newMd, beforeText: it.oldText, afterText: r.tr.doc.textBetween(r.from, r.to, '\n', ' ').trim(), hist: rv.hist });
     done.push(it.id);
   }
   const mapped = marks;
-  closeHistory(tr);
-  tr.setMeta(reviewKey, { remove: done });
-  view.dispatch(tr.scrollIntoView());
+  closeHistory(tx);
+  tx.setMeta(reviewKey, { remove: done });
+  view.dispatch(tx.scrollIntoView());
   view.dispatch(closeHistory(view.state.tr));
   // positions: each replacement happened at a lower position than the ones before it, so the earlier
   // markers moved by the later edits; find them again by their text
@@ -2004,7 +2013,7 @@ function floatBox(t) {
 }
 let reviewRun = new WeakMap(); // tab -> { bar, cmd, hist, accepted, total, busy, cancel, paint }
 function reviewBar(t, rv) {
-  const bar = el('div', { class: 'fd-review', dir: 'rtl', role: 'toolbar', 'aria-label': 'بازبینی پیشنهادهای ' + aiName() });
+  const bar = el('div', { class: 'fd-review', dir: langDir(), role: 'toolbar', 'aria-label': tr('ai.review.barLabel', { name: aiName() }) });
   floatBox(t).append(bar);
   const focusItem = (dir) => {
     const { items, cur } = reviewOf(t);
@@ -2026,18 +2035,18 @@ function reviewBar(t, rv) {
     const finished = !rv.busy && !items.length;
     bar.replaceChildren(...[
       rv.busy ? workFig(36) : el('b', { class: 'fd-brand' }, el('span', { class: 'ic', html: aiIconHTML() }), el('span', { class: 'nm' }, rv.cmd)),
-      rv.busy ? el('span', { class: 'fd-wk' }, ...workLine(rv.kind || 'rewrite'), rv.total > 1 ? el('small', {}, `بخش ${fa(rv.done + 1)} از ${fa(rv.total)}`) : null) : null,
-      rv.busy && !items.length ? null : el('span', { class: 'cnt' }, finished ? (rv.accepted ? `تمام شد، ${fa(rv.accepted)} تغییر اعمال شد` : (rv.found ? 'تمام شد' : 'پیشنهادی نبود؛ متن همین‌طور خوب است.')) : `${fa(items.length)} پیشنهاد${rv.accepted ? `، ${fa(rv.accepted)} قبول شده` : ''}`),
+      rv.busy ? el('span', { class: 'fd-wk' }, ...workLine(rv.kind || 'rewrite'), rv.total > 1 ? el('small', {}, tr('ai.partOf', { done: fa(rv.done + 1), total: fa(rv.total) })) : null) : null,
+      rv.busy && !items.length ? null : el('span', { class: 'cnt' }, finished ? (rv.accepted ? tr('ai.review.doneApplied', { count: fa(rv.accepted) }) : (rv.found ? tr('ai.review.done') : tr('ai.review.noSuggestions'))) : rv.accepted ? tr('ai.review.countAccepted', { count: fa(items.length), accepted: fa(rv.accepted) }) : tr('ai.review.count', { count: fa(items.length) })),
       items.length ? el('div', { class: 'fd-nav' },
-        el('button', { 'aria-label': 'پیشنهاد قبلی', title: 'پیشنهاد قبلی', html: ICON.chevUp, onclick: () => focusItem(-1) }),
-        el('span', {}, idx >= 0 ? `${fa(idx + 1)} از ${fa(items.length)}` : fa(items.length)),
-        el('button', { 'aria-label': 'پیشنهاد بعدی', title: 'پیشنهاد بعدی', html: ICON.chevDown, onclick: () => focusItem(1) })) : null,
+        el('button', { 'aria-label': tr('ai.review.prev'), title: tr('ai.review.prev'), html: ICON.chevUp, onclick: () => focusItem(-1) }),
+        el('span', {}, idx >= 0 ? tr('ai.indexOf', { current: fa(idx + 1), total: fa(items.length) }) : fa(items.length)),
+        el('button', { 'aria-label': tr('ai.review.next'), title: tr('ai.review.next'), html: ICON.chevDown, onclick: () => focusItem(1) })) : null,
       el('span', { class: 'sp' }),
-      items.length ? el('button', { class: 'fd-btn ghost sm', onclick: () => { rejectItems(t, items.map((x) => x.id)); rv.paint(); maybeEnd(); } }, 'رد همه') : null,
-      items.length && !rv.busy ? el('button', { class: 'fd-btn sm', title: 'سند فعلی دست نمی‌خورد', onclick: () => { toNewDoc(t, items.map((x) => x.id), rv).then(() => { rv.paint(); maybeEnd(); }); } }, rv.accepted ? 'بقیه در سند جدید' : 'همه در سند جدید') : null,
-      items.length ? el('button', { class: 'fd-btn primary sm', onclick: () => { acceptItems(t, items.map((x) => x.id), rv); rv.paint(); maybeEnd(); } }, rv.accepted ? 'اعمال بقیه' : 'اعمال همه') : null,
-      rv.busy ? el('button', { class: 'fd-btn sm', onclick: () => rv.cancel && rv.cancel() }, el('span', { class: 'ic', html: I.stop }), 'توقف') : null,
-      el('button', { class: 'fd-x', 'aria-label': 'بستن بازبینی', title: 'بستن بازبینی', html: ICON.x, onclick: () => endReview(t) })].filter(Boolean));
+      items.length ? el('button', { class: 'fd-btn ghost sm', onclick: () => { rejectItems(t, items.map((x) => x.id)); rv.paint(); maybeEnd(); } }, tr('ai.review.rejectAll')) : null,
+      items.length && !rv.busy ? el('button', { class: 'fd-btn sm', title: tr('ai.review.untouched'), onclick: () => { toNewDoc(t, items.map((x) => x.id), rv).then(() => { rv.paint(); maybeEnd(); }); } }, rv.accepted ? tr('ai.review.restNewDoc') : tr('ai.review.allNewDoc')) : null,
+      items.length ? el('button', { class: 'fd-btn primary sm', onclick: () => { acceptItems(t, items.map((x) => x.id), rv); rv.paint(); maybeEnd(); } }, rv.accepted ? tr('ai.review.applyRest') : tr('ai.review.applyAll')) : null,
+      rv.busy ? el('button', { class: 'fd-btn sm', onclick: () => rv.cancel && rv.cancel() }, el('span', { class: 'ic', html: I.stop }), tr('common.stop')) : null,
+      el('button', { class: 'fd-x', 'aria-label': tr('ai.review.close'), title: tr('ai.review.close'), html: ICON.x, onclick: () => endReview(t) })].filter(Boolean));
   };
   const maybeEnd = () => {
     const { items } = reviewOf(t);
@@ -2084,7 +2093,7 @@ async function runReview(t, action, presetMd = null) {
   const view = getView(t.crepe);
   const doc = view.state.doc;
   const groups = presetMd != null ? [{ from: 0, to: doc.content.size }] : blockGroups(doc);
-  if (!groups.length) { C.toast('متنی برای بررسی نیست', 'info'); return; }
+  if (!groups.length) { C.toast(tr('ai.review.noText'), 'info'); return; }
   let hist = null;
   if (t.path) { const r = await C.api.historyAdd(t.path, t.crepe.getMarkdown(), 'auto').catch(() => null); hist = r && r.id; }
   const ids = groups.map((_g, i) => 'g' + i);
@@ -2176,7 +2185,7 @@ async function runDocFree(t, anchor, q) {
   if (!(await noticeOk())) return;
   const view = getView(t.crepe);
   const md = t.crepe.getMarkdown();
-  if (md.length > 60000) { C.toast('سند برای یک دستور آزاد خیلی بلند است؛ از کارهای آماده استفاده کنید', 'warn'); return; }
+  if (md.length > 60000) { C.toast(tr('ai.doc.tooLongFree'), 'warn'); return; }
   const range = { from: 0, to: view.state.doc.content.size, doc: true, anchor };
   const c = card('fd-diff', aiName(), t, range);
   const short = q.length > 30 ? q.slice(0, 30) + '…' : q;
@@ -2184,8 +2193,8 @@ async function runDocFree(t, anchor, q) {
   c.onClose = () => job && job.cancel();
   const paintWait = () => {
     c.box.replaceChildren(brandHead(el('span', { class: 'fd-q' }, `«${short}»`)),
-      el('div', { class: 'fd-body' }, el('div', { class: 'fd-txt' }, el('span', { class: 'fd-busy' }, el('span', { class: 'fd-spin' }), 'در حال فکر کردن روی کل سند…'))),
-      el('div', { class: 'fd-foot' }, el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: () => job && job.cancel() }, el('span', { class: 'ic', html: I.stop }), 'توقف', kb('Esc'))));
+      el('div', { class: 'fd-body' }, el('div', { class: 'fd-txt' }, el('span', { class: 'fd-busy' }, el('span', { class: 'fd-spin' }), tr('ai.doc.thinking')))),
+      el('div', { class: 'fd-foot' }, el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: () => job && job.cancel() }, el('span', { class: 'ic', html: I.stop }), tr('common.stop'), kb('Esc'))));
     c.place();
   };
   paintWait();
@@ -2202,7 +2211,7 @@ async function runDocFree(t, anchor, q) {
   }).catch((e) => {
     if (e && e.kind === 'cancelled') { closeFedora(); return; }
     c.box.replaceChildren(brandHead(el('span', { class: 'fd-q' }, `«${short}»`)), el('div', { class: 'fd-body' }, errBox(e, () => { closeFedora(); runDocFree(t, anchor, q); })),
-      el('div', { class: 'fd-foot' }, el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: closeFedora }, 'بستن')));
+      el('div', { class: 'fd-foot' }, el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: closeFedora }, tr('common.close'))));
     c.place();
   });
 }
@@ -2215,7 +2224,7 @@ const OUT_ICON = {
   translate: 'M3 5.5h9M7.5 3.5v2M5 5.5c.9 3.2 3.2 5.8 6.5 7.3M10 5.5c-.9 3.2-3.2 5.8-6.5 7.3M12.5 20.5l4-9l4 9M13.8 17.5h5.4',
 };
 export const outIcon = (kind, icon) => S(kind === 'prompt' ? pIcon(icon) : OUT_ICON[kind] || OUT_ICON.summary);
-const langName = (code) => { const l = LANGS.find((x) => x[0] === code); return l ? l[1] : code; };
+const langName = (code) => { const l = LANGS.find((x) => x[0] === code); return l ? (getLang() === 'en' ? l[2] : l[1]) : code; };
 const langEn = (code) => { const l = LANGS.find((x) => x[0] === code); return l ? l[2] : code; };
 const MAX_DOC = 120000;
 
@@ -2224,51 +2233,51 @@ function outPrompt(kind, o, title) {
   if (kind === 'summary') {
     const len = { short: 'short: 3 to 5 sentences in total', medium: 'medium: about one fifth of the document', long: 'detailed: follow the document’s own headings, with a short summary under each' }[o.len || 'medium'];
     const fmt = o.fmt === 'para' ? 'Write it as paragraphs.' : 'Write it as bullet points (one idea per bullet).';
-    return { system: `You summarize documents. Write the summary as Markdown in the document’s language. Start with a level-1 heading «خلاصه: ${title}» (in English documents: "Summary: ${title}"). Length: ${len}. ${fmt} Keep facts, numbers and names exactly; add nothing that is not in the document. Reply with only the summary.`, label: `خلاصه‌ی ${(SUM_LEN.find((x) => x[0] === (o.len || 'medium')) || SUM_LEN[1])[1]}` };
+    return { system: `You summarize documents. Write the summary as Markdown in the document’s language. Start with a level-1 heading «خلاصه: ${title}» (in English documents: "Summary: ${title}"). Length: ${len}. ${fmt} Keep facts, numbers and names exactly; add nothing that is not in the document. Reply with only the summary.`, label: tr('ai.out.summaryOf', { len: tr((SUM_LEN.find((x) => x[0] === (o.len || 'medium')) || SUM_LEN[1])[1]) }) };
   }
   if (kind === 'explain') {
-    return { system: `You explain documents to a reader. ${lang} Explanation level: ${LEVEL_EN[o.level || 'simple']}. Write Markdown with short sections. Start with a level-1 heading «توضیح: ${title}» (in English: "Explanation: ${title}"). Go through the main ideas in the document’s order, in plain words.${o.example ? ' After each main idea add a short concrete example under a "### مثال" heading ("### Example" in English).' : ''} Do not invent facts. Reply with only the explanation.`, label: `توضیح ${(LEVELS.find((x) => x[0] === (o.level || 'simple')) || LEVELS[0])[1]}` };
+    return { system: `You explain documents to a reader. ${lang} Explanation level: ${LEVEL_EN[o.level || 'simple']}. Write Markdown with short sections. Start with a level-1 heading «توضیح: ${title}» (in English: "Explanation: ${title}"). Go through the main ideas in the document’s order, in plain words.${o.example ? ' After each main idea add a short concrete example under a "### مثال" heading ("### Example" in English).' : ''} Do not invent facts. Reply with only the explanation.`, label: tr('ai.out.explainOf', { level: tr((LEVELS.find((x) => x[0] === (o.level || 'simple')) || LEVELS[0])[1]) }) };
   }
   if (kind === 'dev') {
-    return { system: `You turn documents into developer-ready specifications. Write Markdown in the document’s language with these sections (translate the headings into the document’s language): # ${title}: سند فنی; ## هدف; ## کاربران و سناریوها; ## User Stories (“به‌عنوان … می‌خواهم … تا …”); ## معیارهای پذیرش (a checklist, “- [ ] …”); ## حالت‌های مرزی و خطاها; ## داده‌ها و رابط‌ها (only if they can be inferred); ## پرسش‌های باز. Use only what the document says; mark every assumption with “(فرض)”. Reply with only the document.`, label: 'سند برای دولوپر' };
+    return { system: `You turn documents into developer-ready specifications. Write Markdown in the document’s language with these sections (translate the headings into the document’s language): # ${title}: سند فنی; ## هدف; ## کاربران و سناریوها; ## User Stories (“به‌عنوان … می‌خواهم … تا …”); ## معیارهای پذیرش (a checklist, “- [ ] …”); ## حالت‌های مرزی و خطاها; ## داده‌ها و رابط‌ها (only if they can be inferred); ## پرسش‌های باز. Use only what the document says; mark every assumption with “(فرض)”. Reply with only the document.`, label: tr('ai.doc.dev') };
   }
-  return { system: `You translate Markdown documents into ${langEn(o.lang)}. Keep the Markdown exactly: headings, lists, tables, links, images and inline code stay in place; code blocks stay unchanged. Translate naturally and fluently${o.lang === 'fa' ? ', with correct Persian half-spaces' : ''}. Reply with only the translation.`, label: `ترجمه به ${langName(o.lang)}` };
+  return { system: `You translate Markdown documents into ${langEn(o.lang)}. Keep the Markdown exactly: headings, lists, tables, links, images and inline code stay in place; code blocks stay unchanged. Translate naturally and fluently${o.lang === 'fa' ? ', with correct Persian half-spaces' : ''}. Reply with only the translation.`, label: tr('ai.out.translateTo', { lang: langName(o.lang) }) };
 }
 
 async function runOutput(src, kind, o) {
   if (!(await noticeOk())) return;
   const title = docTitle(src);
   let md = kind === 'prompt' ? o.input : src.crepe.getMarkdown();
-  if (!md.trim()) { C.toast('سند هنوز متنی ندارد', 'info'); return; }
+  if (!md.trim()) { C.toast(tr('ai.out.emptyDoc'), 'info'); return; }
   const cut = md.length > MAX_DOC;
   if (cut && kind !== 'translate' && kind !== 'prompt') md = md.slice(0, MAX_DOC);
   const { system, label } = kind === 'prompt' ? o : outPrompt(kind, o, title);
-  const tabName = (kind === 'prompt' ? o.label : { summary: 'خلاصه', explain: 'توضیح', dev: 'سند دولوپر', translate: 'ترجمه' }[kind]) + ': ' + title;
+  const tabName = (kind === 'prompt' ? o.label : { summary: tr('ai.out.tab.summary'), explain: tr('ai.out.tab.explain'), dev: tr('ai.out.tab.dev'), translate: tr('ai.out.tab.translate') }[kind]) + ': ' + title;
   const t = await C.newTabBeside(src, { title: tabName });
   if (!t) return;
   t.aiOut = { kind, icon: o.icon, working: true };
   C.renderTabs();
   // the line above the document: where it came from, progress, stop / make again. Not part of the text.
-  const bar = el('div', { class: 'fd-srcbar', dir: 'rtl' });
+  const bar = el('div', { class: 'fd-srcbar', dir: langDir() });
   floatBox(t).append(bar);
   const srcLink = el('button', { class: 'fd-link', onclick: () => C.activate(src) }, docTitle(src));
   let job = null; let stopped = false;
   const paintBar = (s) => {
     const wk = { summary: 'summary', explain: 'explain', translate: 'translate', prompt: 'prompt' }[kind] || 'rewrite';
     bar.replaceChildren(...[s.working ? workFig(36) : el('span', { class: 'ic', html: aiIconHTML() }),
-      s.working ? el('span', { class: 'fd-wk' }, ...workLine(wk)) : el('span', { class: 'tx' }, label, ' از ', srcLink, cut && kind !== 'translate' && kind !== 'prompt' ? ' (فقط بخش اول سند)' : ''),
-      s.total > 1 ? el('span', { class: 'fd-prog' }, el('span', { class: 'pg', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(s.total), 'aria-valuenow': String(s.done) }, el('i', { style: `width:${Math.round((s.done / s.total) * 100)}%` })), `بخش ${fa(Math.min(s.done + 1, s.total))} از ${fa(s.total)}`) : null,
+      s.working ? el('span', { class: 'fd-wk' }, ...workLine(wk)) : el('span', { class: 'tx' }, label, tr('ai.out.from'), srcLink, cut && kind !== 'translate' && kind !== 'prompt' ? tr('ai.out.firstPartOnly') : ''),
+      s.total > 1 ? el('span', { class: 'fd-prog' }, el('span', { class: 'pg', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(s.total), 'aria-valuenow': String(s.done) }, el('i', { style: `width:${Math.round((s.done / s.total) * 100)}%` })), tr('ai.partOf', { done: fa(Math.min(s.done + 1, s.total)), total: fa(s.total) })) : null,
       el('span', { class: 'sp' }),
-      s.working ? el('button', { class: 'fd-btn sm', onclick: () => { stopped = true; if (job) job.cancel(); } }, el('span', { class: 'ic', html: I.stop }), 'توقف') : s.err ? null : el('button', { class: 'fd-btn sm', onclick: () => { runOutputInto(); } }, el('span', { class: 'ic', html: ICON.refresh }), 'دوباره بساز'),
-      el('button', { class: 'fd-x', 'aria-label': 'بستن این نوار', title: s.working ? 'توقف و بستن' : 'بستن', html: ICON.x, onclick: () => {
+      s.working ? el('button', { class: 'fd-btn sm', onclick: () => { stopped = true; if (job) job.cancel(); } }, el('span', { class: 'ic', html: I.stop }), tr('common.stop')) : s.err ? null : el('button', { class: 'fd-btn sm', onclick: () => { runOutputInto(); } }, el('span', { class: 'ic', html: ICON.refresh }), tr('ai.out.regenerate')),
+      el('button', { class: 'fd-x', 'aria-label': tr('ai.out.closeBar'), title: s.working ? tr('ai.out.stopAndClose') : tr('common.close'), html: ICON.x, onclick: () => {
         if (s.working) { stopped = true; if (job) job.cancel(); }
         bar.remove(); t.pane.querySelectorAll('.fd-srcerr').forEach((n) => n.remove());
       } })].filter(Boolean));
     if (s.err) {
       const [et, ex] = errorText(s.err, () => {});
-      bar.before(el('div', { class: 'fd-srcerr', role: 'alert' }, el('span', { class: 'ic', html: ICON.warn }), el('span', { class: 'tx' }, el('b', {}, et), ' ', s.partial ? `${fa(s.done)} بخش از ${fa(s.total)} آماده شد و نگه داشته شد.` : ex),
-        s.partial ? el('button', { class: 'fd-btn sm', onclick: (ev) => { ev.currentTarget.parentNode.remove(); } }, 'همین‌قدر بماند') : null,
-        el('button', { class: 'fd-btn primary sm', onclick: (ev) => { ev.currentTarget.parentNode.remove(); s.resume(); } }, s.partial ? `ادامه از بخش ${fa(s.done + 1)}` : 'دوباره امتحان کن')));
+      bar.before(el('div', { class: 'fd-srcerr', role: 'alert' }, el('span', { class: 'ic', html: ICON.warn }), el('span', { class: 'tx' }, el('b', {}, et), ' ', s.partial ? tr('ai.out.partialDone', { done: fa(s.done), total: fa(s.total) }) : ex),
+        s.partial ? el('button', { class: 'fd-btn sm', onclick: (ev) => { ev.currentTarget.parentNode.remove(); } }, tr('ai.out.keepPartial')) : null,
+        el('button', { class: 'fd-btn primary sm', onclick: (ev) => { ev.currentTarget.parentNode.remove(); s.resume(); } }, s.partial ? tr('ai.out.resumeFrom', { part: fa(s.done + 1) }) : tr('common.tryAgain'))));
     }
   };
   let shown = ''; let timer = 0;
@@ -2291,7 +2300,7 @@ async function runOutput(src, kind, o) {
         const r = await job.promise;
         show(cleanReply(r.text), true);
         s.working = false; paintBar(s); end();
-        if (r.fallback) C.toast(`مدل اصلی جواب نداد؛ این بار با ${r.model} انجام شد`, 'info');
+        if (r.fallback) C.toast(tr('ai.toast.fallbackUsed', { model: r.model }), 'info');
       } catch (e) {
         s.working = false;
         if (!(e && e.kind === 'cancelled')) { s.err = e; s.resume = runOutputInto; }
@@ -2357,9 +2366,9 @@ const P_ICONS = {
   bulb: 'M9.5 18.5h5M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.2v.5h5V16c0-.9.4-1.7 1.1-2.2A6 6 0 0 0 12 3z',
 };
 const pIcon = (k) => P_ICONS[k] || P_ICONS.spark;
-const TOKENS = [['selection', 'متن انتخاب‌شده'], ['document', 'کل سند'], ['filename', 'نام فایل']];
-const BUILT = [['translate', 'ترجمه'], ['explain', 'توضیح'], ['clean', 'تمیز کردن متن'], ['tone', 'تغییر لحن'], ['length', 'کوتاه‌تر و بلندتر'], ['summary', 'خلاصه'], ['dev', 'سند برای دولوپر']];
-const OUTPUTS = [['replace', 'جایگزین انتخاب'], ['below', 'زیر متن'], ['tab', 'تب تازه']];
+const TOKENS = [['selection', 'ai.token.selection'], ['document', 'ai.token.document'], ['filename', 'ai.token.filename']];
+const BUILT = [['translate', 'ai.built.translate'], ['explain', 'ai.built.explain'], ['clean', 'ai.built.clean'], ['tone', 'ai.built.tone'], ['length', 'ai.built.length'], ['summary', 'ai.built.summary'], ['dev', 'ai.built.dev']];
+const OUTPUTS = [['replace', 'ai.output.replace'], ['below', 'ai.output.below'], ['tab', 'ai.output.tab']];
 const MAX_FILE = 200 * 1024;
 const MAX_BAR = 3;
 const builtOn = (k) => !(set().aiBuiltOff || {})[k];
@@ -2371,7 +2380,8 @@ const usesDoc = (p) => /\{\{document\}\}/.test(p.text || '');
 const forSel = (p) => p.on !== false && (usesSel(p) || !usesDoc(p));
 /** on the whole document: prompts that do not need a selection */
 const forDoc = (p) => p.on !== false && !usesSel(p);
-const descOf = (p) => p.desc || String(p.text || '').replace(/\{\{(\w+)\}\}/g, (_m, k) => (TOKENS.find((x) => x[0] === k) || [0, k])[1]).replace(/\s+/g, ' ').trim().slice(0, 70);
+const tokenLabel = (k) => { const f = TOKENS.find((x) => x[0] === k); return f ? tr(f[1]) : k; };
+const descOf = (p) => p.desc || String(p.text || '').replace(/\{\{(\w+)\}\}/g, (_m, k) => tokenLabel(k)).replace(/\s+/g, ' ').trim().slice(0, 70);
 const words = (s) => fa(String(s || '').trim().split(/\s+/).filter(Boolean).length);
 const newId = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 const savePrompts = (list) => { C.updateSettings({ aiPrompts: list }); paintSlots(); };
@@ -2385,7 +2395,7 @@ function openPromptSettings() {
 }
 
 function promptItem(p, run, closeSub, keep) {
-  const b = el('button', { class: 'fd-mi', role: 'menuitem', title: descOf(p) }, el('span', { class: 'ic', html: S(pIcon(p.icon)) }), el('span', { class: 't' }, p.name), isSkill(p) ? el('span', { class: 'fd-tag sk' }, 'اسکیل') : null);
+  const b = el('button', { class: 'fd-mi', role: 'menuitem', title: descOf(p) }, el('span', { class: 'ic', html: S(pIcon(p.icon)) }), el('span', { class: 't' }, p.name), isSkill(p) ? el('span', { class: 'fd-tag sk' }, tr('ai.skill')) : null);
   b.addEventListener('click', run);
   b.addEventListener('mouseenter', () => { keep(); setTimeout(closeSub, 120); });
   return b;
@@ -2436,8 +2446,8 @@ async function runDocPrompt(t, range, p, system, user) {
   let job = null;
   c.onClose = () => job && job.cancel();
   c.box.replaceChildren(brandHead(el('span', { class: 'fd-q' }, p.name)),
-    el('div', { class: 'fd-body' }, el('div', { class: 'fd-txt' }, el('span', { class: 'fd-busy' }, el('span', { class: 'fd-spin' }), 'در حال نوشتن روی کل سند…'))),
-    el('div', { class: 'fd-foot' }, el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: () => job && job.cancel() }, el('span', { class: 'ic', html: I.stop }), 'توقف', kb('Esc'))));
+    el('div', { class: 'fd-body' }, el('div', { class: 'fd-txt' }, el('span', { class: 'fd-busy' }, el('span', { class: 'fd-spin' }), tr('ai.doc.writing')))),
+    el('div', { class: 'fd-foot' }, el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: () => job && job.cancel() }, el('span', { class: 'ic', html: I.stop }), tr('common.stop'), kb('Esc'))));
   c.place();
   job = runJob({ system, messages: [{ role: 'user', text: user }], temperature: 0.4 });
   job.promise.finally(startWork(t, 'prompt', () => job && job.cancel()));
@@ -2448,7 +2458,7 @@ async function runDocPrompt(t, range, p, system, user) {
   }).catch((e) => {
     if (e && e.kind === 'cancelled') { closeFedora(); return; }
     c.box.replaceChildren(brandHead(el('span', { class: 'fd-q' }, p.name)), el('div', { class: 'fd-body' }, errBox(e, () => { closeFedora(); runDocPrompt(t, range, p, system, user); })),
-      el('div', { class: 'fd-foot' }, el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: closeFedora }, 'بستن')));
+      el('div', { class: 'fd-foot' }, el('span', { class: 'sp' }), el('button', { class: 'fd-btn', onclick: closeFedora }, tr('common.close'))));
     c.place();
   });
 }
@@ -2475,7 +2485,7 @@ export async function runSlot(t, i) {
   if (!p || !t || !t.crepe) return;
   const range = rangeOf(getView(t.crepe));
   if (!range) return;
-  if (range.code) { C.toast(`${aiName()} روی بلوک کد کار نمی‌کند`, 'info'); return; }
+  if (range.code) { C.toast(tr('ai.toast.noCode', { name: aiName() }), 'info'); return; }
   const info = await C.api.aiKeyInfo(cfgOf()).catch(() => ({ has: false }));
   if (!info.has) { openFedora(t); return; }
   runPrompt(t, range, p);
@@ -2524,52 +2534,52 @@ function skillFromMd(md, fileName) {
       p.files.push({ name: c.title || 'reference.md', text: f ? f[2] : chunk });
     }
   });
-  if (!p.name) p.name = String(fileName || 'اسکیل').replace(/^.*[\\/]/, '').replace(/\.(md|markdown|txt)$/i, '');
+  if (!p.name) p.name = String(fileName || tr('ai.skill')).replace(/^.*[\\/]/, '').replace(/\.(md|markdown|txt)$/i, '');
   return p;
 }
 
-// ---------- settings: «پرامپت‌ها و اسکیل‌ها» ----------
+// ---------- settings: prompts & skills ----------
 function promptsPane(pane, h) {
   const { row, group, label, sw, seg } = h;
   const back = () => pane.replaceChildren(...promptsPane(pane, h));
   const list = () => {
     const ps = prompts();
     const rows = ps.map((p) => {
-      const edit = el('button', { class: 'fd-ib', title: 'ویرایش', 'aria-label': `ویرایش ${p.name}`, html: ICON.edit || S('M13.5 6.5l4 4M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z'), onclick: () => pane.replaceChildren(...promptForm(pane, h, p)) });
-      return el('div', { class: 'row fd-prow' + (p.on === false ? ' off' : ''), 'data-s': p.name + ' ' + descOf(p) + ' پرامپت اسکیل' },
+      const edit = el('button', { class: 'fd-ib', title: tr('ai.prompt.edit'), 'aria-label': tr('ai.prompt.editName', { name: p.name }), html: ICON.edit || S('M13.5 6.5l4 4M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z'), onclick: () => pane.replaceChildren(...promptForm(pane, h, p)) });
+      return el('div', { class: 'row fd-prow' + (p.on === false ? ' off' : ''), 'data-s': p.name + ' ' + descOf(p) + ' ' + tr('ai.prompt') + ' ' + tr('ai.skill') },
         el('span', { class: 'fd-pic', html: S(pIcon(p.icon)) }),
-        el('span', { class: 'fd-pt' }, el('span', { class: 'n' }, el('b', {}, p.name), el('span', { class: 'fd-tag' + (isSkill(p) ? ' sk' : '') }, isSkill(p) ? 'اسکیل' : 'پرامپت')), el('small', {}, descOf(p))),
+        el('span', { class: 'fd-pt' }, el('span', { class: 'n' }, el('b', {}, p.name), el('span', { class: 'fd-tag' + (isSkill(p) ? ' sk' : '') }, isSkill(p) ? tr('ai.skill') : tr('ai.prompt'))), el('small', {}, descOf(p))),
         edit,
         sw(() => p.on !== false, () => { savePrompts(prompts().map((x) => (x.id === p.id ? { ...x, on: x.on === false } : x))); back(); }, p.name));
     });
     return rows.length ? group(...rows) : el('div', { class: 'grp set-free fd-pempty' },
       el('span', { class: 'ic', html: S(P_ICONS.spark) }),
-      el('b', {}, 'هنوز پرامپتی نساخته‌اید'),
-      el('small', {}, 'دستوری که زیاد تکرار می‌کنید را یک بار ذخیره کنید تا در منوی ' + aiName() + ' با یک کلیک اجرا شود.'));
+      el('b', {}, tr('ai.prompts.emptyTitle')),
+      el('small', {}, tr('ai.prompts.emptyBody', { name: aiName() })));
   };
-  const importBtn = el('button', { class: 'set-select as-btn' }, 'وارد کردن اسکیل');
+  const importBtn = el('button', { class: 'set-select as-btn' }, tr('ai.prompts.importSkill'));
   importBtn.addEventListener('click', async () => {
     const files = await C.api.openDialog().catch(() => []);
     if (!files || !files.length) return;
     try {
       const r = await C.api.readFile(files[0]);
       pane.replaceChildren(...importView(pane, h, skillFromMd(r.content, files[0])));
-    } catch { C.toast('این فایل خوانده نشد', 'err'); }
+    } catch { C.toast(tr('ai.prompts.readErr'), 'err'); }
   });
   return [
-    el('div', { class: 'lbl lbl-act' }, el('span', {}, 'پرامپت‌ها و اسکیل‌های من'),
-      el('span', { class: 'row-end' }, el('button', { class: 'set-select as-btn primary', onclick: () => pane.replaceChildren(...promptForm(pane, h, null)) }, 'پرامپت تازه'), importBtn)),
+    el('div', { class: 'lbl lbl-act' }, el('span', {}, tr('ai.prompts.myList')),
+      el('span', { class: 'row-end' }, el('button', { class: 'set-select as-btn primary', onclick: () => pane.replaceChildren(...promptForm(pane, h, null)) }, tr('ai.prompts.new')), importBtn)),
     list(),
-    label('کارهای آماده'),
-    group(...BUILT.map(([k, n]) => row(n, null, sw(() => builtOn(k), () => C.updateSettings({ aiBuiltOff: { ...(set().aiBuiltOff || {}), [k]: builtOn(k) } }), n)))),
-    el('div', { class: 'lbl plain set-free' }, 'کار آماده‌ای که خاموش کنید از منوی ' + aiName() + ' برداشته می‌شود. پرامپت‌هایی که «متن انتخاب‌شده» دارند روی متن انتخاب‌شده دیده می‌شوند و بقیه در منوی کل سند.'),
+    label(tr('ai.prompts.quickActions')),
+    group(...BUILT.map(([k, nk]) => { const n = tr(nk); return row(n, null, sw(() => builtOn(k), () => C.updateSettings({ aiBuiltOff: { ...(set().aiBuiltOff || {}), [k]: builtOn(k) } }), n)); })),
+    el('div', { class: 'lbl plain set-free' }, tr('ai.prompts.footerNote', { name: aiName() })),
   ];
 }
 
-/** the instruction box: text with chips for «متن انتخاب‌شده», «کل سند» and «نام فایل» */
+/** the instruction box: text with chips for selection, document, and filename */
 function instrBox(text) {
-  const box = el('div', { class: 'fd-instr', contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'دستور', dir: 'auto', spellcheck: 'false', 'data-ph': 'مثلاً: متن انتخاب‌شده را به یک ایمیل کوتاه و محترمانه تبدیل کن.' });
-  const chip = (k) => el('span', { class: 'fd-tok', contenteditable: 'false', 'data-tok': k }, (TOKENS.find((x) => x[0] === k) || [0, k])[1]);
+  const box = el('div', { class: 'fd-instr', contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': tr('ai.prompt.instruction'), dir: 'auto', spellcheck: 'false', 'data-ph': tr('ai.prompt.instrPh') });
+  const chip = (k) => el('span', { class: 'fd-tok', contenteditable: 'false', 'data-tok': k }, tokenLabel(k));
   const fill = (s) => {
     box.replaceChildren();
     String(s || '').split(/(\{\{\w+\}\})/).forEach((part) => {
@@ -2588,7 +2598,7 @@ function instrBox(text) {
       else { if (c.nodeName === 'DIV' && out && !out.endsWith('\n')) out += '\n'; walk(c); }
     });
     walk(box);
-    return out.replace(/ /g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+    return out.replace(/ /g, ' ').replace(/\n{3,}/g, '\n\n').trim();
   };
   const paintEmpty = () => box.classList.toggle('empty', !box.textContent.trim() && !box.querySelector('.fd-tok'));
   const insert = (k) => {
@@ -2615,138 +2625,139 @@ function promptForm(pane, h, orig) {
   const p = orig ? JSON.parse(JSON.stringify(orig)) : { id: newId(), name: '', desc: '', icon: 'spark', output: 'replace', inBar: false, on: true, text: '', examples: [], files: [] };
   const back = () => pane.replaceChildren(...promptsPane(pane, h));
   const again = () => { p.text = ib.read(); p.name = nameIn.value.trim(); p.desc = descIn.value.trim(); pane.replaceChildren(...promptForm(pane, h, p)); };
-  const nameIn = el('input', { type: 'text', class: 'fd-in wide', value: p.name, placeholder: 'مثلاً ایمیل اداری', 'aria-label': 'نام', maxlength: '40', spellcheck: 'false' });
-  const descIn = el('input', { type: 'text', class: 'fd-in wide', value: p.desc || '', placeholder: 'اختیاری', 'aria-label': 'توضیح کوتاه', maxlength: '90', spellcheck: 'false' });
-  const icons = el('div', { class: 'fd-picons', role: 'radiogroup', 'aria-label': 'آیکن' });
+  const nameIn = el('input', { type: 'text', class: 'fd-in wide', value: p.name, placeholder: tr('ai.prompt.namePh'), 'aria-label': tr('ai.prompt.name'), maxlength: '40', spellcheck: 'false' });
+  const descIn = el('input', { type: 'text', class: 'fd-in wide', value: p.desc || '', placeholder: tr('ai.prompt.optional'), 'aria-label': tr('ai.prompt.desc'), maxlength: '90', spellcheck: 'false' });
+  const icons = el('div', { class: 'fd-picons', role: 'radiogroup', 'aria-label': tr('settings.ai.char.icon') });
   const paintIcons = () => icons.replaceChildren(...Object.keys(P_ICONS).map((k) => el('button', { class: 'fd-icp sm' + (p.icon === k ? ' on' : ''), role: 'radio', 'aria-checked': String(p.icon === k), 'aria-label': k, html: S(P_ICONS[k]), onclick: () => { p.icon = k; paintIcons(); } })));
   paintIcons();
   const ib = instrBox(p.text);
   const skillOpen = isSkill(p) || p._skill;
   // examples and reference files
   const exRows = (p.examples || []).map((x, i) => el('div', { class: 'row fd-xrow' },
-    el('span', { class: 'fd-pt' }, el('b', {}, `نمونه ${fa(i + 1)}${x.title ? ' · ' + x.title : ''}`), el('small', {}, `ورودی: ${words(x.input)} کلمه · خروجی: ${words(x.output)} کلمه`)),
-    el('button', { class: 'fd-ib', title: 'ویرایش', 'aria-label': 'ویرایش نمونه', html: S('M13.5 6.5l4 4M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z'), onclick: () => { p.text = ib.read(); p.name = nameIn.value; p.desc = descIn.value; pane.replaceChildren(...exampleForm(pane, h, p, i)); } }),
-    el('button', { class: 'fd-ib danger', title: 'حذف', 'aria-label': 'حذف نمونه', html: ICON.trash || ICON.x, onclick: () => { p.examples.splice(i, 1); again(); } })));
+    el('span', { class: 'fd-pt' }, el('b', {}, tr('ai.example.num', { n: fa(i + 1) }) + (x.title ? ' · ' + x.title : '')), el('small', {}, tr('ai.example.counts', { input: words(x.input), output: words(x.output) }))),
+    el('button', { class: 'fd-ib', title: tr('ai.prompt.edit'), 'aria-label': tr('ai.example.edit'), html: S('M13.5 6.5l4 4M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z'), onclick: () => { p.text = ib.read(); p.name = nameIn.value; p.desc = descIn.value; pane.replaceChildren(...exampleForm(pane, h, p, i)); } }),
+    el('button', { class: 'fd-ib danger', title: tr('common.delete'), 'aria-label': tr('ai.example.delete'), html: ICON.trash || ICON.x, onclick: () => { p.examples.splice(i, 1); again(); } })));
   const fileRows = (p.files || []).map((f, i) => el('div', { class: 'row fd-xrow' },
     el('span', { class: 'fd-pic', html: S(P_ICONS.doc) }),
-    el('span', { class: 'fd-pt' }, el('b', { dir: 'ltr' }, f.name), el('small', {}, `${fa((f.text.length / 1024).toFixed(1)).replace('.', '٫')} کیلوبایت · فقط متن (md، txt)`)),
-    el('button', { class: 'fd-ib danger', title: 'حذف', 'aria-label': 'حذف فایل', html: ICON.trash || ICON.x, onclick: () => { p.files.splice(i, 1); again(); } })));
+    el('span', { class: 'fd-pt' }, el('b', { dir: 'ltr' }, f.name), el('small', {}, tr('ai.refFile.meta', { kb: (f.text.length / 1024).toLocaleString(langLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }))),
+    el('button', { class: 'fd-ib danger', title: tr('common.delete'), 'aria-label': tr('ai.refFile.delete'), html: ICON.trash || ICON.x, onclick: () => { p.files.splice(i, 1); again(); } })));
   const addFile = async () => {
     const files = await C.api.openDialog().catch(() => []);
     if (!files || !files.length) return;
     for (const path of files) {
       try {
         const r = await C.api.readFile(path);
-        if (r.content.length > MAX_FILE) { C.toast('فایل مرجع باید کمتر از ۲۰۰ کیلوبایت باشد', 'warn'); continue; }
+        if (r.content.length > MAX_FILE) { C.toast(tr('ai.refFile.tooBig'), 'warn'); continue; }
         p.files.push({ name: path.replace(/^.*[\\/]/, ''), text: r.content });
-      } catch { C.toast('این فایل خوانده نشد', 'err'); }
+      } catch { C.toast(tr('ai.prompts.readErr'), 'err'); }
     }
     again();
   };
   const skillPart = skillOpen ? [
-    el('div', { class: 'lbl lbl-act' }, el('span', {}, 'نمونه‌ها'), el('button', { class: 'sv-link', onclick: () => { p.text = ib.read(); p.name = nameIn.value; p.desc = descIn.value; pane.replaceChildren(...exampleForm(pane, h, p, -1)); } }, 'نمونه‌ی تازه')),
-    exRows.length ? group(...exRows) : el('div', { class: 'lbl plain set-free' }, 'یک ورودی و خروجی‌ای که دوست دارید؛ ' + aiName() + ' از ساختار و لحنش پیروی می‌کند.'),
-    el('div', { class: 'lbl lbl-act' }, el('span', {}, 'فایل‌های مرجع'), el('button', { class: 'sv-link', onclick: () => { p.text = ib.read(); p.name = nameIn.value; p.desc = descIn.value; addFile(); } }, 'افزودن فایل')),
-    fileRows.length ? group(...fileRows) : el('div', { class: 'lbl plain set-free' }, 'مثلاً قالب یک سند؛ ساختارش در خروجی رعایت می‌شود.'),
-    el('div', { class: 'lbl plain set-free' }, 'نمونه‌ها و فایل‌ها هر بار همراه دستور به سرویس فرستاده می‌شوند.'),
+    el('div', { class: 'lbl lbl-act' }, el('span', {}, tr('ai.example.section')), el('button', { class: 'sv-link', onclick: () => { p.text = ib.read(); p.name = nameIn.value; p.desc = descIn.value; pane.replaceChildren(...exampleForm(pane, h, p, -1)); } }, tr('ai.example.new'))),
+    exRows.length ? group(...exRows) : el('div', { class: 'lbl plain set-free' }, tr('ai.example.emptyHint', { name: aiName() })),
+    el('div', { class: 'lbl lbl-act' }, el('span', {}, tr('ai.refFile.section')), el('button', { class: 'sv-link', onclick: () => { p.text = ib.read(); p.name = nameIn.value; p.desc = descIn.value; addFile(); } }, tr('ai.refFile.add'))),
+    fileRows.length ? group(...fileRows) : el('div', { class: 'lbl plain set-free' }, tr('ai.refFile.emptyHint')),
+    el('div', { class: 'lbl plain set-free' }, tr('ai.skill.sentNote')),
   ] : [];
   const save = () => {
     p.name = nameIn.value.trim(); p.desc = descIn.value.trim(); p.text = ib.read();
-    if (!p.name) { C.toast('برای پرامپت یک نام بنویسید', 'warn'); nameIn.focus(); return; }
-    if (!p.text) { C.toast('دستور پرامپت خالی است', 'warn'); ib.box.focus(); return; }
+    if (!p.name) { C.toast(tr('ai.prompt.errNoName'), 'warn'); nameIn.focus(); return; }
+    if (!p.text) { C.toast(tr('ai.prompt.errNoText'), 'warn'); ib.box.focus(); return; }
     delete p._skill;
     const list = prompts();
     const i = list.findIndex((x) => x.id === p.id);
-    if (p.inBar && barPrompts().filter((x) => x.id !== p.id).length >= MAX_BAR) { C.toast(`در نوار انتخاب حداکثر ${fa(MAX_BAR)} پرامپت جا می‌شود`, 'warn'); return; }
+    if (p.inBar && barPrompts().filter((x) => x.id !== p.id).length >= MAX_BAR) { C.toast(tr('ai.prompt.errMaxBar', { max: fa(MAX_BAR) }), 'warn'); return; }
     savePrompts(i >= 0 ? list.map((x) => (x.id === p.id ? p : x)) : [...list, p]);
     back();
   };
   const del = async () => {
-    const ok = await modal({ title: `«${orig.name}» حذف شود؟`, text: 'دستور، نمونه‌ها و فایل‌های مرجعش پاک می‌شوند.', buttons: [{ label: 'انصراف', value: false }, { label: 'حذف', value: true, primary: true, danger: true }] });
+    const ok = await modal({ title: tr('ai.prompt.delTitle', { name: orig.name }), text: tr('ai.prompt.delBody'), buttons: [{ label: tr('common.cancel'), value: false }, { label: tr('common.delete'), value: true, primary: true, danger: true }] });
     if (!ok) return;
     savePrompts(prompts().filter((x) => x.id !== orig.id));
     back();
   };
   const exportMd = async () => {
-    p.name = nameIn.value.trim() || 'اسکیل'; p.desc = descIn.value.trim(); p.text = ib.read();
+    p.name = nameIn.value.trim() || tr('ai.skill'); p.desc = descIn.value.trim(); p.text = ib.read();
     const path = await C.api.saveDialog(p.name + '.md').catch(() => null);
     if (!path) return;
     await C.api.writeFile(path, skillToMd(p));
-    C.toast('اسکیل ذخیره شد؛ می‌توانید آن را برای دیگران بفرستید', 'ok');
+    C.toast(tr('ai.skill.exported'), 'ok');
   };
-  const out = seg(OUTPUTS, () => p.output || 'replace', (v) => { p.output = v; });
+  const out = seg(OUTPUTS.map(([k, lk]) => [k, tr(lk)]), () => p.output || 'replace', (v) => { p.output = v; });
   return [
-    el('div', { class: 'fd-fhead' }, el('button', { class: 'fd-ib', title: 'بازگشت', 'aria-label': 'بازگشت', html: S('M9 5l7 7l-7 7'), onclick: back }), el('b', {}, orig ? orig.name || 'پرامپت' : 'پرامپت تازه'), isSkill(p) ? el('span', { class: 'fd-tag sk' }, 'اسکیل') : null),
-    group(row('نام', null, nameIn), row('توضیح کوتاه', 'در فهرست پرامپت‌ها دیده می‌شود', descIn), row('آیکن', null, icons)),
-    el('div', { class: 'lbl lbl-act' }, el('span', {}, 'دستور'), el('span', { class: 'fd-ins' }, 'درج:', ...TOKENS.map(([k, n]) => el('button', { class: 'fd-tok btn', onmousedown: (e) => e.preventDefault(), onclick: () => ib.insert(k) }, n)))),
+    el('div', { class: 'fd-fhead' }, el('button', { class: 'fd-ib', title: tr('ai.back'), 'aria-label': tr('ai.back'), html: S('M9 5l7 7l-7 7'), onclick: back }), el('b', {}, orig ? orig.name || tr('ai.prompt') : tr('ai.prompts.new')), isSkill(p) ? el('span', { class: 'fd-tag sk' }, tr('ai.skill')) : null),
+    group(row(tr('ai.prompt.name'), null, nameIn), row(tr('ai.prompt.desc'), tr('ai.prompt.descHint'), descIn), row(tr('settings.ai.char.icon'), null, icons)),
+    el('div', { class: 'lbl lbl-act' }, el('span', {}, tr('ai.prompt.instruction')), el('span', { class: 'fd-ins' }, tr('ai.prompt.insert'), ...TOKENS.map(([k, nk]) => el('button', { class: 'fd-tok btn', onmousedown: (e) => e.preventDefault(), onclick: () => ib.insert(k) }, tr(nk))))),
     el('div', { class: 'grp set-free fd-instrw' }, ib.box),
     group(
-      row('خروجی', 'جایگزینی، اول پیش‌نمایش نشان می‌دهد', out),
-      skillOpen ? null : row('نمونه‌ها و فایل مرجع', 'با افزودن آن، این پرامپت یک اسکیل می‌شود', el('button', { class: 'set-select as-btn', onclick: () => { p.text = ib.read(); p.name = nameIn.value; p.desc = descIn.value; p._skill = true; pane.replaceChildren(...promptForm(pane, h, p)); } }, 'افزودن')),
-      row('نمایش در نوار انتخاب متن', `تا ${fa(MAX_BAR)} پرامپت، کنار آیکن ${aiName()}`, sw(() => !!p.inBar, () => { p.inBar = !p.inBar; }, 'نمایش در نوار انتخاب متن'))),
+      row(tr('ai.prompt.output'), tr('ai.prompt.outputHint'), out),
+      skillOpen ? null : row(tr('ai.prompt.addSkillRow'), tr('ai.prompt.addSkillHint'), el('button', { class: 'set-select as-btn', onclick: () => { p.text = ib.read(); p.name = nameIn.value; p.desc = descIn.value; p._skill = true; pane.replaceChildren(...promptForm(pane, h, p)); } }, tr('ai.prompt.addBtn'))),
+      row(tr('ai.prompt.inBar'), tr('ai.prompt.inBarHint', { max: fa(MAX_BAR), name: aiName() }), sw(() => !!p.inBar, () => { p.inBar = !p.inBar; }, tr('ai.prompt.inBar')))),
     ...skillPart,
     el('div', { class: 'fd-factions' },
-      orig && prompts().some((x) => x.id === orig.id) ? el('button', { class: 'sv-link danger', onclick: del }, 'حذف') : null,
-      el('button', { class: 'sv-link', onclick: exportMd }, 'خروجی گرفتن (.md)'),
+      orig && prompts().some((x) => x.id === orig.id) ? el('button', { class: 'sv-link danger', onclick: del }, tr('common.delete')) : null,
+      el('button', { class: 'sv-link', onclick: exportMd }, tr('ai.skill.exportBtn')),
       el('span', { class: 'sp' }),
-      el('button', { class: 'set-select as-btn', onclick: back }, 'انصراف'),
-      el('button', { class: 'set-select as-btn primary', onclick: save }, 'ذخیره')),
+      el('button', { class: 'set-select as-btn', onclick: back }, tr('common.cancel')),
+      el('button', { class: 'set-select as-btn primary', onclick: save }, tr('common.save'))),
   ];
 }
 
 function exampleForm(pane, h, p, i) {
   const { row, label, group } = h;
   const x = i >= 0 ? p.examples[i] : { title: '', input: '', output: '' };
-  const title = el('input', { type: 'text', class: 'fd-in wide', value: x.title || '', placeholder: 'مثلاً صفحه‌ی ورود', 'aria-label': 'عنوان نمونه', maxlength: '40', spellcheck: 'false' });
+  const title = el('input', { type: 'text', class: 'fd-in wide', value: x.title || '', placeholder: tr('ai.example.titlePh'), 'aria-label': tr('ai.example.titleLabel'), maxlength: '40', spellcheck: 'false' });
   const ta = (v, ph, al) => el('textarea', { class: 'fd-ta', dir: 'auto', placeholder: ph, 'aria-label': al, spellcheck: 'false' }, v || '');
-  const inp = ta(x.input, 'متنی که به ' + aiName() + ' می‌دهید', 'ورودی');
-  const outp = ta(x.output, 'خروجی‌ای که دوست دارید بگیرید', 'خروجی');
+  const inp = ta(x.input, tr('ai.example.inputPh', { name: aiName() }), tr('ai.example.input'));
+  const outp = ta(x.output, tr('ai.example.outputPh'), tr('ai.example.output'));
   const back = () => pane.replaceChildren(...promptForm(pane, h, p));
   const save = () => {
-    if (!inp.value.trim() || !outp.value.trim()) { C.toast('ورودی و خروجی نمونه هر دو لازم است', 'warn'); return; }
+    if (!inp.value.trim() || !outp.value.trim()) { C.toast(tr('ai.example.errBoth'), 'warn'); return; }
     const nx = { title: title.value.trim(), input: inp.value.trim(), output: outp.value.trim() };
     if (i >= 0) p.examples[i] = nx; else p.examples.push(nx);
     back();
   };
   return [
-    el('div', { class: 'fd-fhead' }, el('button', { class: 'fd-ib', title: 'بازگشت', 'aria-label': 'بازگشت', html: S('M9 5l7 7l-7 7'), onclick: back }), el('b', {}, i >= 0 ? `نمونه ${fa(i + 1)}` : 'نمونه‌ی تازه'), el('span', { class: 'fd-tag' }, p.name || 'پرامپت')),
-    group(row('عنوان', null, title)),
-    label('ورودی'), el('div', { class: 'grp set-free' }, inp),
-    label('خروجی'), el('div', { class: 'grp set-free' }, outp),
+    el('div', { class: 'fd-fhead' }, el('button', { class: 'fd-ib', title: tr('ai.back'), 'aria-label': tr('ai.back'), html: S('M9 5l7 7l-7 7'), onclick: back }), el('b', {}, i >= 0 ? tr('ai.example.num', { n: fa(i + 1) }) : tr('ai.example.new')), el('span', { class: 'fd-tag' }, p.name || tr('ai.prompt'))),
+    group(row(tr('ai.example.title'), null, title)),
+    label(tr('ai.example.input')), el('div', { class: 'grp set-free' }, inp),
+    label(tr('ai.example.output')), el('div', { class: 'grp set-free' }, outp),
     el('div', { class: 'fd-factions' }, el('span', { class: 'sp' }),
-      el('button', { class: 'set-select as-btn', onclick: back }, 'انصراف'),
-      el('button', { class: 'set-select as-btn primary', onclick: save }, 'ذخیره نمونه')),
+      el('button', { class: 'set-select as-btn', onclick: back }, tr('common.cancel')),
+      el('button', { class: 'set-select as-btn primary', onclick: save }, tr('ai.example.save'))),
   ];
 }
 
 function importView(pane, h, p) {
   const { label } = h;
   const back = () => pane.replaceChildren(...promptsPane(pane, h));
-  const chips = [`خروجی: ${(OUTPUTS.find((o) => o[0] === p.output) || OUTPUTS[0])[1]}`,
-    p.examples.length ? `${fa(p.examples.length)} نمونه` : null, p.files.length ? `${fa(p.files.length)} فایل مرجع` : null, p.inBar ? 'نمایش در نوار انتخاب' : null].filter(Boolean);
+  const outKey = (OUTPUTS.find((o) => o[0] === p.output) || OUTPUTS[0])[1];
+  const chips = [tr('ai.import.outputChip', { output: tr(outKey) }),
+    p.examples.length ? tr('ai.import.examplesChip', { count: fa(p.examples.length) }) : null, p.files.length ? tr('ai.import.filesChip', { count: fa(p.files.length) }) : null, p.inBar ? tr('ai.import.inBarChip') : null].filter(Boolean);
   const big = p.files.some((f) => f.text.length > MAX_FILE);
   const add = () => {
-    if (!p.text) { C.toast('این فایل دستوری ندارد', 'warn'); return; }
+    if (!p.text) { C.toast(tr('ai.import.errNoInstr'), 'warn'); return; }
     if (p.inBar && barPrompts().length >= MAX_BAR) p.inBar = false;
     savePrompts([...prompts(), p]);
-    C.toast(`«${p.name}» اضافه شد`, 'ok');
+    C.toast(tr('ai.import.added', { name: p.name }), 'ok');
     back();
   };
-  const preview = String(p.text).replace(/\{\{(\w+)\}\}/g, (_m, k) => `«${(TOKENS.find((x) => x[0] === k) || [0, k])[1]}»`);
+  const preview = String(p.text).replace(/\{\{(\w+)\}\}/g, (_m, k) => `«${tokenLabel(k)}»`);
   return [
-    el('div', { class: 'fd-fhead' }, el('button', { class: 'fd-ib', title: 'بازگشت', 'aria-label': 'بازگشت', html: S('M9 5l7 7l-7 7'), onclick: back }), el('b', {}, 'وارد کردن اسکیل')),
+    el('div', { class: 'fd-fhead' }, el('button', { class: 'fd-ib', title: tr('ai.back'), 'aria-label': tr('ai.back'), html: S('M9 5l7 7l-7 7'), onclick: back }), el('b', {}, tr('ai.prompts.importSkill'))),
     el('div', { class: 'grp set-free fd-imp' },
       el('div', { class: 'fd-imph' }, el('span', { class: 'fd-pic', html: S(pIcon(p.icon)) }), el('span', { class: 'fd-pt' }, el('b', {}, p.name), p.desc ? el('small', {}, p.desc) : null)),
       el('div', { class: 'fd-chips' }, chips.map((c) => el('span', { class: 'fd-ichip' }, c))),
       el('pre', { class: 'fd-src', dir: 'auto' }, preview),
       // everything that is sent with the instruction is shown in full, so nothing hidden comes in with it
-      ...p.examples.map((x, i) => el('pre', { class: 'fd-src', dir: 'auto' }, `نمونه ${fa(i + 1)}${x.title ? ': ' + x.title : ''}\nورودی:\n${x.input}\n\nخروجی:\n${x.output}`)),
-      ...p.files.map((f) => el('pre', { class: 'fd-src', dir: 'auto' }, `فایل مرجع: ${f.name || ''}\n${f.text}`)),
-      el('div', { class: 'fd-warn' }, el('span', { class: 'ic', html: ICON.warn }), el('span', {}, 'اسکیل فقط دستور متنی است و هیچ کدی اجرا نمی‌کند. قبل از افزودن، دستورش را بخوانید.'))),
-    big ? el('div', { class: 'lbl plain set-free' }, 'یکی از فایل‌های مرجع بزرگ است و هر بار همراه دستور فرستاده می‌شود.') : null,
+      ...p.examples.map((x, i) => el('pre', { class: 'fd-src', dir: 'auto' }, tr('ai.import.exampleBlock', { n: fa(i + 1), title: x.title ? ': ' + x.title : '', input: x.input, output: x.output }))),
+      ...p.files.map((f) => el('pre', { class: 'fd-src', dir: 'auto' }, tr('ai.import.fileBlock', { name: f.name || '', text: f.text }))),
+      el('div', { class: 'fd-warn' }, el('span', { class: 'ic', html: ICON.warn }), el('span', {}, tr('ai.import.warn')))),
+    big ? el('div', { class: 'lbl plain set-free' }, tr('ai.import.bigFileNote')) : null,
     el('div', { class: 'fd-factions' }, el('span', { class: 'sp' }),
-      el('button', { class: 'set-select as-btn', onclick: back }, 'انصراف'),
-      el('button', { class: 'set-select as-btn primary', onclick: add }, 'افزودن اسکیل')),
+      el('button', { class: 'set-select as-btn', onclick: back }, tr('common.cancel')),
+      el('button', { class: 'set-select as-btn primary', onclick: add }, tr('ai.import.addBtn'))),
   ].filter(Boolean);
 }
 

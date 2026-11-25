@@ -4,6 +4,7 @@ import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state';
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view';
 import { StateField, StateEffect } from '@codemirror/state';
 import { EditorView, Decoration as CMDeco } from '@codemirror/view';
+import { t } from './i18n.js';
 
 const MAX_MATCHES = 20000;
 const DIGIT_OF = (d) => { const c = d.charCodeAt(0); return c >= 0x06F0 ? c - 0x06F0 : c >= 0x0660 ? c - 0x0660 : c - 48; };
@@ -249,15 +250,15 @@ const ARABIC_ONLY = /[\u0629\u0649\u0625\u0623\u064B-\u0650]/; // ة ى إ أ an
 const isPersian = (t) => PERSIAN_ONLY.test(t) || (RTL.test(t) && !ARABIC_ONLY.test(t) && !/[\u064A\u0643]/.test(t));
 export const PRESETS = [
   {
-    id: 'heh-hamza', label: '«هٔ» و «ۀ» به «ه»', sample: 'خانهٔ ← خانه',
+    id: 'heh-hamza', get label() { return t('find.preset.hehHamza'); }, get sample() { return t('find.preset.hehHamzaSample'); },
     rule: { regex: /هٔ|ۀ/g, replace: () => 'ه' },
   },
   {
-    id: 'arabic-yk', label: '«ي» و «ك» عربی به «ی» و «ک» فارسی', sample: 'فقط در پاراگراف‌های فارسی، متن عربی دست نمی‌خورد',
+    id: 'arabic-yk', get label() { return t('find.preset.arabicYk'); }, get sample() { return t('find.preset.arabicYkSample'); },
     rule: { regex: /[يك]/g, replace: (m) => (m[0] === 'ي' ? 'ی' : 'ک'), when: (t) => PERSIAN_ONLY.test(t) },
   },
   {
-    id: 'digits-fa', label: 'اعداد انگلیسی به فارسی', sample: 'فقط در پاراگراف‌های فارسی؛ G1 و آدرس‌ها دست نمی‌خورند',
+    id: 'digits-fa', get label() { return t('find.preset.digitsFa'); }, get sample() { return t('find.preset.digitsFaSample'); },
     rule: {
       regex: /(?<![A-Za-z0-9_./:#@-])[0-9]+(?:[.,][0-9]+)*(?![A-Za-z0-9_/@-])/g,
       replace: (m) => m[0].replace(/[0-9]/g, (d) => FA_DIGITS[d]).replace(/\./g, '٫'),
@@ -265,16 +266,16 @@ export const PRESETS = [
     },
   },
   {
-    id: 'digits-en', label: 'اعداد فارسی به انگلیسی', sample: 'فقط در پاراگراف‌های تمام‌انگلیسی',
+    id: 'digits-en', get label() { return t('find.preset.digitsEn'); }, get sample() { return t('find.preset.digitsEnSample'); },
     rule: { regex: /[۰-۹٠-٩]+/g, replace: (m) => m[0].replace(/[۰-۹]/g, (d) => String(FA_DIGITS.indexOf(d))).replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660)), when: (t) => !RTL.test(t.replace(/[۰-۹٠-٩]/g, '')) },
   },
   {
-    id: 'double-space', label: 'فاصله‌های پشت‌سرهم به یک فاصله', sample: 'دو یا چند فاصله ← یک فاصله',
+    id: 'double-space', get label() { return t('find.preset.doubleSpace'); }, get sample() { return t('find.preset.doubleSpaceSample'); },
     rule: { regex: / {2,}/g, replace: () => ' ' },
   },
   {
-    id: 'space-before-punct', label: 'حذف فاصله‌ی قبل از نقطه و ویرگول', sample: 'سلام ، دنیا . ← سلام، دنیا.',
+    id: 'space-before-punct', get label() { return t('find.preset.spaceBeforePunct'); }, get sample() { return t('find.preset.spaceBeforePunctSample'); },
     rule: { regex: / +(?=[،؛.:!؟?])/g, replace: () => '', when: (t) => RTL.test(t) },
   },
-  { id: 'find-emdash', label: 'پیدا کردن خط تیره‌ی بلند (em dash)', sample: 'برای جایگزینی دستی، با جستجو', find: '\u2014', name: 'خط تیره‌ی بلند' },
+  { id: 'find-emdash', get label() { return t('find.preset.emDash'); }, get sample() { return t('find.preset.emDashSample'); }, find: '\u2014', get name() { return t('find.preset.emDashName'); } },
 ];

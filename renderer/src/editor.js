@@ -4,8 +4,9 @@ import { autoPair, pairBackspace, pasteBehaviour, ltrIslands } from './typing.js
 import { pmSearchPlugin, cmSearchExtension } from './search.js';
 import { tableCellSchema, tableHeaderSchema } from '@milkdown/kit/preset/gfm';
 import { textColorPlugins } from './textcolor.js';
-import { ICON } from './ui.js';
+import { ICON, fa } from './ui.js';
 import { GOOGLE_ICON, TRANSLATE_ICON } from './translate.js';
+import { t as tr } from './i18n.js';
 
 // Table cells with no alignment follow their text direction (right for Persian) instead of
 // being forced to "left"; an alignment picked by the user is kept and written to the file.
@@ -243,34 +244,51 @@ function renderMermaid(content, apply) {
     .catch((e) => apply(`<pre class="nv-mmd-err">${String(e.message || e).replace(/</g, '&lt;')}</pre>`));
 }
 
-const COLOR_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><text x="12" y="15.5" text-anchor="middle" font-size="15" font-weight="800" fill="currentColor" font-family="Vazirmatn, sans-serif">آ</text><rect x="5" y="18.5" width="14" height="3" rx="1.5" fill="var(--nv-last-color, #D93A3A)"/></svg>';
+const colorIcon = () => `<svg viewBox="0 0 24 24" aria-hidden="true"><text x="12" y="15.5" text-anchor="middle" font-size="15" font-weight="800" fill="currentColor" font-family="Vazirmatn, Segoe UI, sans-serif">${tr('color.glyph')}</text><rect x="5" y="18.5" width="14" height="3" rx="1.5" fill="var(--nv-last-color, #D93A3A)"/></svg>`;
 
 // the slash menu («/») uses the same Iconly Light outlines as the rest of the app
-const FA = {
-  placeholder: 'بنویسید… برای درج بلوک، / را بزنید',
-  textGroup: {
-    label: 'متن', text: { label: 'متن ساده', icon: ICON.paragraph }, h1: { label: 'تیتر ۱', icon: ICON.h1 }, h2: { label: 'تیتر ۲', icon: ICON.h2 }, h3: { label: 'تیتر ۳', icon: ICON.h3 },
-    h4: { label: 'تیتر ۴', icon: ICON.h4 }, h5: { label: 'تیتر ۵', icon: ICON.h5 }, h6: { label: 'تیتر ۶', icon: ICON.h6 }, quote: { label: 'نقل‌قول', icon: ICON.quote }, divider: { label: 'خط جداکننده', icon: ICON.hr },
-  },
-  listGroup: { label: 'فهرست', bulletList: { label: 'فهرست نقطه‌ای', icon: ICON.ul }, orderedList: { label: 'فهرست شماره‌دار', icon: ICON.ol }, taskList: { label: 'فهرست کارها', icon: ICON.tickSquare } },
-  advancedGroup: { label: 'پیشرفته', image: { label: 'تصویر', icon: ICON.image }, codeBlock: { label: 'بلوک کد', icon: ICON.code }, table: { label: 'جدول', icon: ICON.table }, math: { label: 'فرمول ریاضی', icon: ICON.formula } },
-};
+function slashConfig() {
+  return {
+    placeholder: tr('editor.placeholder'),
+    textGroup: {
+      label: tr('editor.slash.text'), text: { label: tr('editor.slash.plainText'), icon: ICON.paragraph },
+      h1: { label: tr('editor.heading', { n: fa(1) }), icon: ICON.h1 }, h2: { label: tr('editor.heading', { n: fa(2) }), icon: ICON.h2 },
+      h3: { label: tr('editor.heading', { n: fa(3) }), icon: ICON.h3 }, h4: { label: tr('editor.heading', { n: fa(4) }), icon: ICON.h4 },
+      h5: { label: tr('editor.heading', { n: fa(5) }), icon: ICON.h5 }, h6: { label: tr('editor.heading', { n: fa(6) }), icon: ICON.h6 },
+      quote: { label: tr('editor.slash.quote'), icon: ICON.quote }, divider: { label: tr('editor.slash.divider'), icon: ICON.hr },
+    },
+    listGroup: {
+      label: tr('editor.slash.list'),
+      bulletList: { label: tr('editor.slash.bulletList'), icon: ICON.ul },
+      orderedList: { label: tr('editor.slash.orderedList'), icon: ICON.ol },
+      taskList: { label: tr('editor.slash.taskList'), icon: ICON.tickSquare },
+    },
+    advancedGroup: {
+      label: tr('editor.slash.advanced'),
+      image: { label: tr('editor.slash.image'), icon: ICON.image },
+      codeBlock: { label: tr('editor.slash.codeBlock'), icon: ICON.code },
+      table: { label: tr('editor.slash.table'), icon: ICON.table },
+      math: { label: tr('editor.slash.math'), icon: ICON.formula },
+    },
+  };
+}
 
 /**
  * Create one editor for one tab.
  * hooks: { onChange(md), onSelection(), resolveImage(url), uploadImage(file) }
  */
 export async function createEditor(root, markdownText, hooks) {
+  const SLASH = slashConfig();
   const crepe = new Crepe({
     root,
     defaultValue: markdownText,
     features: { [Crepe.Feature.AI]: false, [Crepe.Feature.TopBar]: false },
     featureConfigs: {
-      [Crepe.Feature.Placeholder]: { text: FA.placeholder, mode: 'block' },
+      [Crepe.Feature.Placeholder]: { text: SLASH.placeholder, mode: 'block' },
       // the virtual cursor assumes left-to-right text and breaks arrow keys in Persian
       [Crepe.Feature.Cursor]: { virtual: false },
       [Crepe.Feature.BlockEdit]: {
-        textGroup: FA.textGroup, listGroup: FA.listGroup, advancedGroup: FA.advancedGroup,
+        textGroup: SLASH.textGroup, listGroup: SLASH.listGroup, advancedGroup: SLASH.advancedGroup,
         // the drag handle sits on the start side of the block: right for Persian, left for English
         blockHandle: {
           getPlacement: ({ active, blockDom }) => {
@@ -290,21 +308,21 @@ export async function createEditor(root, markdownText, hooks) {
         inlineOnUpload: hooks.uploadImage,
         blockOnUpload: hooks.uploadImage,
         proxyDomURL: hooks.resolveImage,
-        inlineUploadButton: 'بارگذاری',
-        inlineUploadPlaceholderText: 'یا آدرس تصویر را بچسبانید',
-        inlineConfirmButton: 'تأیید',
-        blockUploadButton: 'بارگذاری فایل',
-        blockUploadPlaceholderText: 'یا آدرس تصویر را بچسبانید',
-        blockCaptionPlaceholderText: 'توضیح تصویر',
-        blockConfirmButton: 'تأیید',
+        inlineUploadButton: tr('editor.image.upload'),
+        inlineUploadPlaceholderText: tr('editor.image.pasteUrl'),
+        inlineConfirmButton: tr('common.accept'),
+        blockUploadButton: tr('editor.image.uploadFile'),
+        blockUploadPlaceholderText: tr('editor.image.pasteUrl'),
+        blockCaptionPlaceholderText: tr('editor.image.caption'),
+        blockConfirmButton: tr('common.accept'),
       },
       [Crepe.Feature.CodeMirror]: {
         theme: codeBlockExtras,
-        searchPlaceholder: 'جستجوی زبان',
-        noResultText: 'یافت نشد',
-        copyText: 'کپی',
-        previewToggleText: (only) => (only ? 'ویرایش' : 'پنهان کردن'),
-        previewLabel: 'پیش‌نمایش',
+        searchPlaceholder: tr('editor.code.searchLang'),
+        noResultText: tr('editor.code.noResult'),
+        copyText: tr('common.copy'),
+        previewToggleText: (only) => (only ? tr('editor.code.edit') : tr('editor.code.hide')),
+        previewLabel: tr('editor.code.preview'),
         renderPreview: (language, content, apply) => {
           if ((language || '').toLowerCase() !== 'mermaid' || !content.trim()) return null;
           renderMermaid(content, apply);
@@ -312,23 +330,24 @@ export async function createEditor(root, markdownText, hooks) {
         },
       },
       [Crepe.Feature.Latex]: { katexOptions: { throwOnError: false } },
-      // selection toolbar: a colour button («آ», with the last colour as a bar under it) right after the text styles
+      // selection toolbar: a colour button (with the last colour as a bar under it) right after the text styles
       [Crepe.Feature.Toolbar]: {
-        boldLabel: 'پررنگ', italicLabel: 'کج', strikethroughLabel: 'خط‌خورده', codeLabel: 'کد درون‌خطی', linkLabel: 'پیوند', latexLabel: 'فرمول',
+        boldLabel: tr('editor.toolbar.bold'), italicLabel: tr('editor.toolbar.italic'), strikethroughLabel: tr('editor.toolbar.strike'),
+        codeLabel: tr('editor.toolbar.code'), linkLabel: tr('editor.toolbar.link'), latexLabel: tr('editor.toolbar.latex'),
         buildToolbar: (b) => {
           if (hooks.colorMenu) {
             b.getGroup('formatting').addItem('nv-color', {
-              icon: COLOR_ICON, label: 'رنگ',
+              icon: colorIcon(), label: tr('editor.toolbar.color'),
               active: () => false,
               onRun: () => hooks.colorMenu(root.querySelector('.milkdown-toolbar[data-show="true"] [data-toolbar-item="nv-color"]')),
             });
           }
           if (hooks.translate) {
             // Google search and translate sit in the middle: after the text styles, before code / formula / link
-            const web = b.addGroup('nv-web', 'وب');
+            const web = b.addGroup('nv-web', tr('editor.toolbar.web'));
             // the assistant (icon only; its name is the tooltip) sits right before Google
             if (hooks.ai) {
-              web.addItem('nv-ai', { icon: hooks.aiIcon(), label: hooks.aiName ? hooks.aiName() : 'فدورا', shortcut: 'Ctrl+J', active: () => false,
+              web.addItem('nv-ai', { icon: hooks.aiIcon(), label: hooks.aiName ? hooks.aiName() : tr('ai.defaultName'), shortcut: 'Ctrl+J', active: () => false,
                 onRun: () => hooks.ai(root.querySelector('.milkdown-toolbar[data-show="true"] [data-toolbar-item="nv-ai"]')) });
             }
             // up to three of the user's own prompts, filled in from the settings (unused ones are hidden)
@@ -338,9 +357,9 @@ export async function createEditor(root, markdownText, hooks) {
                   onRun: () => hooks.promptSlot.run(i) });
               }
             }
-            web.addItem('nv-google', { icon: GOOGLE_ICON, label: 'جستجو در گوگل', active: () => false, onRun: () => hooks.googleSearch() })
+            web.addItem('nv-google', { icon: GOOGLE_ICON, label: tr('editor.toolbar.google'), active: () => false, onRun: () => hooks.googleSearch() })
               .addItem('nv-translate', {
-                icon: TRANSLATE_ICON, label: 'ترجمه', shortcut: 'Alt+T', active: () => false,
+                icon: TRANSLATE_ICON, label: tr('editor.toolbar.translate'), shortcut: 'Alt+T', active: () => false,
                 onRun: () => hooks.translate(root.querySelector('.milkdown-toolbar[data-show="true"] [data-toolbar-item="nv-translate"]')),
               });
             const groups = b.build();

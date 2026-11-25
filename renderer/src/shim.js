@@ -3,7 +3,11 @@ export function installShim() {
   const files = new Map();
   const hist = new Map();
   const drafts = new Map();
-  let settings = window.__nvSettings || {};
+  const STORE_KEY = 'fedo-dev-settings';
+  const loadStored = () => {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {}; } catch { return {}; }
+  };
+  let settings = window.__nvSettings ? { ...window.__nvSettings } : loadStored();
   let session = null;
   const listeners = {};
   const on = (n) => (fn) => { (listeners[n] = listeners[n] || []).push(fn); };
@@ -45,7 +49,10 @@ export function installShim() {
     historyLabel: async (p, id, label) => { hist.get(p).find((v) => v.id === id).label = label; },
     historyDelete: async (p, id) => { hist.set(p, hist.get(p).filter((v) => v.id !== id)); },
     historyMove: async (a, b) => { if (hist.has(a)) hist.set(b, hist.get(a).slice()); },
-    getSettings: async () => settings, setSettings: async (s) => { settings = JSON.parse(JSON.stringify(s)); },
+    getSettings: async () => settings, setSettings: async (s) => {
+      settings = JSON.parse(JSON.stringify(s));
+      if (!window.__nvSettings) { try { localStorage.setItem(STORE_KEY, JSON.stringify(settings)); } catch { /* ignore */ } }
+    },
     getSession: async () => session, setSession: async (s) => { session = s; },
     customThemes: async () => [], openThemesFolder: async () => {},
     exportHTML: async (html, name, direct) => { window.__export = html; return direct || name; },

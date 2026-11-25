@@ -2,6 +2,7 @@
 // The translator card opens under the selection on request only (button or Alt+T); its main job is to show
 // the meaning, so the language pickers and the actions (copy, replace, insert below) stay quiet.
 import { el, ICON } from './ui.js';
+import { t, getLang, langDir } from './i18n.js';
 
 export const GOOGLE_ICON = '<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0C14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3c-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
 export const TRANSLATE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5.5h9M7.5 3.5v2M5 5.5c.9 3.2 3.2 5.8 6.5 7.3M10 5.5c-.9 3.2-3.2 5.8-6.5 7.3M12.5 20.5l4-9l4 9M13.8 17.5h5.4"/></svg>';
@@ -27,8 +28,12 @@ export const LANGS = [
   ['id', 'اندونزیایی', 'Indonesian'], ['ms', 'مالایی', 'Malay'], ['th', 'تایلندی', 'Thai'], ['vi', 'ویتنامی', 'Vietnamese'],
   ['bn', 'بنگالی', 'Bengali'], ['ta', 'تامیلی', 'Tamil'],
 ];
-const NAME = Object.fromEntries(LANGS.map((l) => [l[0], l[1]]));
-export const langName = (code) => NAME[code] || NAME[String(code).split('-')[0]] || code;
+const NAME_FA = Object.fromEntries(LANGS.map((l) => [l[0], l[1]]));
+const NAME_EN = Object.fromEntries(LANGS.map((l) => [l[0], l[2]]));
+export const langName = (code) => {
+  const map = getLang() === 'en' ? NAME_EN : NAME_FA;
+  return map[code] || map[String(code).split('-')[0]] || code;
+};
 const PERSIAN = /[؀-ۿ]/;
 const RTL_LETTER = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
 /** Same rule as the document: any Persian/Arabic/Hebrew letter → right-to-left, otherwise left-to-right.
@@ -86,15 +91,15 @@ export function openTranslate(opts) {
   // ---- the card ----
   const fromBtn = el('button', { class: 'tr-lg', 'aria-haspopup': 'listbox' });
   const toBtn = el('button', { class: 'tr-lg', 'aria-haspopup': 'listbox' });
-  const swapBtn = el('button', { class: 'tr-ic', title: 'جابه‌جایی زبان‌ها', 'aria-label': 'جابه‌جایی زبان‌ها', html: I.swap });
-  const closeBtn = el('button', { class: 'tr-ic', title: 'بستن (Esc)', 'aria-label': 'بستن', html: ICON.x });
+  const swapBtn = el('button', { class: 'tr-ic', title: t('translate.swap'), 'aria-label': t('translate.swap'), html: I.swap });
+  const closeBtn = el('button', { class: 'tr-ic', title: t('common.close'), 'aria-label': t('common.close'), html: ICON.x });
   const head = el('div', { class: 'tr-head' }, el('div', { class: 'tr-langs' }, fromBtn, swapBtn, toBtn), closeBtn);
   const src = placeText(el('div', { class: 'tr-src' }, text.length > 400 ? text.slice(0, 400) + '…' : text), text, opts.align);
   const body = el('div', { class: 'tr-body' });
-  const gt = el('button', { class: 'tr-gt', title: 'باز کردن در Google Translate' }, el('span', {}, 'Google Translate'), el('span', { class: 'ic', html: I.ext }));
+  const gt = el('button', { class: 'tr-gt', title: t('translate.openInGoogle') }, el('span', {}, 'Google Translate'), el('span', { class: 'ic', html: I.ext }));
   const acts = el('span', { class: 'tr-acts' });
   const foot = el('div', { class: 'tr-foot' }, gt, el('span', { class: 'sp' }), acts);
-  const box = el('div', { class: 'tr-card', dir: 'rtl', role: 'dialog', 'aria-label': 'ترجمه' }, head, src, body, foot);
+  const box = el('div', { class: 'tr-card', dir: langDir(), role: 'dialog', 'aria-label': t('translate.title') }, head, src, body, foot);
   document.body.append(box);
 
   const qa = (icon, label, run) => {
@@ -105,8 +110,8 @@ export function openTranslate(opts) {
 
   const paintHead = () => {
     const auto = st.sl === 'auto';
-    fromBtn.replaceChildren(...[el('span', { class: 'nm' }, auto ? (st.detected ? langName(st.detected) : 'تشخیص خودکار') : langName(st.sl)),
-      auto && st.detected ? el('small', {}, 'خودکار') : null, el('span', { class: 'cv', html: ICON.chevDown })].filter(Boolean));
+    fromBtn.replaceChildren(...[el('span', { class: 'nm' }, auto ? (st.detected ? langName(st.detected) : t('translate.autoDetect')) : langName(st.sl)),
+      auto && st.detected ? el('small', {}, t('dir.auto')) : null, el('span', { class: 'cv', html: ICON.chevDown })].filter(Boolean));
     toBtn.replaceChildren(el('span', { class: 'nm' }, langName(st.tl)), el('span', { class: 'cv', html: ICON.chevDown }));
     fromBtn.classList.toggle('on', st.menu === 'from');
     toBtn.classList.toggle('on', st.menu === 'to');
@@ -122,31 +127,31 @@ export function openTranslate(opts) {
     }
     if (st.state === 'err') {
       body.append(el('div', { class: 'tr-err' }, el('span', { class: 'ic', html: ICON.warn }),
-        el('span', {}, el('b', {}, 'به Google Translate وصل نشد'), el('small', {}, st.err || 'اینترنت یا فیلترشکن را بررسی کنید.'))));
-      acts.append(qa(ICON.refresh, 'تلاش دوباره', run));
+        el('span', {}, el('b', {}, t('translate.connErrTitle')), el('small', {}, st.err || t('translate.connErrHint')))));
+      acts.append(qa(ICON.refresh, t('common.tryAgain'), run));
       return;
     }
     const r = st.result;
     body.append(placeText(el('div', { class: 'tr-out' }, r.text), r.text, opts.align));
-    // only when there is something to show: no lonely «معنی‌های دیگر» label
+    // only when there is something to show: no lonely alternatives label
     const alts = settings.trAlts !== false ? (r.alts || []).filter((a) => a && a !== r.text).slice(0, 6) : [];
-    const chips = alts.map((a) => el('button', { class: 'tr-chip', title: 'کپی', onclick: (e) => copyText(a, e.currentTarget, a) }, a));
+    const chips = alts.map((a) => el('button', { class: 'tr-chip', title: t('common.copy'), onclick: (e) => copyText(a, e.currentTarget, a) }, a));
     if (r.asName && r.asName !== r.text && !alts.includes(r.asName)) {
-      chips.push(el('button', { class: 'tr-chip', title: 'کپی', onclick: (e) => copyText(r.asName, e.currentTarget, r.asName) }, r.asName, el('span', { class: 'nt' }, 'به‌عنوان نام')));
+      chips.push(el('button', { class: 'tr-chip', title: t('common.copy'), onclick: (e) => copyText(r.asName, e.currentTarget, r.asName) }, r.asName, el('span', { class: 'nt' }, t('translate.asName'))));
     }
-    if (chips.length) body.append(el('div', { class: 'tr-alts' }, el('span', { class: 'h' }, 'معنی‌های دیگر'), chips));
+    if (chips.length) body.append(el('div', { class: 'tr-alts' }, el('span', { class: 'h' }, t('translate.otherMeanings')), chips));
     acts.append(
-      qa(ICON.copy, 'کپی', (b) => copyText(r.text, b)),
-      qa(I.replace, 'جایگزین کن', () => replace(r.text)),
-      qa(I.below, 'درج زیر پاراگراف', () => insertBelow(r.text)),
+      qa(ICON.copy, t('common.copy'), (b) => copyText(r.text, b)),
+      qa(I.replace, t('translate.replace'), () => replace(r.text)),
+      qa(I.below, t('translate.insertBelow'), () => insertBelow(r.text)),
     );
   };
   const copyText = async (s, b, label) => {
-    try { await navigator.clipboard.writeText(s); } catch { toast('کپی ممکن نشد', 'err'); return; }
+    try { await navigator.clipboard.writeText(s); } catch { toast(t('translate.copyFailed'), 'err'); return; }
     if (!b) return;
     const old = [...b.childNodes];
     b.classList.add('ok');
-    b.replaceChildren(el('span', { class: 'ic', html: ICON.check }), el('span', { class: 'lb' }, label ? label : 'کپی شد'));
+    b.replaceChildren(el('span', { class: 'ic', html: ICON.check }), el('span', { class: 'lb' }, label ? label : t('common.copied')));
     clearTimeout(b._t);
     b._t = setTimeout(() => { b.classList.remove('ok'); b.replaceChildren(...old); }, 1500);
   };
@@ -157,7 +162,7 @@ export function openTranslate(opts) {
   };
   const replace = (s) => {
     if (opts.guard && opts.guard()) return;
-    if (!stillThere()) { toast('متن انتخاب‌شده عوض شده است', 'warn'); return; }
+    if (!stillThere()) { toast(t('translate.selectionChanged'), 'warn'); return; }
     const tr = view.state.tr.insertText(s, range.from, range.to);
     view.dispatch(tr.scrollIntoView());
     closeTranslate();
@@ -165,7 +170,7 @@ export function openTranslate(opts) {
   };
   const insertBelow = (s) => {
     if (opts.guard && opts.guard()) return;
-    if (!stillThere()) { toast('متن انتخاب‌شده عوض شده است', 'warn'); return; }
+    if (!stillThere()) { toast(t('translate.selectionChanged'), 'warn'); return; }
     const { state } = view;
     const $to = state.doc.resolve(Math.min(range.to, state.doc.content.size));
     const at = $to.depth >= 1 ? $to.after(1) : state.doc.content.size;
@@ -184,14 +189,15 @@ export function openTranslate(opts) {
     st.menu = which;
     paintHead();
     const cur = which === 'from' ? st.sl : st.tl;
-    const input = el('input', { type: 'text', placeholder: 'جستجوی زبان، فارسی یا English', 'aria-label': 'جستجوی زبان', spellcheck: 'false' });
-    const clr = el('button', { class: 'tr-lx', 'aria-label': 'پاک کردن جستجو', html: ICON.x, hidden: true });
+    const input = el('input', { type: 'text', placeholder: t('translate.searchLangPlaceholder'), 'aria-label': t('translate.searchLang'), spellcheck: 'false' });
+    const clr = el('button', { class: 'tr-lx', 'aria-label': t('emoji.clearSearch'), html: ICON.x, hidden: true });
     const list = el('div', { class: 'tr-ll', role: 'listbox' });
-    menu = el('div', { class: 'tr-menu', role: 'dialog', 'aria-label': which === 'from' ? 'زبان متن' : 'ترجمه به' },
+    menu = el('div', { class: 'tr-menu', role: 'dialog', 'aria-label': which === 'from' ? t('translate.sourceLang') : t('translate.targetLang') },
       el('label', { class: 'tr-ls' }, el('span', { class: 'ic', html: ICON.search }), input, clr),
       list,
-      el('div', { class: 'tr-lf' }, el('span', { class: 'kb' }, el('kbd', {}, '↑'), el('kbd', {}, '↓')), 'حرکت', el('span', { class: 'kb' }, el('kbd', {}, 'Enter')), 'انتخاب', el('span', { class: 'kb' }, el('kbd', {}, 'Esc')), 'بستن'));
-    menu.style[which === 'from' ? 'right' : 'left'] = '8px';
+      el('div', { class: 'tr-lf' }, el('span', { class: 'kb' }, el('kbd', {}, '↑'), el('kbd', {}, '↓')), t('translate.keyMove'), el('span', { class: 'kb' }, el('kbd', {}, 'Enter')), t('translate.keyPick'), el('span', { class: 'kb' }, el('kbd', {}, 'Esc')), t('common.close')));
+    const rtl = langDir() === 'rtl';
+    menu.style[which === 'from' ? (rtl ? 'right' : 'left') : (rtl ? 'left' : 'right')] = '8px';
     box.append(menu);
     let rows = [];
     let focus = -1;
@@ -204,11 +210,14 @@ export function openTranslate(opts) {
       closeMenu();
       run();
     };
-    const row = (code, fa, en, icon, note) => {
+    const isEn = getLang() === 'en';
+    const row = (code, faN, enN, icon, note) => {
+      const main = isEn ? (enN || faN) : faN;
+      const sub = isEn ? (enN && faN !== enN ? faN : '') : enN;
       const b = el('button', { class: 'tr-lr' + (code === cur ? ' on' : ''), role: 'option', 'aria-selected': String(code === cur) },
         icon ? el('span', { class: 'ai', html: icon }) : null,
-        el('span', { class: 'nm' }, fa, note ? el('small', {}, note) : null),
-        en ? el('span', { class: 'en' }, en) : null,
+        el('span', { class: 'nm' }, main, note ? el('small', {}, note) : null),
+        sub ? el('span', { class: 'en' }, sub) : null,
         el('span', { class: 'ck', html: ICON.check }));
       b.addEventListener('click', () => pick(code));
       b.addEventListener('mousemove', () => setFocus(rows.indexOf(b)));
@@ -229,17 +238,17 @@ export function openTranslate(opts) {
       list.replaceChildren();
       if (!q) {
         if (which === 'from') {
-          list.append(row('auto', 'تشخیص خودکار', '', I.auto, st.detected ? 'الان: ' + langName(st.detected) : ''), el('div', { class: 'tr-sep' }));
+          list.append(row('auto', t('translate.autoDetect'), '', I.auto, st.detected ? t('translate.detectedNow', { lang: langName(st.detected) }) : ''), el('div', { class: 'tr-sep' }));
         }
-        const recent = [...new Set([...(settings.trRecent || []), 'fa', 'en', 'ar'])].filter((c) => NAME[c]).slice(0, 3);
-        list.append(el('div', { class: 'tr-lh' }, 'اخیر'));
+        const recent = [...new Set([...(settings.trRecent || []), 'fa', 'en', 'ar'])].filter((c) => NAME_FA[c]).slice(0, 3);
+        list.append(el('div', { class: 'tr-lh' }, t('sidebar.recent')));
         for (const c of recent) { const l = LANGS.find((x) => x[0] === c); list.append(row(l[0], l[1], l[2])); }
-        list.append(el('div', { class: 'tr-lh' }, 'همه‌ی زبان‌ها'));
+        list.append(el('div', { class: 'tr-lh' }, t('translate.allLangs')));
         for (const l of LANGS) if (!recent.includes(l[0])) list.append(row(l[0], l[1], l[2]));
       } else {
         const hits = LANGS.filter((l) => l[1].includes(q) || l[2].toLowerCase().includes(ql) || l[0].toLowerCase() === ql);
         for (const l of hits) list.append(row(l[0], l[1], l[2]));
-        if (!hits.length) list.append(el('div', { class: 'tr-le' }, `زبانی با «${q}» پیدا نشد`));
+        if (!hits.length) list.append(el('div', { class: 'tr-le' }, t('translate.noLangFound', { q })));
       }
       focus = -1;
       if (q && rows.length) setFocus(0);
@@ -285,7 +294,7 @@ export function openTranslate(opts) {
       }
     } else {
       st.state = 'err';
-      st.err = r && r.offline ? 'اینترنت یا فیلترشکن را بررسی کنید.' : null;
+      st.err = r && r.offline ? t('translate.connErrHint') : null;
     }
     paintHead(); paintBody(); place();
   };

@@ -77,6 +77,7 @@ body.ctrl-down .milkdown .ProseMirror a { cursor: pointer; text-decoration: unde
 .source .cm-selectionBackground, .source .cm-focused .cm-selectionBackground { background: var(--selection) !important; }
 .source .cm-cursor { border-left-color: var(--fg); }
 .source .cm-panels { background: var(--panel); color: var(--fg); border-color: var(--border); direction: rtl; }
+html[dir='ltr'] .source .cm-panels { direction: ltr; }
 .source .cm-panels input, .source .cm-panels button { font-family: var(--font-ui); }
 
 
@@ -161,8 +162,9 @@ body.ctrl-down .milkdown .ProseMirror a { cursor: pointer; text-decoration: unde
 /* save window: file names are usually English */
 /* the empty-line placeholder follows the keyboard language (kbdlang.js): the line starts on the side the text will go */
 html.kbd-en .milkdown .ProseMirror > p.crepe-placeholder { direction: ltr; text-align: left; }
-html.kbd-en .milkdown .ProseMirror > p.crepe-placeholder::before { content: 'Start writing… press / to insert a block'; font-family: 'Segoe UI', var(--font-text); }
+html.kbd-en .milkdown .ProseMirror > p.crepe-placeholder::before { content: 'Write here, or press /…'; font-family: 'Segoe UI', var(--font-text); }
 html.kbd-fa .milkdown .ProseMirror > p.crepe-placeholder { direction: rtl; text-align: right; }
+html.kbd-fa .milkdown .ProseMirror > p.crepe-placeholder::before { content: 'اینجا بنویسید، یا / را بزنید…'; font-family: var(--font-text); }
 
 /* ---------- forced document direction (per tab) ----------
    Every block starts on the forced side; the words inside a line keep their own order (plaintext),
