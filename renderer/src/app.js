@@ -2884,6 +2884,7 @@ async function openSettings(section = 'look') {
             if (v === (settings.uiLang || 'fa')) return;
             settings.uiLang = v;
             await persistNow();
+            api.reloadWindows();
             if (tabs.some((tab) => tab.dirty) || !settings.restoreSession) toast(tr('settings.look.uiLangRestart'), 6000, null, 'info');
             else location.reload();
           },
@@ -4099,6 +4100,10 @@ let booted = false;
 const earlyOpen = [];
 api.onOpenPath((p) => (booted ? openPath(p) : earlyOpen.push(p)));
 api.onFileChanged((p) => onExternalChange(p));
+api.onUiLangChanged(() => {
+  if (tabs.some((tab) => tab.dirty) || !settings.restoreSession) toast(tr('settings.look.uiLangRestart'), 6000, null, 'info');
+  else location.reload();
+});
 api.onRequestClose(async () => {
   const dirty = tabs.filter((t) => t.dirty);
   if (dirty.length) {

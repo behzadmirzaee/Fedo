@@ -769,6 +769,11 @@ ipcMain.handle('history:move', async (_e, from, to) => {
 // ---------- IPC: settings, session, themes ----------
 ipcMain.handle('settings:get', () => readJSON(settingsFile(), {}));
 ipcMain.handle('settings:set', (_e, s) => writeJSON(settingsFile(), s));
+ipcMain.handle('app:reload-windows', (e) => {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed() && w.webContents !== e.sender) w.webContents.send('ui-lang-changed');
+  }
+});
 ipcMain.handle('session:get', () => readJSON(sessionFile(), null));
 ipcMain.handle('session:set', (e, s) => {
   const w = W(e);
