@@ -1,4 +1,5 @@
 // small UI helpers: icons, menus, modals, toasts
+import { t, langDir, langLocale } from './i18n.js';
 // Icons: Iconly "Light" outlines (24px grid, 1.5 stroke); a few simple glyphs are drawn by hand.
 const s = (d, cls) => `<svg${cls ? ` class="${cls}"` : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const p = (d, cls) => s(`<path d="${d}"/>`, cls);
@@ -10,8 +11,8 @@ export const ICON = {
   plusSquare: p('M12 8.33v7.32M15.67 11.99H8.33M16.69 2H7.31C4.05 2 2 4.31 2 7.59V16.41C2 19.69 4.04 22 7.31 22H16.69C19.96 22 22 19.69 22 16.41V7.59C22 4.31 19.96 2 16.69 2Z'),
   x: p('M6.5 6.5l11 11M17.5 6.5l-11 11'),
   check: p('M5.5 12.5l4.5 4.5l8.5-9.5'),
-  // the sidebar sits on the right (RTL start): a panel drawn on the right, mirroring the vertical-tabs icon
-  sidebar: s('<rect x="3" y="3" width="18" height="18" rx="4.5"/><path d="M15 3v18M17.5 8h1M17.5 11.5h1M17.5 15h1"/>'),
+  // the sidebar sits on the start edge (right in RTL, left in LTR); mirrors the vertical-tabs icon
+  sidebar: s('<rect x="3" y="3" width="18" height="18" rx="4.5"/><path d="M15 3v18M17.5 8h1M17.5 11.5h1M17.5 15h1"/>', 'dir-flip'),
   history: p('M21.25 12a9.25 9.25 0 1 1-18.5 0a9.25 9.25 0 0 1 18.5 0zM15.43 14.94l-3.77-2.25V7.85'),
   clock: p('M21.25 12a9.25 9.25 0 1 1-18.5 0a9.25 9.25 0 0 1 18.5 0zM15.43 14.94l-3.77-2.25V7.85'),
   code: p('M7.78 3H16.22C19.17 3 21 5.08 21 8.03V15.97C21 18.92 19.17 21 16.22 21H7.78C4.84 21 3 18.92 3 15.97V8.03C3 5.08 4.84 3 7.78 3ZM9.94 9.35L7.29 12L9.94 14.65M14.06 9.35L16.71 12L14.06 14.65'),
@@ -61,7 +62,7 @@ export const ICON = {
   // two opposite arrows: the direction (RTL / LTR) of one document
   direction: p('M20 7H5M8 4L5 7l3 3M4 17h15M16 14l3 3-3 3'),
   paragraph: p('M6 6h12M12 6v13'),
-  vtabs: s('<rect x="3" y="3" width="18" height="18" rx="4.5"/><path d="M9 3v18M5.5 8h1M5.5 11.5h1M5.5 15h1"/>'),
+  vtabs: s('<rect x="3" y="3" width="18" height="18" rx="4.5"/><path d="M9 3v18M5.5 8h1M5.5 11.5h1M5.5 15h1"/>', 'dir-flip'),
   window: s('<rect x="3" y="4" width="18" height="16" rx="4.5"/><path d="M3 9h18"/>'),
   fullscreen: p('M9 3.5H7.5C5.3 3.5 3.5 5.3 3.5 7.5V9M15 3.5h1.5c2.2 0 4 1.8 4 4V9M9 20.5H7.5c-2.2 0-4-1.8-4-4V15M15 20.5h1.5c2.2 0 4-1.8 4-4V15'),
   image: s('<rect x="2.75" y="2.75" width="18.5" height="18.5" rx="5"/><circle cx="8.6" cy="8.8" r="1.8"/><path d="M3.2 16.6l3.4-3.3c.8-.8 2-.8 2.8 0l1.5 1.5 3.5-3.6c.8-.8 2.1-.8 2.9 0l3.5 3.6"/>'),
@@ -147,7 +148,7 @@ export function kbd(key) {
  * x,y is the anchor's right/top edge (menus open toward the left, as in an RTL app)
  */
 function buildMenu(items, level, detached = false) {
-  const m = el('div', { class: 'menu', dir: 'rtl' });
+  const m = el('div', { class: 'menu', dir: langDir() });
   if (items.some((it) => it && it.icon)) m.classList.add('has-icons');
   const closeSubs = (node) => aim(level, () => { closeFrom(level + 1); m.querySelectorAll('.mi.open').forEach((n) => n.classList.remove('open')); }, node);
   for (const it of items) {
@@ -195,7 +196,7 @@ function buildMenu(items, level, detached = false) {
       if (w.glyph) row.classList.add('glyphs');
       for (const c of w.items) {
         const b = el('button', { 'data-id': c.id, title: c.name, 'aria-label': c.name, class: c.none ? 'none' : null,
-          style: w.glyph === 'text' ? `color:${c.color || 'var(--fg)'}` : `--sw:${c.color || 'transparent'}`, html: c.none ? ICON.x : null }, w.glyph && !c.none ? 'آ' : null);
+          style: w.glyph === 'text' ? `color:${c.color || 'var(--fg)'}` : `--sw:${c.color || 'transparent'}`, html: c.none ? ICON.x : null }, w.glyph && !c.none ? t('color.glyph') : null);
         b.addEventListener('mousedown', (e) => e.preventDefault());
         b.addEventListener('click', () => { if (w.close) closeMenu(); w.pick(c.id); if (!w.close) paint(c.id); });
         row.append(b);
@@ -251,8 +252,8 @@ function buildMenu(items, level, detached = false) {
       const step = (fn) => (e) => { e.stopPropagation(); fn(); val.textContent = it.stepper.value(); };
       mi.classList.add('static');
       mi.append(el('span', { class: 'mstep' },
-        el('button', { title: 'بیشتر', html: ICON.plus, onclick: step(it.stepper.up) }), val,
-        el('button', { title: 'کمتر', html: ICON.minus, onclick: step(it.stepper.down) })));
+        el('button', { title: t('common.more'), html: ICON.plus, onclick: step(it.stepper.up) }), val,
+        el('button', { title: t('common.less'), html: ICON.minus, onclick: step(it.stepper.down) })));
       mi.addEventListener('mouseenter', () => closeSubs(mi));
     } else if (it.switch) {
       const sw = el('span', { class: 'tg' + (it.switch() ? ' on' : ''), role: 'switch', 'aria-checked': String(!!it.switch()) });
@@ -273,7 +274,8 @@ function buildMenu(items, level, detached = false) {
         mi.classList.add('open');
         const sub = buildMenu(it.sub, level + 1);
         const r = mi.getBoundingClientRect();
-        place(sub, r.left - 6, r.top - 9, r.right + 6);
+        if (langDir() === 'rtl') place(sub, r.left - 6, r.top - 9, r.right + 6);
+        else place(sub, r.right + 6, r.top - 9, r.left - 6);
       };
       mi.addEventListener('mouseenter', () => aim(level, open, mi));
       mi.addEventListener('click', open);
@@ -291,11 +293,17 @@ function buildMenu(items, level, detached = false) {
   openMenus.push(m);
   return m;
 }
-/** place menu so its right edge sits at x (or flip to the other side of `altX` if there is no room) */
+/** place menu at x (right edge in RTL, left edge in LTR), flipping to `altX` if there is no room */
 function place(m, x, y, altX) {
   const r = m.getBoundingClientRect();
-  let left = x - r.width;
-  if (left < 14) left = altX != null ? Math.min(altX, window.innerWidth - r.width - 14) : 14;
+  let left;
+  if (langDir() === 'rtl') {
+    left = x - r.width;
+    if (left < 14) left = altX != null ? Math.min(altX, window.innerWidth - r.width - 14) : 14;
+  } else {
+    left = x;
+    if (left + r.width > window.innerWidth - 14) left = altX != null ? Math.max(14, altX - r.width) : window.innerWidth - r.width - 14;
+  }
   left = Math.min(Math.max(14, left), window.innerWidth - r.width - 14);
   m.style.left = left + 'px';
   m.style.top = Math.max(10, Math.min(y, window.innerHeight - r.height - 10)) + 'px';
@@ -320,7 +328,7 @@ export function modal({ title, text, buttons, input, body, bodyAfter }) {
     const done = (v) => { ov.remove(); document.removeEventListener('keydown', onKey, true); resolve(v); };
     const row = el('div', { class: 'row' }, buttons.map((b) =>
       el('button', { class: 'btn' + (b.primary ? ' primary' : '') + (b.danger ? ' danger' : '') + (b.aside ? ' aside' : ''), onclick: () => done(inp && b.primary ? inp.value : b.value) }, b.label)));
-    const box = el('div', { class: 'modal', dir: 'rtl' },
+    const box = el('div', { class: 'modal', dir: langDir() },
       el('div', { class: 'm-body' }, el('h3', {}, title), text ? el('p', {}, text) : null, bodyAfter ? inp : (body || null), bodyAfter ? (body || null) : inp), row);
     const ov = el('div', { class: 'overlay' }, box);
     const onKey = (e) => {
@@ -344,7 +352,7 @@ const TOAST_ICON = { ok: ICON.check, info: ICON.info, warn: ICON.warn, err: ICON
 export function toast(msg, ms = 2200, action = null, kind = null) {
   if (typeof ms === 'string') { kind = ms; ms = 2200; }
   document.querySelectorAll('.toast').forEach((t) => t.remove());
-  const t = el('div', { class: 'toast' + (kind ? ' k-' + kind : ''), dir: 'rtl', role: 'status' },
+  const t = el('div', { class: 'toast' + (kind ? ' k-' + kind : ''), dir: langDir(), role: 'status' },
     kind && TOAST_ICON[kind] ? el('span', { class: 'ti', html: TOAST_ICON[kind] }) : null, el('span', { class: 'tm' }, msg));
   const actions = !action ? [] : Array.isArray(action) ? action : [action];
   if (actions.length) t.classList.add('has-action');
@@ -365,7 +373,7 @@ export function saveToast({ title, name, folder, extra = null, actions = [], ms 
   clearTimeout(toastT);
   const bar = el('span', { class: 'st-bar' });
   const close = () => { card.classList.add('out'); setTimeout(() => card.remove(), 160); };
-  const card = el('div', { class: 'toast save-toast', dir: 'rtl', role: 'status' },
+  const card = el('div', { class: 'toast save-toast', dir: langDir(), role: 'status' },
     el('div', { class: 'st-head' },
       el('span', { class: 'st-ic', html: ICON.check }),
       el('div', { class: 'st-txt' },
@@ -373,7 +381,7 @@ export function saveToast({ title, name, folder, extra = null, actions = [], ms 
         el('div', { class: 'st-name', dir: 'auto', title: name }, name),
         folder ? el('div', { class: 'st-folder', title: folder }, el('span', { html: ICON.folder }), el('span', { class: 'st-path' }, '\u200E' + folder + '\u200E')) : null,
         extra ? el('div', { class: 'st-extra' }, extra) : null),
-      el('button', { class: 'st-x', title: 'بستن', 'aria-label': 'بستن', html: ICON.x, onclick: close })),
+      el('button', { class: 'st-x', title: t('common.close'), 'aria-label': t('common.close'), html: ICON.x, onclick: close })),
     el('div', { class: 'st-actions' }, actions.map((a) => {
       const b = el('button', { class: 'st-btn' + (a.primary ? ' primary' : '') }, el('span', { class: 'st-bi', html: a.icon || '' }), el('span', { class: 'st-bl' }, a.label));
       b.addEventListener('click', async () => {
@@ -397,23 +405,22 @@ export function saveToast({ title, name, folder, extra = null, actions = [], ms 
   return card;
 }
 
-const faNum = new Intl.NumberFormat('fa-IR');
-export const fa = (n) => faNum.format(n);
-export const faTime = (t) => new Intl.DateTimeFormat('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(t);
-/** «امروز» / «دیروز» / full date */
-export function faDayRel(t) {
+export const fa = (n) => new Intl.NumberFormat(langLocale()).format(n);
+export const faTime = (ts) => new Intl.DateTimeFormat(langLocale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(ts);
+/** "Today" / "Yesterday" / full date */
+export function faDayRel(ts) {
   const d0 = new Date(); d0.setHours(0, 0, 0, 0);
-  const days = Math.round((d0 - new Date(t).setHours(0, 0, 0, 0)) / 86400000);
-  return days === 0 ? 'امروز' : days === 1 ? 'دیروز' : faDay(t);
+  const days = Math.round((d0 - new Date(ts).setHours(0, 0, 0, 0)) / 86400000);
+  return days === 0 ? t('time.today') : days === 1 ? t('time.yesterday') : faDay(ts);
 }
-export const faClock = (t) => new Intl.DateTimeFormat('fa-IR', { hour: '2-digit', minute: '2-digit' }).format(t);
-export const faDay = (t) => new Intl.DateTimeFormat('fa-IR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).format(t);
+export const faClock = (ts) => new Intl.DateTimeFormat(langLocale(), { hour: '2-digit', minute: '2-digit' }).format(ts);
+export const faDay = (ts) => new Intl.DateTimeFormat(langLocale(), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).format(ts);
 export const basename = (p) => p.split(/[\\/]/).pop();
 export const dirname = (p) => p.replace(/[\\/][^\\/]*$/, '');
-export function relTime(t) {
-  const d = (Date.now() - t) / 1000;
-  if (d < 60) return 'همین الان';
-  if (d < 3600) return `${fa(Math.floor(d / 60))} دقیقه پیش`;
-  if (d < 86400) return `${fa(Math.floor(d / 3600))} ساعت پیش`;
-  return faDay(t);
+export function relTime(ts) {
+  const d = (Date.now() - ts) / 1000;
+  if (d < 60) return t('time.justNow');
+  if (d < 3600) return t('time.minsAgo', { n: fa(Math.floor(d / 60)) });
+  if (d < 86400) return t('time.hoursAgo', { n: fa(Math.floor(d / 3600)) });
+  return faDay(ts);
 }

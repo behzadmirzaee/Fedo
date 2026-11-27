@@ -4,14 +4,16 @@
 // The mark is always part of the schema: turning the extension off only hides the colours and the tools,
 // it never strips the spans from a file.
 import { $markSchema, $remark, $command } from '@milkdown/kit/utils';
+import { t } from './i18n.js';
 
+const swatch = (c, key) => ({ c, get name() { return t(key); } });
 export const TEXT_COLORS = [
-  { c: '#D93A3A', name: 'قرمز' }, { c: '#D9730D', name: 'نارنجی' }, { c: '#B7791F', name: 'زرد تیره' }, { c: '#2F9E5A', name: 'سبز' },
-  { c: '#2F6FDD', name: 'آبی' }, { c: '#8E5BD9', name: 'بنفش' }, { c: '#D6407F', name: 'صورتی' }, { c: '#6E6E78', name: 'خاکستری' },
+  swatch('#D93A3A', 'color.red'), swatch('#D9730D', 'color.orange'), swatch('#B7791F', 'color.darkYellow'), swatch('#2F9E5A', 'color.green'),
+  swatch('#2F6FDD', 'color.blue'), swatch('#8E5BD9', 'color.purple'), swatch('#D6407F', 'color.pink'), swatch('#6E6E78', 'color.gray'),
 ];
 export const BG_COLORS = [
-  { c: '#FFF3B0', name: 'زرد' }, { c: '#FFE6CC', name: 'نارنجی' }, { c: '#D6F5DF', name: 'سبز' },
-  { c: '#DCEBFF', name: 'آبی' }, { c: '#FDE1EC', name: 'صورتی' }, { c: '#ECECF0', name: 'خاکستری' },
+  swatch('#FFF3B0', 'color.yellow'), swatch('#FFE6CC', 'color.orange'), swatch('#D6F5DF', 'color.green'),
+  swatch('#DCEBFF', 'color.blue'), swatch('#FDE1EC', 'color.pink'), swatch('#ECECF0', 'color.gray'),
 ];
 
 const HEX = /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i;

@@ -5,6 +5,7 @@
 import './imgedit.css';
 import { el, ICON, modal, fa } from './ui.js';
 import { emojiPanel } from './emoji.js';
+import { t, langDir } from './i18n.js';
 
 const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const I = {
@@ -29,22 +30,22 @@ const I = {
 };
 
 const COLORS = [
-  ['#1D1D1F', 'مشکی'], ['#FFFFFF', 'سفید'], ['#FF3B30', 'قرمز'], ['#FF9500', 'نارنجی'], ['#FFCC00', 'زرد'],
-  ['#34C759', 'سبز'], ['#32ADE6', 'آبی روشن'], ['#0066DD', 'آبی'], ['#AF52DE', 'بنفش'],
+  ['#1D1D1F', 'color.black'], ['#FFFFFF', 'color.white'], ['#FF3B30', 'color.red'], ['#FF9500', 'color.orange'], ['#FFCC00', 'color.yellow'],
+  ['#34C759', 'color.green'], ['#32ADE6', 'color.lightBlue'], ['#0066DD', 'color.blue'], ['#AF52DE', 'color.purple'],
 ];
 // stroke width on screen, px: a free slider that snaps to these four stops
 const SIZES = [3, 6, 10, 16];
 const SNAP = 0.045;
-const TOOLS = { pen: 'قلم', arrow: 'فلش', marker: 'ماژیک', blur: 'محو کردن', eraser: 'پاک‌کن' };
-const SHAPES = { rect: 'مستطیل', ellipse: 'بیضی', line: 'خط', bubble: 'حباب گفت‌وگو' };
-const MODES = { crop: 'برش', draw: 'رسم', text: 'متن', emoji: 'اموجی', shape: 'شکل' };
-const RATIOS = [['free', 'آزاد', 0], ['orig', 'اصلی', -1], ['1:1', '۱:۱', 1], ['4:3', '۴:۳', 4 / 3], ['16:9', '۱۶:۹', 16 / 9]];
+const TOOLS = { pen: 'imgedit.tool.pen', arrow: 'imgedit.tool.arrow', marker: 'imgedit.tool.marker', blur: 'imgedit.tool.blur', eraser: 'imgedit.tool.eraser' };
+const SHAPES = { rect: 'imgedit.shape.rect', ellipse: 'imgedit.shape.ellipse', line: 'imgedit.shape.line', bubble: 'imgedit.shape.bubble' };
+const MODES = { crop: 'imgedit.mode.crop', draw: 'imgedit.mode.draw', text: 'imgedit.mode.text', emoji: 'imgedit.mode.emoji', shape: 'imgedit.mode.shape' };
+const RATIOS = [['free', 'imgedit.ratio.free', 0], ['orig', 'imgedit.ratio.orig', -1], ['1:1', 'imgedit.ratio.1_1', 1], ['4:3', 'imgedit.ratio.4_3', 4 / 3], ['16:9', 'imgedit.ratio.16_9', 16 / 9]];
 const TIPS = {
-  crop: 'گوشه‌ها را بکشید؛ برش تا «ذخیره» قطعی نمی‌شود',
-  draw: 'روی تصویر بکشید؛ Shift برای خط صاف',
-  text: 'روی تصویر کلیک کنید و بنویسید؛ با کشیدن جابه‌جا کنید',
-  emoji: 'اموجی را انتخاب کنید، بعد با گوشه بزرگ و کوچک کنید',
-  shape: 'روی تصویر بکشید تا شکل ساخته شود',
+  crop: 'imgedit.tip.crop',
+  draw: 'imgedit.tip.draw',
+  text: 'imgedit.tip.text',
+  emoji: 'imgedit.tip.emoji',
+  shape: 'imgedit.tip.shape',
 };
 const MAX_SIDE = 6000; // larger images are scaled down to keep memory in check
 const EMOJI_FONT = '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
@@ -215,8 +216,8 @@ class Editor {
   build() {
     const top = (document.getElementById('topbar') || { getBoundingClientRect: () => ({ bottom: 0 }) }).getBoundingClientRect().bottom;
     const hint = el('div', { class: 'ie-hint', 'aria-hidden': 'true' },
-      ...[['Esc', 'انصراف'], ['Ctrl+Enter', 'ذخیره'], ['Ctrl+Z', 'برگرداندن'], ['Ctrl+Y', 'دوباره']].map(([k, l]) => el('span', {}, el('span', { class: 'ie-k' }, k), l)));
-    this.cv = el('canvas', { class: 'ie-cv', 'aria-label': 'تصویر در حال ویرایش', role: 'img' });
+      ...[['Esc', t('common.cancel')], ['Ctrl+Enter', t('common.save')], ['Ctrl+Z', t('imgedit.undo')], ['Ctrl+Y', t('imgedit.redo')]].map(([k, l]) => el('span', {}, el('span', { class: 'ie-k' }, k), l)));
+    this.cv = el('canvas', { class: 'ie-cv', 'aria-label': t('imgedit.canvasLabel'), role: 'img' });
     this.tip = el('div', { class: 'ie-tip' });
     this.stageBox = el('div', { class: 'ie-stage' }, this.cv);
     this.rows = el('div', { class: 'ie-rows' });
@@ -227,10 +228,10 @@ class Editor {
       b.addEventListener('click', run);
       return b;
     };
-    this.undoBtn = mk('ie-ur off', I.undo, 'برگرداندن', 'برگرداندن آخرین تغییر', 'Ctrl+Z', () => this.undo());
-    this.redoBtn = mk('ie-ur off', I.redo, 'دوباره', 'انجام دوباره‌ی چیزی که برگرداندید', 'Ctrl+Y', () => this.redo());
+    this.undoBtn = mk('ie-ur off', I.undo, t('imgedit.undo'), t('imgedit.undoTip'), 'Ctrl+Z', () => this.undo());
+    this.redoBtn = mk('ie-ur off', I.redo, t('imgedit.redo'), t('imgedit.redoTip'), 'Ctrl+Y', () => this.redo());
     this.modeBtns = {};
-    const modes = el('div', { class: 'ie-modes' }, Object.entries(MODES).map(([id, label]) => (this.modeBtns[id] = mk('', I[id], label, null, null, () => this.setMode(id)))));
+    const modes = el('div', { class: 'ie-modes' }, Object.entries(MODES).map(([id, key]) => (this.modeBtns[id] = mk('', I[id], t(key), null, null, () => this.setMode(id)))));
     const bar = el('div', { class: 'ie-bar' },
       el('div', { class: 'ie-urs' }, this.undoBtn, this.redoBtn),
       el('span', { class: 'ie-sep' }),
@@ -238,14 +239,14 @@ class Editor {
     this.sheet = el('div', { class: 'ie-sheet' }, this.rows, bar);
     // cancel and save sit in their own box under the controls
     const acts = el('div', { class: 'ie-acts' },
-      el('button', { class: 'ie-bt', type: 'button', onclick: () => this.cancel() }, 'انصراف'),
+      el('button', { class: 'ie-bt', type: 'button', onclick: () => this.cancel() }, t('common.cancel')),
       el('span', { class: 'ie-note' }, this.opts.note || ''),
-      el('button', { class: 'ie-bt pr', type: 'button', onclick: () => this.save() }, 'ذخیره'));
-    this.dock = el('div', { class: 'ie-dock', dir: 'rtl' }, this.sheet, acts);
+      el('button', { class: 'ie-bt pr', type: 'button', onclick: () => this.save() }, t('common.save')));
+    this.dock = el('div', { class: 'ie-dock', dir: langDir() }, this.sheet, acts);
     this.colorInput = el('input', { type: 'color', class: 'ie-ci', tabindex: '-1', 'aria-hidden': 'true' });
     this.colorInput.addEventListener('input', () => this.pickColor(this.colorInput.value.toUpperCase(), true));
     this.colorInput.addEventListener('change', () => this.addCustom(this.colorInput.value.toUpperCase()));
-    this.root = el('div', { class: 'ie-root', dir: 'rtl', role: 'dialog', 'aria-label': 'ویرایش تصویر', style: `top:${top}px` }, hint, this.stageBox, this.tip, this.dock, this.colorInput);
+    this.root = el('div', { class: 'ie-root', dir: langDir(), role: 'dialog', 'aria-label': t('imgedit.title'), style: `top:${top}px` }, hint, this.stageBox, this.tip, this.dock, this.colorInput);
     document.body.append(this.root);
     this.cv.addEventListener('pointerdown', (e) => this.down(e));
     this.cv.addEventListener('pointermove', (e) => this.move(e));
@@ -262,7 +263,7 @@ class Editor {
     this.mode = m;
     this.sel = null;
     for (const [id, b] of Object.entries(this.modeBtns)) { b.classList.toggle('on', id === m); b.setAttribute('aria-pressed', String(id === m)); }
-    this.tip.textContent = TIPS[m];
+    this.tip.textContent = t(TIPS[m]);
     this.closePop();
     this.renderRows();
     this.layout();
@@ -270,7 +271,8 @@ class Editor {
 
   swatches() {
     const row = el('div', { class: 'ie-row c' });
-    for (const [hex, name] of COLORS) {
+    for (const [hex, key] of COLORS) {
+      const name = t(key);
       const b = el('button', { class: 'ie-sw' + (this.color === hex ? ' on' : ''), type: 'button', 'aria-label': name, title: name }, el('b', { style: `background:${hex}` }));
       b.addEventListener('click', () => this.pickColor(hex));
       row.append(b);
@@ -278,11 +280,11 @@ class Editor {
     // up to four colours of your own, then the colour wheel that adds one
     if (this.customs.length) row.append(el('span', { class: 'ie-csep' }));
     for (const hex of this.customs) {
-      const b = el('button', { class: 'ie-sw' + (this.color === hex ? ' on' : ''), type: 'button', 'aria-label': 'رنگ دلخواه ' + hex, title: hex }, el('b', { style: `background:${hex}` }));
+      const b = el('button', { class: 'ie-sw' + (this.color === hex ? ' on' : ''), type: 'button', 'aria-label': t('imgedit.customColorAria', { hex }), title: hex }, el('b', { style: `background:${hex}` }));
       b.addEventListener('click', () => this.pickColor(hex));
       row.append(b);
     }
-    const cb = el('button', { class: 'ie-sw cust', type: 'button', 'aria-label': 'افزودن رنگ دلخواه', title: 'افزودن رنگ دلخواه' }, el('b'));
+    const cb = el('button', { class: 'ie-sw cust', type: 'button', 'aria-label': t('imgedit.addCustomColor'), title: t('imgedit.addCustomColor') }, el('b'));
     cb.addEventListener('click', () => { this.colorInput.value = this.color.length === 7 ? this.color : '#FF3B30'; this.colorInput.click(); });
     row.append(cb);
     return row;
@@ -306,33 +308,33 @@ class Editor {
     const lbl = (t) => el('span', { class: 'ie-lbl' }, t);
     const grow = () => el('span', { class: 'grow' });
     if (this.mode === 'crop') {
-      const reset = el('button', { class: 'ie-lnk', type: 'button' }, 'بازنشانی');
+      const reset = el('button', { class: 'ie-lnk', type: 'button' }, t('imgedit.reset'));
       reset.addEventListener('click', () => this.resetAll());
       r.append(el('div', { class: 'ie-row' },
-        this.ib(I.rotate, 'چرخش ۹۰ درجه', false, () => this.rotateCW()),
-        this.ib(I.flip, 'برگرداندن افقی', false, () => this.flipH()),
-        el('span', { class: 'ie-sep' }), lbl('نسبت'),
-        this.seg(RATIOS.map((x) => [x[0], x[1]]), this.ratio, (id) => this.setRatio(id)),
+        this.ib(I.rotate, t('imgedit.rotate90'), false, () => this.rotateCW()),
+        this.ib(I.flip, t('imgedit.flipH'), false, () => this.flipH()),
+        el('span', { class: 'ie-sep' }), lbl(t('imgedit.ratio')),
+        this.seg(RATIOS.map((x) => [x[0], t(x[1])]), this.ratio, (id) => this.setRatio(id)),
         grow(), reset));
     } else if (this.mode === 'draw') {
       if (this.tool === 'blur') {
-        const amt = el('input', { type: 'range', min: '1', max: '10', step: '1', class: 'ie-range', 'aria-label': 'میزان محو', dir: 'rtl' });
+        const amt = el('input', { type: 'range', min: '1', max: '10', step: '1', class: 'ie-range', 'aria-label': t('imgedit.blurAmount'), dir: langDir() });
         amt.value = String(this.blurAmt);
         amt.addEventListener('input', () => { this.blurAmt = Number(amt.value); });
-        r.append(el('div', { class: 'ie-row c' }, lbl('میزان محو'), lbl('کم'), amt, lbl('زیاد')));
+        r.append(el('div', { class: 'ie-row c' }, lbl(t('imgedit.blurAmount')), lbl(t('imgedit.blurLow')), amt, lbl(t('imgedit.blurHigh'))));
       } else if (this.tool !== 'eraser') r.append(this.swatches());
       r.append(el('div', { class: 'ie-row' },
-        ...Object.entries(TOOLS).map(([id, label]) => this.ib(I[id], label, this.tool === id, () => { this.tool = id; this.renderRows(); this.layout(); }, true)),
+        ...Object.entries(TOOLS).map(([id, key]) => this.ib(I[id], t(key), this.tool === id, () => { this.tool = id; this.renderRows(); this.layout(); }, true)),
         grow(), this.sizeSlider()));
     } else if (this.mode === 'text') {
       r.append(this.swatches());
       const fonts = (this.opts.fonts || []).map((f) => [f.id, f.name]);
       r.append(el('div', { class: 'ie-row' },
-        lbl('زمینه'), this.seg([['none', 'بدون'], ['fill', 'پر'], ['soft', 'نیمه‌شفاف']], this.tstyle, (id) => { this.tstyle = id; this.applyToSel({ bg: id }); this.renderRows(); }),
-        fonts.length > 1 ? el('span', { class: 'ie-sep' }) : null, fonts.length > 1 ? lbl('فونت') : null,
+        lbl(t('imgedit.textBg')), this.seg([['none', t('imgedit.textBgNone')], ['fill', t('imgedit.textBgFill')], ['soft', t('imgedit.textBgSoft')]], this.tstyle, (id) => { this.tstyle = id; this.applyToSel({ bg: id }); this.renderRows(); }),
+        fonts.length > 1 ? el('span', { class: 'ie-sep' }) : null, fonts.length > 1 ? lbl(t('imgedit.font')) : null,
         fonts.length > 1 ? this.seg(fonts, this.font, (id) => { this.font = id; document.fonts.load(`700 32px "${id}"`).finally(() => this.paint()); this.applyToSel({ font: id }); this.renderRows(); }) : null));
     } else if (this.mode === 'emoji') {
-      const search = el('button', { class: 'ie-search', type: 'button' }, el('span', { class: 'ic', html: ICON.search }), el('span', {}, 'جستجوی اموجی'));
+      const search = el('button', { class: 'ie-search', type: 'button' }, el('span', { class: 'ic', html: ICON.search }), el('span', {}, t('emoji.searchLabel')));
       search.addEventListener('click', () => this.openEmojiPop(search));
       const pins = (this.opts.emoji ? this.opts.emoji.pins() : []).slice(0, 12);
       r.append(el('div', { class: 'ie-row' }, search, el('span', { class: 'ie-sep' }),
@@ -344,9 +346,9 @@ class Editor {
     } else if (this.mode === 'shape') {
       r.append(this.swatches());
       r.append(el('div', { class: 'ie-row' },
-        ...Object.entries(SHAPES).map(([id, label]) => this.ib(I[id], label, this.shapeKind === id, () => { this.shapeKind = id; this.renderRows(); }, true)),
+        ...Object.entries(SHAPES).map(([id, key]) => this.ib(I[id], t(key), this.shapeKind === id, () => { this.shapeKind = id; this.renderRows(); }, true)),
         el('span', { class: 'ie-sep' }),
-        this.seg([['0', 'توخالی'], ['1', 'توپر']], this.shapeFill ? '1' : '0', (id) => { this.shapeFill = id === '1'; this.applyToSel({ fill: this.shapeFill }); this.renderRows(); })));
+        this.seg([['0', t('imgedit.shapeOutline')], ['1', t('imgedit.shapeFilled')]], this.shapeFill ? '1' : '0', (id) => { this.shapeFill = id === '1'; this.applyToSel({ fill: this.shapeFill }); this.renderRows(); })));
     }
   }
   pickColor(hex, live) {
@@ -365,11 +367,11 @@ class Editor {
   }
   /** the tapered thickness slider: free, but it snaps to the four stops */
   sizeSlider() {
-    const wrap = el('div', { class: 'ie-wedge', title: 'ضخامت' });
+    const wrap = el('div', { class: 'ie-wedge', title: t('imgedit.thickness') });
     wrap.innerHTML = '<svg viewBox="0 0 190 34" aria-hidden="true"><path d="M15 5 L183 14 A3 3 0 0 1 183 20 L15 29 A12 12 0 0 1 15 5Z"/>'
       + [183, 127, 71, 15].map((x) => `<circle cx="${x}" cy="17" r="1.6"/>`).join('') + '</svg>';
     const thumb = el('span', { class: 'th' });
-    const inp = el('input', { type: 'range', min: '0', max: '1000', step: '1', 'aria-label': 'ضخامت', dir: 'rtl' });
+    const inp = el('input', { type: 'range', min: '0', max: '1000', step: '1', 'aria-label': t('imgedit.thickness'), dir: 'rtl' });
     inp.value = String(Math.round(this.size * 1000));
     const place = () => {
       const px = this.sizePx(), d = 8 + (px - 3) * 1.15;
@@ -827,7 +829,7 @@ class Editor {
     if (!existing) this.objs.push(o);
     o._editing = true;
     this.sel = null;
-    const box = el('div', { class: 'ie-tb', contenteditable: 'plaintext-only', spellcheck: 'false', dir: 'auto', role: 'textbox', 'aria-label': 'متن روی تصویر' });
+    const box = el('div', { class: 'ie-tb', contenteditable: 'plaintext-only', spellcheck: 'false', dir: 'auto', role: 'textbox', 'aria-label': t('imgedit.textBoxLabel') });
     box.textContent = o.text;
     box.addEventListener('input', () => { o.text = box.innerText.replace(/\n$/, ''); this.placeTextBox(); });
     this.root.append(box);
@@ -905,9 +907,9 @@ class Editor {
     if (this.textEdit) this.endText();
     if (this.hi > 0) {
       const r = await modal({
-        title: 'تغییرات تصویر دور ریخته شود؟',
-        text: `${fa(this.hi)} تغییر روی این تصویر هنوز ذخیره نشده.`,
-        buttons: [{ label: 'بستن بدون ذخیره', value: 'discard', danger: true, aside: true }, { label: 'ادامه‌ی ویرایش', value: null, primary: true }],
+        title: t('imgedit.discardTitle'),
+        text: t('imgedit.discardText', { n: fa(this.hi) }),
+        buttons: [{ label: t('common.closeWithoutSaving'), value: 'discard', danger: true, aside: true }, { label: t('imgedit.keepEditing'), value: null, primary: true }],
       });
       if (r !== 'discard') return;
     }

@@ -137,8 +137,10 @@ export async function exportDocument({ kind, layout, html, title, baseDir, align
   renderMath(doc);
   await renderMermaidBlocks(doc);
   const fonts = await fontFaces();
+  const plainText = doc.body.textContent || '';
+  const docLang = /[A-Za-z]/.test(plainText) && !/[\u0600-\u06FF]/.test(plainText) ? 'en' : 'fa';
   const page = `<!doctype html>
-<html lang="fa" dir="${baseDir}">
+<html lang="${docLang}" dir="${baseDir}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

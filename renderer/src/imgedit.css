@@ -71,7 +71,7 @@
 .ie-dot.on { background: var(--sel); }
 .ie-dot.on b { background: var(--accent); }
 
-.ie-search { height: 34px; width: 170px; border-radius: 10px; background: var(--ctl) !important; display: flex; align-items: center; gap: 7px; padding: 0 10px !important; color: var(--muted) !important; flex: none; text-align: right; }
+.ie-search { height: 34px; width: 170px; border-radius: 10px; background: var(--ctl) !important; display: flex; align-items: center; gap: 7px; padding: 0 10px !important; color: var(--muted) !important; flex: none; text-align: start; }
 .ie-search svg { width: 16px; height: 16px; }
 .ie-search .ic { display: grid; }
 .ie-emos { display: flex; gap: 2px; }

@@ -98,6 +98,8 @@ contextBridge.exposeInMainWorld('api', {
   onUpdateState: on('update-state'),
   onOpenPath: on('open-path'),
   ready: inv('app:ready'),
+  reloadWindows: inv('app:reload-windows'),
+  onUiLangChanged: on('ui-lang-changed'),
   onRequestClose: on('request-close'),
   onFileChanged: on('file-changed'),
 });
